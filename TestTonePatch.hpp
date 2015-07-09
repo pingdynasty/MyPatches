@@ -17,7 +17,8 @@ public:
   void processAudio(AudioBuffer &buffer) {
     float frequency = getParameterValue(PARAMETER_A) * 10000;
     float amplitude = getParameterValue(PARAMETER_B);
-    FloatArray left = buffer.getSamples(0);
+    FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     float linc = frequency/getSampleRate();
     int size = buffer.getSize();
     for(int n = 0; n<size; n++){
