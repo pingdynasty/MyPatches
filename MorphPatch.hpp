@@ -2,11 +2,16 @@
 #define __MorphPatch_hpp__
 
 #include "StompBox.h"
+
+// #include "SimpleSinePatch.hpp"
+// #include "SineOscPatch.hpp"
+// #define GREEN_PATCH SimpleSinePatch
+// #define RED_PATCH SineOscPatch
 #include "TrickySineOscPatch.hpp"
 #include "SineOscPatch.hpp"
-
 #define GREEN_PATCH SineOscPatch
 #define RED_PATCH TrickySineOscPatch
+
 #define MORPH_PARAMETER PARAMETER_C
 
 /**
@@ -19,7 +24,6 @@ private:
 public:
   MorphPatch(){
     registerParameter(MORPH_PARAMETER, "Morph");
-    // greenBuffer = AudioBuffer::create(2, getBlockSize());
     buf = AudioBuffer::create(2, getBlockSize());
   }
   void processAudio(AudioBuffer &buffer){
