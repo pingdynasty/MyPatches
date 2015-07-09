@@ -4,12 +4,12 @@
 #include "StompBox.h"
 
 /*
- * Digitally controlled oscillator based on the function
+ * Digitally controlled non-linear oscillator based on the function
  * sin(x)^2 + sin(x^2), x=-5.48 to 5.48
  * Left input: pitch
  * Right input: amplitude
+ * Left/right output: tricky wave
  */
-
 class TrickySineOscPatch : public Patch {
 private:
   const float divisor;
@@ -42,10 +42,10 @@ public:
       frequency *= octave;
       float linc = frequency/divisor;
       left[n] = (gain+right[n])*wave(pos);
+      right[n] = -left[n];
       if((pos += linc) > 1.0f)
 	pos -= 2.0f;
     }
-    right.copyFrom(left);
   }
 };
 
