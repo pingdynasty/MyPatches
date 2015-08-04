@@ -31,8 +31,6 @@
 #include "StompBox.h"
 #include "CircularBuffer.hpp"
 
-#define SIMPLE_STEREO_DELAY_REQUEST_BUFFER_SIZE (64*1024)
-
 class PingPongDelayPatch : public Patch {
 private:
   CircularBuffer delayBufferL;
@@ -44,13 +42,12 @@ public:
     registerParameter(PARAMETER_B, "Pong");
     registerParameter(PARAMETER_C, "Feedback");
     registerParameter(PARAMETER_D, "Dry/Wet");
-    AudioBuffer* buffer = createMemoryBuffer(2, SIMPLE_STEREO_DELAY_REQUEST_BUFFER_SIZE);
-    delayBufferL.initialise(buffer->getSamples(0), buffer->getSize());
-    delayBufferR.initialise(buffer->getSamples(1), buffer->getSize());
+    delayBufferL.initialise(FloatArray::create(64*1024));  // 1.36s
+    delayBufferR.initialise(FloatArray::create(128*1024)); // 2.73s
   }
   void processAudio(AudioBuffer &buffer){
-    float ping = 0.05+0.95*getParameterValue(PARAMETER_A);
-    float pong = 0.05+0.95*getParameterValue(PARAMETER_B);
+    float ping = 0.01+0.99*getParameterValue(PARAMETER_A);
+    float pong = 0.01+0.99*getParameterValue(PARAMETER_B);
     float feedback = getParameterValue(PARAMETER_C);
     int newDelayL = ping*(delayBufferL.getSize()-1);
     int newDelayR = pong*(delayBufferR.getSize()-1);
