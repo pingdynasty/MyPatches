@@ -5,9 +5,11 @@
 #include "CircularBuffer.hpp"
 
 /**
- * Short slap back echo with stereo output separation.
+ * Slap Back Echo with stereo output separation.
  * 1 input, 2 output channels.
- * Delay time is adjustable from 17 to 340 milliseconds.
+ * A slap-back or doubling delay produces a single echo, with no feedback.
+ * Delay time is adjustable from 17 to 340 milliseconds. 
+ * Use shorter delay times for doubling effects, longer for slap-back.
  * Set Mix to 0 for dry signal in the left output and echo in the right.
  * Set Mix to 50% for dry and wet (echo) in both channels.
  * Set Mix to 100% for echo in the left channel and dry in the left.
