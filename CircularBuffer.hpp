@@ -3,7 +3,7 @@
 
 #include <string.h> /* for memset */
 
-class CircularBuffer : public FloatArray {
+class CircularBuffer {
 private:
   FloatArray buffer;
   unsigned int writeIndex;
