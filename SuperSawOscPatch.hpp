@@ -35,15 +35,13 @@ public:
     float volts = sample2volts(left[0]);
     float frequency = volts2hz(volts+tune);
     saw.setFrequency(frequency);
-      //    for(int i=0; i<buffer.getSize(); ++i){
-      //      saw.setFrequency(frequency);
-      //      saw.updatePhaseIncrements();
-      //      left[i] = saw.getNextSample();
-      //    }
     saw.getSamples(left);
-    float amp = right[0] - VOLTAGE_OFFSET;
-    amp = gain + amp*amp*0.5;
-    left.scale(amp);
+    for(int i=0; i<buffer.getSize(); ++i){
+      float amp = right[i] - VOLTAGE_OFFSET;
+      amp = gain + amp*amp*0.5;
+      left[i] *= amp;
+      right[i] = -left[i];
+    }
   }
 };
 
