@@ -19,7 +19,7 @@ private:
   AudioBuffer* buf;
 public:
   MorphingOscillatorPatch(){
-    registerParameter(MORPH_PARAMETER, "MorphingOscillator");
+    registerParameter(MORPH_PARAMETER, "Morph");
     buf = AudioBuffer::create(2, getBlockSize());
   }
   void processAudio(AudioBuffer &buffer){

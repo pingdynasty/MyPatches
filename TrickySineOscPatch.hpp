@@ -8,7 +8,7 @@
  * sin(x)^2 + sin(x^2), x=-8.953 to 8.953
  * Left input: pitch
  * Right input: amplitude
- * Left output: tricky wave
+ * Left/right output: tricky wave
  */
 class TrickySineOscPatch : public Patch {
 private:

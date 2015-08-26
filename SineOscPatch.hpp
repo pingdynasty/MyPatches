@@ -4,10 +4,13 @@
 #include "StompBox.h"
 
 /**
- * OWL Modular oscillator patch
- * tracks 1v/octave on left input channel (at block rate) 
- * produces a sine wave on the left output.
+ * OWL Modular oscillator patch.
+ * Tracks 1v/octave on left input channel.
+ * Produces a sine wave on the left and right outputs.
  * 0v dc input generates 440Hz output signal
+ * Left input: pitch
+ * Right input: amplitude
+ * Left/right output: tricky wave
  */
 class SineOscPatch : public Patch {
 private:
@@ -45,6 +48,7 @@ public:
       left[n] = amp*sinf(2*M_PI*pos);
       if((pos += linc) > 1.0f)
 	pos -= 1.0f;
+      right[n] = left[n];
     }
   }
 };
