@@ -1,19 +1,21 @@
+/**
+ * Dual wave multiplier: maps the incoming signal
+ */
 #define WAVEMULTIPLIER_WAVETABLE_SIZE 1024
 #define WAVEMULTIPLIER_MAX_MULT       31
 
 class WaveMultiplierPatch : public Patch {
 private:
   float wave[WAVEMULTIPLIER_WAVETABLE_SIZE];
-  uint16_t lph, rph;
 public:
-  WaveMultiplierPatch() : lph(0), rph(0) {
+  WaveMultiplierPatch() {
     registerParameter(PARAMETER_A, "Multiply L");
     registerParameter(PARAMETER_B, "Multiply R");
     registerParameter(PARAMETER_C, "Gain L");
     registerParameter(PARAMETER_D, "Gain R");
     for(int i=0; i<WAVEMULTIPLIER_WAVETABLE_SIZE; ++i)
-      //wave[i] = 2.0f*i/WAVEMULTIPLIER_WAVETABLE_SIZE - 1.0f;
-      wave[i] = sinf(2.0f*M_PI*i/WAVEMULTIPLIER_WAVETABLE_SIZE);
+      // wave[i] = 2.0f*i/WAVEMULTIPLIER_WAVETABLE_SIZE - 1.0f; // tri
+      wave[i] = sinf(2.0f*M_PI*i/WAVEMULTIPLIER_WAVETABLE_SIZE); // sine
   }
 
   void processAudio(AudioBuffer& buffer){
