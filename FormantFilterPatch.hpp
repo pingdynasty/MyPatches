@@ -6,10 +6,10 @@
 
 class FormantFilterPatch : public Patch {
 private:
-  BiquadFilter* filter1;
-  BiquadFilter* filter2;
-  BiquadFilter* filter3;
-  BiquadFilter* filter4;
+  StereoBiquadFilter* filter1;
+  StereoBiquadFilter* filter2;
+  StereoBiquadFilter* filter3;
+  StereoBiquadFilter* filter4;
   const float qmul;
   const float minf, maxf;
   const float lp;
@@ -23,11 +23,18 @@ public:
     registerParameter(PARAMETER_B, "Formant 2");
     registerParameter(PARAMETER_C, "Formant 3");
     registerParameter(PARAMETER_D, "Gain");
-    filter1 = BiquadFilter::create(1);
-    filter2 = BiquadFilter::create(1);
-    filter3 = BiquadFilter::create(1);
-    filter4 = BiquadFilter::create(1);
+    filter1 = StereoBiquadFilter::create(1);
+    filter2 = StereoBiquadFilter::create(1);
+    filter3 = StereoBiquadFilter::create(1);
+    filter4 = StereoBiquadFilter::create(1);
   }    
+
+  ~FormantFilterPatch(){
+    StereoBiquadFilter::destroy(filter1);
+    StereoBiquadFilter::destroy(filter2);
+    StereoBiquadFilter::destroy(filter3);
+    StereoBiquadFilter::destroy(filter4);
+  }
 
   void processAudio(AudioBuffer &buffer){
     float f1 = getParameterValue(PARAMETER_A)*(maxf-minf)+minf;
@@ -39,11 +46,10 @@ public:
     filter2->setBandPass(f2, f2*qmul);
     filter3->setBandPass(f3, f3*qmul);
     filter4->setLowShelf(lp, gain);
-    FloatArray left = buffer.getSamples(LEFT_CHANNEL);
-    filter1->process(left);
-    filter2->process(left);
-    filter3->process(left);
-    filter4->process(left);
+    filter1->process(buffer);
+    filter2->process(buffer);
+    filter3->process(buffer);
+    filter4->process(buffer);
   }
 };
 
