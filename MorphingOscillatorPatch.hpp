@@ -11,11 +11,12 @@
 #define MORPH_PARAMETER PARAMETER_C
 
 /**
+ * Container patch which morphs between the output of two other patches
  */
 class MorphingOscillatorPatch : public Patch {
 private:
-  A_PATCH green;
-  B_PATCH red;
+  A_PATCH a;
+  B_PATCH b;
   AudioBuffer* buf;
 public:
   MorphingOscillatorPatch(){
@@ -30,8 +31,8 @@ public:
     float morph = getParameterValue(MORPH_PARAMETER);
     l2.copyFrom(l1);
     r2.copyFrom(r1);
-    green.processAudio(*buf);
-    red.processAudio(buffer);
+    a.processAudio(buffer);
+    b.processAudio(*buf);
     int size = buffer.getSize();
     for(int i=0; i<size; ++i){
       l1[i] = l1[i]*(1-morph) + l2[i]*morph;

@@ -30,14 +30,15 @@ private:
     return sx*sx+sinf(x*x);
   }
 public:
-  TrickySineOscPatch() : divisor(getSampleRate()*32) {
+  TrickySineOscPatch() : divisor(getSampleRate()*128) {
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "Octave");
     registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*2.0 - 1.0;
-    float octave = round(getParameterValue(PARAMETER_B)*16)+1;
+    int octave = round(getParameterValue(PARAMETER_B)*10);
+    octave = 1<<octave;
     float gain = getParameterValue(PARAMETER_D);
     gain = gain*gain*0.8;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);

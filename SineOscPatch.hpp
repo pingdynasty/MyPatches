@@ -26,16 +26,17 @@ private:
     return 440.f * powf(2, v);
   }
 public:
-  SineOscPatch(): div(getSampleRate()), pos(0){
+  SineOscPatch(): div(getSampleRate()*64), pos(0){
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "Octave");
     registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*2.0 - 1.0;
-    float octave = round(getParameterValue(PARAMETER_B)*16)+1;
+    int octave = round(getParameterValue(PARAMETER_B)*10);
+    octave = 1<<octave;
     float gain = getParameterValue(PARAMETER_D);
-    gain = gain*gain*0.8;
+    gain = gain*gain;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     for(int n = 0; n<buffer.getSize(); n++){
