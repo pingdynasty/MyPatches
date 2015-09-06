@@ -64,7 +64,7 @@ public:
 	pos = 0;
       }
       int index = pos>>24;
-      if(!playing){
+      if(playing){
 	//	debugMessage("pos/incr/index", pos, incr, index);
 	int tone = patterns[pattern][index];
 	left[i] = volts2sample(v + tone*semitone + pitch);
