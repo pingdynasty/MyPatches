@@ -14,13 +14,14 @@ private:
     Right out: amplitude trigger
   */
 public:
-  float divisor;
-  PizzicatorPatch() {
+  const float maxincr;
+  PizzicatorPatch() :
+    maxincr((1<<20)/(getSampleRate()*(360/60))) {
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Notes");
     registerParameter(PARAMETER_C, "Beats");
     registerParameter(PARAMETER_D, "Tempo");
-    divisor = (1<<20)*getSampleRate()/(360/60);
+    
   }
 
   float sample2volts(float s){
@@ -48,16 +49,16 @@ public:
   void processAudio(AudioBuffer& buffer){
     float pitch = getParameterValue(PARAMETER_A)*2-1;
     int pattern = getParameterValue(PARAMETER_B)*5;
-    float tempo = getParameterValue(PARAMETER_D);
-    incr = (int)(tempo*divisor);
+    incr = (int)(getParameterValue(PARAMETER_D)*maxincr);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     int size = buffer.getSize();
     for(int i=0; i<size; ++i){
       float v = sample2volts(left[i]);
-      if(playing && v < 1.0){
+      float t = sample2volts(right[i]);
+      if(playing && t < 1.0){
 	playing = false;
-      }else if(!playing && v > 1.0){
+      }else if(!playing && t > 1.0){
 	playing = true;
 	pos = 0;
       }
@@ -67,10 +68,10 @@ public:
       }else{
 	left[i] = 0;     
       }
-      if((pos>>19) & 1 == 0)
+      if(pos & (1<<19) == 0)
 	right[i] = 1;
       else
-	right[i] = 0;
+	right[i] = -1;
       pos += incr;
       if(pos > maxpos)
 	pos = 0;
