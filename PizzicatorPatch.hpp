@@ -51,6 +51,7 @@ public:
     float tempo = getParameterValue(PARAMETER_D);
     incr = (int)(tempo*divisor);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     int size = buffer.getSize();
     for(int i=0; i<size; ++i){
       float v = sample2volts(left[i]);
