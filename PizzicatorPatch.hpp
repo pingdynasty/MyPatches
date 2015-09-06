@@ -14,7 +14,7 @@ private:
     Right out: amplitude trigger
   */
 public:
-  const float MAXTEMPO_BPM = 480;
+  const float MAXTEMPO_BPM = 360*4; // 360
   const float maxincr;
   PizzicatorPatch() :
     maxincr((1<<24)/(getSampleRate()/(MAXTEMPO_BPM/60))) {
@@ -43,8 +43,8 @@ public:
   int incr = 0;
   const int maxpos = 7<<24;
 
-  float cent = 0.83; // One cent at 1V/Octave is 0.83 mV
-  float semitone = cent*100;
+  const float cent = 0.83; // One cent at 1V/Octave is 0.83 mV
+  const float semitone = 0.83*100;
 
   void processAudio(AudioBuffer& buffer){
     float pitch = getParameterValue(PARAMETER_A)*2-1;
@@ -63,8 +63,8 @@ public:
 	pos = 0;
       }
       int index = pos>>24;
-      //      if(playing || isButtonPressed(PUSHBUTTON)){
-      //	debugMessage("pos/incr/index", pos, incr, index);
+      //       if(playing || isButtonPressed(PUSHBUTTON)){
+	//debugMessage("pos/incr/index", pos, incr, index);
       if(playing){
 	int tone = patterns[pattern][index];
 	left[i] = volts2sample(v + tone*semitone + pitch);
