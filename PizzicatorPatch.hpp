@@ -14,15 +14,14 @@ private:
     Right out: amplitude trigger
   */
 public:
+  const float MAXTEMPO_BPM = 480;
   const float maxincr;
-  const float MAXTEMPO = 480; // 360;
   PizzicatorPatch() :
-    maxincr((1<<24)/getSampleRate()/(MAXTEMPO/60)) {
+    maxincr((1<<24)/(getSampleRate()/(MAXTEMPO_BPM/60))) {
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Notes");
     registerParameter(PARAMETER_C, "Beats");
-    registerParameter(PARAMETER_D, "Tempo");
-    
+    registerParameter(PARAMETER_D, "Tempo");    
   }
 
   float sample2volts(float s){
@@ -64,14 +63,15 @@ public:
 	pos = 0;
       }
       int index = pos>>24;
+      //      if(playing || isButtonPressed(PUSHBUTTON)){
+      //	debugMessage("pos/incr/index", pos, incr, index);
       if(playing){
-	//	debugMessage("pos/incr/index", pos, incr, index);
 	int tone = patterns[pattern][index];
 	left[i] = volts2sample(v + tone*semitone + pitch);
 	if(pos & (1<<23) == 0)
-	  right[i] = 1;
+	  right[i] = volts2sample(1);
 	else
-	  right[i] = -1;
+	  right[i] = volts2sample(0);
 	pos += incr;
 	if(pos > maxpos)
 	  pos = 0;
