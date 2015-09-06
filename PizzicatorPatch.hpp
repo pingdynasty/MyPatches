@@ -15,8 +15,9 @@ private:
   */
 public:
   const float maxincr;
+  const float MAXTEMPO = 480; // 360;
   PizzicatorPatch() :
-    maxincr((1<<20)/(getSampleRate()*(360/60))) {
+    maxincr((1<<24)/getSampleRate()/(MAXTEMPO/60)) {
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Notes");
     registerParameter(PARAMETER_C, "Beats");
@@ -41,7 +42,7 @@ public:
   float multiplier;
   int pos = 0;
   int incr = 0;
-  const int maxpos = 7<<20;
+  const int maxpos = 7<<24;
 
   float cent = 0.83; // One cent at 1V/Octave is 0.83 mV
   float semitone = cent*100;
@@ -62,19 +63,22 @@ public:
 	playing = true;
 	pos = 0;
       }
-      if(playing){
-	int tone = patterns[pattern][pos>>20];
+      int index = pos>>24;
+      if(!playing){
+	//	debugMessage("pos/incr/index", pos, incr, index);
+	int tone = patterns[pattern][index];
 	left[i] = volts2sample(v + tone*semitone + pitch);
+	if(pos & (1<<23) == 0)
+	  right[i] = 1;
+	else
+	  right[i] = -1;
+	pos += incr;
+	if(pos > maxpos)
+	  pos = 0;
       }else{
-	left[i] = 0;     
+	left[i] = 0;
+	right[i] = 0;
       }
-      if(pos & (1<<19) == 0)
-	right[i] = 1;
-      else
-	right[i] = -1;
-      pos += incr;
-      if(pos > maxpos)
-	pos = 0;
     }
   }
 };
