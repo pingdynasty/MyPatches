@@ -39,12 +39,12 @@ public:
   bool playing = false;
   float basepitch;
   float multiplier;
-  int pos = 0;
-  int incr = 0;
-  const int maxpos = 7<<24;
+  uint32_t pos = 0;
+  const uint32_t maxpos = 7l<<24;
+  uint32_t incr = 0;
 
-  const float cent = 0.83; // One cent at 1V/Octave is 0.83 mV
-  const float semitone = 0.83*100;
+  const float cent = 0.0008333; // One cent at 1V/Octave is 0.83 mV
+  const float semitone = 1/12.0f;
 
   void processAudio(AudioBuffer& buffer){
     float pitch = getParameterValue(PARAMETER_A)*2-1;
@@ -68,10 +68,10 @@ public:
       if(playing){
 	int tone = patterns[pattern][index];
 	left[i] = volts2sample(v + tone*semitone + pitch);
-	if(pos & (1<<23) == 0)
+	if(pos & (1l<<23) == 0)
 	  right[i] = volts2sample(1);
 	else
-	  right[i] = volts2sample(0);
+	  right[i] = volts2sample(-1);
 	pos += incr;
 	if(pos > maxpos)
 	  pos = 0;
