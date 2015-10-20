@@ -5,10 +5,7 @@
 #include "CircularBuffer.hpp"
 
 #define TAP_THRESHOLD     256 // 78Hz at 20kHz sampling rate, or 16th notes at 293BPM
-// #define TRIGGER_LIMIT     262144 // 2^18
 #define TRIGGER_LIMIT     131072 // 2^17
-// (48000*(60/10)) // min tempo 10 bpm (8 beats per second)
- // max tempo 480 bpm (8 beats per second)
 
 class TapTempo {
 private:
