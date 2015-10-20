@@ -5,7 +5,10 @@
 #include "CircularBuffer.hpp"
 
 #define TAP_THRESHOLD     256 // 78Hz at 20kHz sampling rate, or 16th notes at 293BPM
-#define TRIGGER_LIMIT     (48000*(480/60)) // max tempo 480 bpm (8 beats per second)
+// #define TRIGGER_LIMIT     262144 // 2^18
+#define TRIGGER_LIMIT     131072 // 2^17
+// (48000*(60/10)) // min tempo 10 bpm (8 beats per second)
+ // max tempo 480 bpm (8 beats per second)
 
 class TapTempo {
 private:
@@ -74,13 +77,13 @@ private:
   TapTempo tempo;
 public:
   TempoSyncedDelayPatch() : 
-    delayL(0), delayR(0), tempo((TRIGGER_LIMIT/getSampleRate())*120) {
+    delayL(0), delayR(0), tempo(getSampleRate()*60/120) {
     registerParameter(PARAMETER_A, "Time");
     registerParameter(PARAMETER_B, "Feedback");
     registerParameter(PARAMETER_C, "Ratio");
     registerParameter(PARAMETER_D, "Dry/Wet");
-    delayBufferL = CircularBuffer::create(128*1024);  // 2.73s
-    delayBufferR = CircularBuffer::create(64*1024);
+    delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
+    delayBufferR = CircularBuffer::create(TRIGGER_LIMIT/2);
   }
   ~TempoSyncedDelayPatch(){
     CircularBuffer::destroy(delayBufferL);
@@ -98,7 +101,6 @@ public:
     tempo.trigger(isButtonPressed(PUSHBUTTON));
     tempo.setSpeed(speed);
     float time = delayTime(ratio);
-    debugMessage("Time, Ratio ", time, ratios[ratio]);
     int newDelayL = time*(delayBufferL->getSize()-1);
     int newDelayR = time*(delayBufferR->getSize()-1);
     float wet = getParameterValue(PARAMETER_D);
