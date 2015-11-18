@@ -19,7 +19,10 @@ private:
 public:
   SuperSawOscPatch(): div(getSampleRate()) {
     saw.setSampleRate(getSampleRate());
-    registerParameter(PARAMETER_A, "gain");
+    registerParameter(PARAMETER_A, "Tune");
+    registerParameter(PARAMETER_B, "Detune");
+    registerParameter(PARAMETER_C, "Mix");
+    registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer){
     float tune = getParameterValue(PARAMETER_A)*6.0 - 3.0;
