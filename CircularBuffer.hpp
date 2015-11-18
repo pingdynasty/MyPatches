@@ -1,8 +1,6 @@
 #ifndef __CircularBuffer_h__
 #define __CircularBuffer_h__
 
-#include <string.h> /* for memset */
-
 class CircularBuffer {
 private:
   FloatArray buffer;
@@ -12,6 +10,7 @@ public:
   }
   CircularBuffer(float* buf, int size) : buffer(buf, size), writeIndex(0) {
   }
+
   /** 
    * write to the tail of the circular buffer 
    */
@@ -20,30 +19,35 @@ public:
       writeIndex = 0;
     buffer[writeIndex] = value;
   }
+
   /**
    * read the value @param index steps back from the head of the circular buffer
    */
   inline float read(int index){
     return buffer[(writeIndex + (~index)) & (buffer.getSize()-1)];
   }
+
   /**
    * get the value at the head of the circular buffer
    */
   inline float head(){
     return buffer[(writeIndex - 1) & (buffer.getSize()-1)];
   }
+
   /** 
    * get the most recently written value 
    */
   inline float tail(){
     return buffer[(writeIndex) & (buffer.getSize()-1)];
   }
+
   /**
    * get the capacity of the circular buffer
    */
   inline unsigned int getSize(){
     return buffer.getSize();
   }
+
   /**
    * return a value interpolated to a floating point index
    */
