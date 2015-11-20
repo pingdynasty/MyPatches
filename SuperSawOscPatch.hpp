@@ -2,6 +2,7 @@
 #define __SuperSawOscPatch_hpp__
 
 #include "StompBox.h"
+#include "SuperSaw.hpp"
 
 class SuperSawOscPatch : public Patch {
   SuperSaw saw;
