@@ -4,7 +4,6 @@
 #include "StompBox.h"
 #include "CircularBuffer.hpp"
 
-// #define TAP_THRESHOLD     256 // 78Hz at 20kHz sampling rate, or 16th notes at 293BPM
 #define TAP_THRESHOLD     64// 256 // 78Hz at 20kHz sampling rate, or 16th notes at 293BPM
 #define TRIGGER_LIMIT     (1<<17)
 
@@ -19,19 +18,18 @@ public:
     limit(tempo), trig(TRIGGER_LIMIT), 
     speed(2048), ison(false) {}
   void trigger(bool on){
-    /*
-    if(trig < TAP_THRESHOLD)
-      return;
-    */
+    trigger(on, 0);
+  }
+  void trigger(bool on, int delay){
+    // if(trig < TAP_THRESHOLD)
+    //   return;
     if(on && !ison){
       if(trig < TRIGGER_LIMIT){
-	// limit = trig-offset;
-	limit = trig;
+	limit = trig + delay;
       }
       trig = 0;
-      // debugMessage("limit/trig/speed ", limit, trig, speed);
+//      debugMessage("limit/delay", (int)limit, (int)delay);
     }
-    // debugMessage("on/ison/ ", on, ison, on && !ison);
     ison = on;
   }
   void setSpeed(int16_t s){
@@ -55,16 +53,16 @@ public:
   }
 };
 
-static const float ratios[] = { 1.0/4, 
-				1.0/3, 
-				1.0/2, 
-				3.0/4, 
-				1.0, 
-				3.0/2, 
-				2.0,
-				3.0, 
-				4.0 };
 static const int RATIOS_COUNT = 9;
+static const float ratios[RATIOS_COUNT] = { 1.0/4, 
+					    1.0/3, 
+					    1.0/2, 
+					    3.0/4, 
+					    1.0, 
+					    3.0/2, 
+					    2.0,
+					    3.0, 
+					    4.0 };
 
 class TempoSyncedDelayPatch : public Patch {
 private:
@@ -72,7 +70,8 @@ private:
   CircularBuffer* delayBufferR;
   int delayL, delayR;
   TapTempo tempo;
-  StereoBiquadFilter* filter;
+  StereoBiquadFilter* highpass;
+  StereoBiquadFilter* lowpass;
 public:
   TempoSyncedDelayPatch() : 
     delayL(0), delayR(0), tempo(getSampleRate()*60/120) {
@@ -82,13 +81,16 @@ public:
     registerParameter(PARAMETER_D, "Dry/Wet");
     delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
     delayBufferR = CircularBuffer::create(TRIGGER_LIMIT/2);
-    filter = StereoBiquadFilter::create(1);
-    filter->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    highpass = StereoBiquadFilter::create(1);
+    highpass->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q); // dc filter
+    lowpass = StereoBiquadFilter::create(1);
+    lowpass->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
   }
   ~TempoSyncedDelayPatch(){
     CircularBuffer::destroy(delayBufferL);
     CircularBuffer::destroy(delayBufferR);
-    StereoBiquadFilter::destroy(filter);
+    StereoBiquadFilter::destroy(highpass);
+    StereoBiquadFilter::destroy(lowpass);
   }
   float delayTime(int ratio){
     float time = tempo.getPeriod() * ratios[ratio];
@@ -100,29 +102,18 @@ public:
     float feedback = getParameterValue(PARAMETER_B);
     int ratio = (int)(getParameterValue(PARAMETER_C) * RATIOS_COUNT);
     int size = buffer.getSize();
-    if(isButtonPressed(PUSHBUTTON)){
-      uint16_t offset = getProgramVector()->parameters[5];
-      // getProgramVector()->parameters[5] = 0;
-      //      debugMessage("limit/trig/offset ", limit, trig, offset);
-      debugMessage("offset ", offset);
-      tempo.clock(offset);
-      tempo.trigger(true);
-      tempo.clock(size-offset);
-    }else{
-      tempo.trigger(false);
-      tempo.clock(size);
-    }
+    tempo.trigger(isButtonPressed(PUSHBUTTON));
+    //    tempo.trigger(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    tempo.clock(size);
     tempo.setSpeed(speed);
     float time = delayTime(ratio);
-    //     debugMessage("Time, Ratio, tempo ", time, ratios[ratio], 60*getSampleRate()/(tempo.getPeriod()*TRIGGER_LIMIT));
-    //     debugMessage("button push, green, red", isButtonPressed(PUSHBUTTON), isButtonPressed(GREEN_BUTTON), isButtonPressed(RED_BUTTON));
     int newDelayL = time*(delayBufferL->getSize()-1);
     int newDelayR = time*(delayBufferR->getSize()-1);
-    //    debugMessage("delay left/right", newDelayL, newDelayR);
     float wet = getParameterValue(PARAMETER_D);
     float dry = 1.0-wet;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
+    highpass->process(buffer);
     for(int n=0; n<size; n++){
       float x1 = n/(float)size;
       float x0 = 1.0-x1;
@@ -134,7 +125,7 @@ public:
       left[n] = ldly*wet + left[n]*dry;
       right[n] = rdly*wet + right[n]*dry;
     }
-    filter->process(buffer); // low pass filter output
+    lowpass->process(buffer);
     delayL = newDelayL;
     delayR = newDelayR;
   }
