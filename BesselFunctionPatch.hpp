@@ -33,16 +33,16 @@ public:
     int size = buffer.getSize();
     for(int i=0; i<size; i+=4){
       float f = gain*j1f(x);
-      left[i] = f*0.25 + y0*0.75;
-      left[i+1] = f*0.5 + y0*0.5;
-      left[i+2] = f*0.75 + y0*0.25;
-      left[i+3] = f;
+      right[i] = f*0.25 + y0*0.75;
+      right[i+1] = f*0.5 + y0*0.5;
+      right[i+2] = f*0.75 + y0*0.25;
+      right[i+3] = f;
       y0 = f;
       x += rate;
       if(x > range && abs(f) < 0.01)
 	x *= -1;
     }
-    right.multiply(left);
+    left.multiply(right);
   }
 };
 
