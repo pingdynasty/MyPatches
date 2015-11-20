@@ -5,7 +5,8 @@
 
 /*
  * Bessel function of the first kind.
- * Outputs Bessel function J of order 1 on left channel
+ * Outputs Bessel function J of order 1 on left channel.
+ * Right channel is multiplied by the same function.
  * http://mathworld.wolfram.com/BesselFunctionoftheFirstKind.html
  * http://www.boost.org/doc/libs/1_38_0/libs/math/doc/sf_and_dist/html/math_toolkit/special/bessel/bessel.html
  */
@@ -41,6 +42,7 @@ public:
       if(x > range && abs(f) < 0.01)
 	x *= -1;
     }
+    right.multiply(left);
   }
 };
 
