@@ -2,103 +2,67 @@
 #include <stdlib.h>
 class ShepardTonesPatch : public Patch {
 private:
-  const static int DDS_LENGTH = 4096;
-  const static int WIN_LENGTH = 4096;
+  const static int DDS_LENGTH = 1<<14;
+  const static int WIN_LENGTH = 1<<14;
   const static int TONES = 12;
-  const float NYQUIST;
   float acc[TONES];
-  float inc;
+  float inc[TONES];
   Window amp;
   FloatArray sine;
 public:
-  ShepardTonesPatch() : NYQUIST(getSampleRate()/2.0) {
+  ShepardTonesPatch(){
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Range");
-    registerParameter(PARAMETER_C, "Spread");
+    registerParameter(PARAMETER_C, "Tones");
     registerParameter(PARAMETER_D, "Rate");
     sine = FloatArray::create(DDS_LENGTH);
     for(int i=0; i<DDS_LENGTH; ++i)
-      sine[i] = sin(2*M_PI*i/(DDS_LENGTH-1)); // + drand48()/(DDS_LENGTH*2);
-      // todo: DDS class. add 1/2 LSB dither / noise
-    // amp = Window::create(Window::HannWindow, WIN_LENGTH);
-    amp = Window::create(Window::TriangularWindow, WIN_LENGTH);
+      sine[i] = sin(2*M_PI*i/(DDS_LENGTH-1));
+    amp = Window::create(Window::HannWindow, WIN_LENGTH);
     amp.multiply(1.0/TONES);
     for(int i=0; i<TONES; i++)
       acc[i] = 0.0;
-    inc = 0.0;
+    inc[0] = 0.001;
+    for(int i=1; i<TONES; i++)
+      inc[i] = inc[i-1]*2;
   }
   ~ShepardTonesPatch(){
     FloatArray::destroy(sine);
     Window::destroy(amp);
   }
   float getAmplitude(float inc){
-    inc = max(0.0, min(1.0, inc));
-    return amp[inc*(WIN_LENGTH-1)];
+    uint32_t index = inc*(WIN_LENGTH-1);
+    index = min(index, WIN_LENGTH-1);
+    return amp[index];
   }
-  /*
-  uint32_t freqToInc(float hz){
-    //    return (uint32_t)(hz * NYQUIST)/ ((DDS_LENGTH << TRUNCATE)-1);
-    return (uint32_t)((hz / NYQUIST) * DDS_PERIOD);
-    // f = inc * fs / (DDS_LENGTH << TRUNCATE)
-    // todo: interpolating lookup table to convert semitones 0-128 to hz (or direct to phase increments)
-
-      // FOUT = (M (REFCLK)) /2^N
-  }
-  */
   float getWave(float phase){
-    phase = max(0.0, min(1.0, phase));
-    return sine[phase*(DDS_LENGTH-1)];
+    uint32_t index = phase*(DDS_LENGTH-1);
+    index = min(index, WIN_LENGTH-1);
+    return sine[index];
   }
-  /*
-  float getWave(uint32_t phase){
-    phase &= DDS_PERIOD;
-    phase >>= TRUNCATE;
-    ASSERT(phase < DDS_LENGTH, "invalid phase");
-    // phase = max(0, min(DDS_LENGTH-1, phase));
-    return sine[phase];
-    //    return sine[phase >> TRUNCATE];
-  }
-  */
   void processAudio(AudioBuffer& buf){
-    float minf = getParameterValue(PARAMETER_A)*0.2+0.01;
-    float maxf = min(0.4, minf + getParameterValue(PARAMETER_B)*0.2);
-    float spread = getParameterValue(PARAMETER_C);
-    //    float mul = 1.0 + (spread*(maxf-minf));
-    float mul = 1.0 + 2*spread/TONES;
-    float rate = 1.0 + (getParameterValue(PARAMETER_D) - 0.5) * 0.00001;
+    float minf = getParameterValue(PARAMETER_A)*0.1+0.002;
+    float maxf = min(0.4, 2*minf + getParameterValue(PARAMETER_B)*0.2);
+    int tones = getParameterValue(PARAMETER_C)*(TONES-1)+1;
+    float rate = 1.0 + (getParameterValue(PARAMETER_D) - 0.5)*0.00002;
     int size = buf.getSize();
     FloatArray out = buf.getSamples(LEFT_CHANNEL);
+    float amp;
     for(int i=0; i<size; ++i){
-      float tinc = inc;
-      float amp = getAmplitude((tinc-minf)/(maxf-minf));
-      out[i] = amp * getWave(acc[0]);
-      //      debugMessage("tinc/inc", tinc, (tinc-minf)/(maxf-minf));
-      acc[0] += tinc;
-      if(acc[0] > 1.0)
-	acc[0] -= 1.0;
-      for(int t=1; t<TONES; ++t){
-        tinc *= mul;
-        if(tinc > maxf)
-	  tinc = minf;
-	  // tinc = tinc - maxf + minf;
-	//	  tinc = minf*mul;
-	amp = getAmplitude((tinc-minf)/(maxf-minf));
+      for(int t=0; t<tones; ++t){
+	amp = getAmplitude((inc[t]-minf)/(maxf-minf));
 	out[i] += amp * getWave(acc[t]);
-        acc[t] += tinc;
+        acc[t] += inc[t];
 	if(acc[t] > 1.0)
 	  acc[t] -= 1.0;
+	else if(acc[t] < 0.0)
+	  acc[t] += 1.0;
+        inc[t] *= rate;
+        if(inc[t] > maxf)
+	  inc[t] = inc[t] - maxf + minf;
+        else if(inc[t] < minf)
+	  inc[t] = inc[t] - minf + maxf;
       }
-      inc *= rate;
-      /*
-      if(inc > maxf)
-        inc = inc - maxf + minf;
-      if(inc < minf)
-        inc = inc - minf + maxf;
-      */
-      if(inc > maxf)
-        inc = minf;
-      if(inc < minf)
-        inc = maxf;
     }
   }
 };
