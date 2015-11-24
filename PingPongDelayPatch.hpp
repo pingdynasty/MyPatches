@@ -16,7 +16,7 @@ public:
     registerParameter(PARAMETER_C, "Feedback");
     registerParameter(PARAMETER_D, "Dry/Wet");
     delayBufferL = CircularBuffer::create(64*1024);  // 1.36s
-    delayBufferR = CircularBuffer::create(64*1024);
+    delayBufferR = CircularBuffer::create(128*1024); // 2.73s
   }
   ~PingPongDelayPatch(){
     CircularBuffer::destroy(delayBufferL);
