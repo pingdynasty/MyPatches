@@ -46,8 +46,10 @@ public:
     float amp = getParameterValue(PARAMETER_D)*2.0 / fraction;
     int tones = (int)fraction;
     fraction -= tones;
-    FloatArray out = buf.getSamples(LEFT_CHANNEL);
-    inc[0] = volts2hz(sample2volts(out[0]) + freq) * mul;
+    FloatArray left = buf.getSamples(LEFT_CHANNEL);
+    FloatArray right = buf.getSamples(LEFT_CHANNEL);
+    inc[0] = volts2hz(sample2volts(left[0]) + freq) * mul;
+    amp += right[0]-VOLTAGE_OFFSET;
     gain[0] = amp;
     for(int t=1; t<tones; ++t){
       inc[t] = inc[t-1]*spread;
@@ -59,9 +61,9 @@ public:
 	gain[t] = amp;
     }
     for(int i=0; i<buf.getSize(); ++i){
-      out[i] = 0;
+      left[i] = 0;
       for(int t=0; t<tones; ++t){
-	out[i] += gain[t] * getWave(acc[t]);
+	left[i] += gain[t] * getWave(acc[t]);
         acc[t] += inc[t];
 	if(acc[t] > 1.0)
 	  acc[t] -= 1.0;
