@@ -2,34 +2,33 @@
 #define __ADSRPatch_hpp__
 
 #include "StompBox.h"
-#include "Envelope.hpp"
+#include "Envelope.h"
 
 class ADSRPatch : public Patch {
 public:
-  AdsrEnvelope env;
-  FloatArray envBuffer;
-  ADSRPatch() : env(getSampleRate()) {
+  AdsrEnvelope adsr;
+  FloatArray envelope;
+  ADSRPatch() : adsr(getSampleRate()) {
     registerParameter(PARAMETER_A, "Attack");
     registerParameter(PARAMETER_B, "Decay");
     registerParameter(PARAMETER_C, "Sustain");
     registerParameter(PARAMETER_D, "Release");
-    envBuffer = FloatArray::create(getBlockSize());
+    envelope = FloatArray::create(getBlockSize());
   }
   ~ADSRPatch(){
-    FloatArray::destroy(envBuffer);
+    FloatArray::destroy(envelope);
   }
   void processAudio(AudioBuffer &buffer){
-    //    debugMessage("button", isButtonPressed(PUSHBUTTON));
-    env.setAttack(getParameterValue(PARAMETER_A)*4);
-    env.setDecay(getParameterValue(PARAMETER_B)*4);
-    env.setSustain(getParameterValue(PARAMETER_C));
-    env.setRelease(getParameterValue(PARAMETER_D)*4);
-    env.gate(isButtonPressed(PUSHBUTTON));
+    adsr.setAttack(getParameterValue(PARAMETER_A)*4);
+    adsr.setDecay(getParameterValue(PARAMETER_B)*4);
+    adsr.setSustain(getParameterValue(PARAMETER_C));
+    adsr.setRelease(getParameterValue(PARAMETER_D)*4);
+    adsr.gate(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    env.getSamples(envBuffer);
-    left.multiply(envBuffer);
-    right.multiply(envBuffer);
+    adsr.getEnvelope(envelope);
+    left.multiply(envelope);
+    right.multiply(envelope);
   }
 };
 
