@@ -2,25 +2,18 @@
 #define __PolyBlepPatch_hpp__
 
 #include "StompBox.h"
-#include "Envelope.hpp"
+#include "Envelope.h"
+#include "VoltsPerOctave.h"
 #include "oscillator.h"
 using namespace stmlib;
 
 class PolyBlepPatch : public Patch {
 private:
-  const float VOLTAGE_MULTIPLIER = -4.40f;
-  // const float VOLTAGE_OFFSET = 0.028f;
-  const float VOLTAGE_OFFSET = -0.0585f;
   float mul;
-  float sample2volts(float s){
-    return (s-VOLTAGE_OFFSET) * VOLTAGE_MULTIPLIER;
-  }
-  float volts2hz(float v){
-    return 440.f * powf(2, v);
-  }
   AdsrEnvelope env;
   FloatArray envelope;
   Oscillator losc, rosc;
+  VoltsPerOctave hz;
 public:
   PolyBlepPatch() : mul(1.0/getSampleRate()), env(getSampleRate()) {
     registerParameter(PARAMETER_A, "Tune");
@@ -38,7 +31,7 @@ public:
     FloatArray::destroy(envelope);
   }
   void processAudio(AudioBuffer &buffer) {
-    float tune = getParameterValue(PARAMETER_A)*2.0 - 1.0;
+    float tune = getParameterValue(PARAMETER_A)*10.0 - 5.0;
     float shape = getParameterValue(PARAMETER_B)*2;
     float pw = 0.5;
     if(shape > 1.0){
@@ -46,23 +39,21 @@ public:
       shape = 1.0; // square wave
     }
     float c = getParameterValue(PARAMETER_C);
-    if(c < 0.33){
-      env.setAttack(c*3.33*2);
+    if(c < 0.5){
+      env.setAttack((0.25-c*c));
       env.setRelease(0.0);
-    }else if(c < 0.66){
-      env.setAttack((0.66-c)*3.33*2);
-      env.setRelease((c-0.33)*3.33*2);
     }else{
-      env.setAttack((c-0.66)*3.33*2);
-      env.setRelease(2.0);
+      env.setAttack(0.0);
+      env.setRelease((c*c-0.25));
     }
-    env.gate(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    env.trigger(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
     float gain = getParameterValue(PARAMETER_D)*2;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
+    hz.setTune(tune);
+    float lfreq = hz.getFrequency(left[0]) * mul;
+    float rfreq = hz.getFrequency(right[0]) * mul;
     int size = buffer.getSize();
-    float lfreq = volts2hz(sample2volts(left[0]) + tune) * mul;
-    float rfreq = volts2hz(sample2volts(right[0]) + tune) * mul;
     losc.Render<true>(lfreq, pw, shape, left, size);
     rosc.Render<true>(rfreq, pw, shape, right, size);
     env.getEnvelope(envelope);
@@ -70,7 +61,7 @@ public:
       envelope.multiply(gain);
     }else{
       envelope.add(gain-1.0);
-      //      envelope.multiply(1.0/gain); // scale down to avoid clipping
+//      envelope.multiply(1.0/gain); // scale down to avoid clipping
     }
     left.multiply(envelope);
     right.multiply(envelope);
