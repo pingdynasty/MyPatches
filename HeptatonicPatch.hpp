@@ -1,18 +1,16 @@
 #include "StompBox.h"
-
 #include "VoltsPerOctave.h"
 #include "SmoothFloat.hpp"
 
 #define SEMI    (1.0/12)
 #define WHOLE   (2.0/12)
 #define MODES 14
-static const float HEPTATONIC_TONES[2][14] {
+static const float HEPTATONIC_TONES[2][14] = {
   // heptatonic scales
   {WHOLE, WHOLE, SEMI, WHOLE, WHOLE, WHOLE, SEMI, // Major scale
-      WHOLE, WHOLE, SEMI, WHOLE, WHOLE, WHOLE, SEMI,},
-    //  {WHOLE, SEMI, WHOLE, WHOLE, SEMI, WHOLE, WHOLE }, // Natural Minor
-    {WHOLE, SEMI, WHOLE, WHOLE, SEMI, WHOLE+SEMI, SEMI, // Harmonic Minor scale
-	WHOLE, SEMI, WHOLE, WHOLE, SEMI, WHOLE+SEMI, SEMI }
+   WHOLE, WHOLE, SEMI, WHOLE, WHOLE, WHOLE, SEMI,},
+  {WHOLE, SEMI, WHOLE, WHOLE, SEMI, WHOLE+SEMI, SEMI, // Harmonic Minor scale
+   WHOLE, SEMI, WHOLE, WHOLE, SEMI, WHOLE+SEMI, SEMI }
 };
 // The major and natural minor scales share the same set of notes, but start in a different place.
 
