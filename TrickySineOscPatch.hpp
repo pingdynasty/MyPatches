@@ -2,6 +2,7 @@
 #define __TrickySineOscPatch_hpp__
 
 #include "StompBox.h"
+#include "VoltsPerOctave.h"
 
 /*
  * Digitally controlled non-linear oscillator based on the function
@@ -12,47 +13,38 @@
  */
 class TrickySineOscPatch : public Patch {
 private:
-  const float divisor;
+  const float mul;
   float pos = 0.0f;
-  const float VOLTAGE_MULTIPLIER = -4.40f;
-  const float VOLTAGE_OFFSET = -0.0585f;
-  // const float HALFPERIOD = 5.48;
+  VoltsPerOctave hz;
   const float HALFPERIOD = 8.953;
-  float sample2volts(float s){
-    return (s-VOLTAGE_OFFSET) * VOLTAGE_MULTIPLIER;
-  }
-  float volts2hz(float v){
-    return 440.f * powf(2, v);
-  }
   float wave(float x){
     x *= HALFPERIOD;
     float sx = sinf(x);
     return sx*sx+sinf(x*x);
   }
 public:
-  TrickySineOscPatch() : divisor(getSampleRate()*128) {
+  TrickySineOscPatch() : mul(1.0/getSampleRate()) {
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "Octave");
     registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*2.0 - 1.0;
-    int octave = round(getParameterValue(PARAMETER_B)*10);
-    octave = 1<<octave;
+    int octave = round(getParameterValue(PARAMETER_B)*8)-6;
     float gain = getParameterValue(PARAMETER_D);
     gain = gain*gain*0.8;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
+    hz.setTune(tune+octave);
     for(int n = 0; n<buffer.getSize(); n++){
-      float frequency = volts2hz(sample2volts(left[n])+tune);
-      frequency *= octave;
-      float linc = frequency/divisor;
-      float amp = right[n] - VOLTAGE_OFFSET;
+      float frequency = hz.getFrequency(left[n]);
+      float amp = hz.sampleToVolts(right[n]);
       amp = gain + amp*amp*0.5;
       left[n] = amp*wave(pos);
-      if((pos += linc) > 1.0f)
-	pos -= 2.0f;
       right[n] = left[n];
+      pos += frequency*mul;
+      if(pos > 1.0)
+	pos -= 2.0;
     }
   }
 };
