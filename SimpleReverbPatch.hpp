@@ -46,16 +46,16 @@ public:
   SimpleReverbPatch(){
     bzero(lp.comb, sizeof(float) * COMB_SIZE * NUM_COMBS);
     bzero(rp.comb, sizeof(float) * COMB_SIZE * NUM_COMBS);
-    registerParameter(PARAMETER_A, "Colour");
-    registerParameter(PARAMETER_B, "Size");
-    registerParameter(PARAMETER_C, "Decay");
+    registerParameter(PARAMETER_A, "Size");
+    registerParameter(PARAMETER_B, "Decay");
+    registerParameter(PARAMETER_C, "Colour");
     registerParameter(PARAMETER_D, "Dry/Wet");
     buffer = FloatArray::create(getBlockSize());
   }      
   void processAudio(AudioBuffer &audio) {
-    lp.colour = rp.colour = getParameterValue(PARAMETER_A);
-    lp.size = rp.size = getParameterValue(PARAMETER_B);
-    lp.decay = rp.decay = getParameterValue(PARAMETER_C);
+    lp.size = rp.size = getParameterValue(PARAMETER_A);
+    lp.decay = rp.decay = getParameterValue(PARAMETER_B);
+    lp.colour = rp.colour = getParameterValue(PARAMETER_C);
     float wet = getParameterValue(PARAMETER_D);
     float* left = audio.getSamples(LEFT_CHANNEL);
     float* right = audio.getSamples(RIGHT_CHANNEL);
