@@ -20,11 +20,13 @@ OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
+  Ref: https://github.com/gordonjcp/reverb
+
 */
 
 /*
   Ported to the OWL by Martin Klang Feb 2016
-  Ref: https://github.com/gordonjcp/reverb
+  Ref: http://github.com/marsus/MyPatches
 */
 
 #include "StompBox.h"
@@ -37,6 +39,7 @@ THIS SOFTWARE.
 #define SIMPLE_REVERB_NUM_APS 3
 
 namespace SimpleReverb {
+
   typedef struct {
     /* structure for reverb parameters */
     /* controls */
@@ -141,16 +144,17 @@ namespace SimpleReverb {
       params->ap_pos = ap_pos;
     }
   }
-
 }
 
 class SimpleReverbPatch : public Patch {
 private:  
-  SimpleReverb::reverb_t params;
+  SimpleReverb::reverb_t lp;
+  SimpleReverb::reverb_t rp;
   FloatArray buffer;
 public:
   SimpleReverbPatch(){
-    bzero(params.comb, sizeof(float) * SIMPLE_REVERB_COMB_SIZE * SIMPLE_REVERB_NUM_COMBS);
+    bzero(lp.comb, sizeof(float) * SIMPLE_REVERB_COMB_SIZE * SIMPLE_REVERB_NUM_COMBS);
+    bzero(rp.comb, sizeof(float) * SIMPLE_REVERB_COMB_SIZE * SIMPLE_REVERB_NUM_COMBS);
     registerParameter(PARAMETER_A, "Colour");
     registerParameter(PARAMETER_B, "Size");
     registerParameter(PARAMETER_C, "Decay");
@@ -158,16 +162,19 @@ public:
     buffer = FloatArray::create(getBlockSize());
   }      
   void processAudio(AudioBuffer &audio) {
-    params.colour = getParameterValue(PARAMETER_A);
-    params.size = getParameterValue(PARAMETER_B);
-    params.decay = getParameterValue(PARAMETER_C);
+    lp.colour = rp.colour = getParameterValue(PARAMETER_A);
+    lp.size = rp.size = getParameterValue(PARAMETER_B);
+    lp.decay = rp.decay = getParameterValue(PARAMETER_C);
     float wet = getParameterValue(PARAMETER_D);
     float* left = audio.getSamples(LEFT_CHANNEL);
-    // float* right = audio.getSamples(RIGHT_CHANNEL);
+    float* right = audio.getSamples(RIGHT_CHANNEL);
     int size = audio.getSize();
-    reverb(left, buffer, size, &params);
-    for(int i=0; i<size; ++i)
+    reverb(left, buffer, size, &lp);
+    reverb(right, buffer, size, &rp);
+    for(int i=0; i<size; ++i){
       left[i] = buffer[i]*wet + left[i]*(1-wet);
+      right[i] = buffer[i]*wet + right[i]*(1-wet);
+    }
   }
 };
 
