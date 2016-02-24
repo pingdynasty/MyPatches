@@ -580,24 +580,24 @@ public:
   SfxPatch(){
     registerParameter(PARAMETER_A, "Sound");
     registerParameter(PARAMETER_D, "Volume");
-  }      
+  }
   void processAudio(AudioBuffer &buffer) {
     int category = getParameterValue(PARAMETER_A)*10;
-    sound_vol = getParameterValue(PARAMETER_D);
+    SFXR::sound_vol = getParameterValue(PARAMETER_D);
     float* left = buffer.getSamples(LEFT_CHANNEL);
     int size = buffer.getSize();
     if(isButtonPressed(PUSHBUTTON) && !SFXR::playing_sample){
       switch(category){
       case 7:
-	randomize();
+	SFXR::randomize();
 	break;
       case 8:
-	mutate();
+	SFXR::mutate();
 	break;
       case 9:
 	break;
       default:
-	play(category);
+	SFXR::play(category);
       }
       SFXR::PlaySample();
     }
