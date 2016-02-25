@@ -41,7 +41,7 @@ class SimpleReverbPatch : public Patch {
 private:  
   SimpleReverb::reverb_t lp;
   SimpleReverb::reverb_t rp;
-  FloatArray buffer;
+  FloatArray lbuf, rbuf;
 public:
   SimpleReverbPatch(){
     bzero(lp.comb, sizeof(float) * COMB_SIZE * NUM_COMBS);
@@ -50,7 +50,8 @@ public:
     registerParameter(PARAMETER_B, "Decay");
     registerParameter(PARAMETER_C, "Colour");
     registerParameter(PARAMETER_D, "Dry/Wet");
-    buffer = FloatArray::create(getBlockSize());
+    lbuf = FloatArray::create(getBlockSize());
+    rbuf = FloatArray::create(getBlockSize());
   }      
   void processAudio(AudioBuffer &audio) {
     lp.size = rp.size = getParameterValue(PARAMETER_A);
@@ -60,11 +61,11 @@ public:
     float* left = audio.getSamples(LEFT_CHANNEL);
     float* right = audio.getSamples(RIGHT_CHANNEL);
     int size = audio.getSize();
-    reverb(left, buffer, size, &lp);
-    reverb(right, buffer, size, &rp);
+    reverb(left, lbuf, size, &lp);
+    reverb(right, rbuf, size, &rp);
     for(int i=0; i<size; ++i){
-      left[i] = buffer[i]*wet + left[i]*(1-wet);
-      right[i] = buffer[i]*wet + right[i]*(1-wet);
+      left[i] = lbuf[i]*wet + left[i]*(1-wet);
+      right[i] = rbuf[i]*wet + right[i]*(1-wet);
     }
   }
 };
