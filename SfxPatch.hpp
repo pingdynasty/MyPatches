@@ -13,13 +13,15 @@
 
 #include "StompBox.h"
 
-namespace SFXR {
-
 #define rnd(n) (rand()%(n+1))
 
 #ifndef PI
 #define PI 3.14159265f
 #endif
+
+
+class SfxPatch : public Patch {
+private:
 
   float frnd(float range)
   {
@@ -58,8 +60,6 @@ namespace SFXR {
 
   float p_arp_speed;
   float p_arp_mod;
-
-  float master_vol=0.05f;
 
   float sound_vol=0.5f;
 
@@ -332,16 +332,10 @@ namespace SFXR {
 	    // final accumulation and envelope application
 	    ssample+=sample*env_vol;
 	  }
-	ssample=ssample/8*master_vol;
 
-	ssample*=2.0f*sound_vol;
+	ssample*=sound_vol;
 
-	if(buffer!=NULL)
-	  {
-	    if(ssample>1.0f) ssample=1.0f;
-	    if(ssample<-1.0f) ssample=-1.0f;
-	    *buffer++=ssample;
-	  }
+	*buffer++=ssample;
       }
   }
 
@@ -572,10 +566,7 @@ namespace SFXR {
     if(rnd(1)) p_arp_speed+=frnd(0.1f)-0.05f;
     if(rnd(1)) p_arp_mod+=frnd(0.1f)-0.05f;
   }
-}
 
-class SfxPatch : public Patch {
-private:
 public:
   SfxPatch(){
     registerParameter(PARAMETER_A, "Sound");
@@ -583,25 +574,26 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     int category = getParameterValue(PARAMETER_A)*10;
-    SFXR::sound_vol = getParameterValue(PARAMETER_D);
+    sound_vol = getParameterValue(PARAMETER_D)*0.05;
     float* left = buffer.getSamples(LEFT_CHANNEL);
     int size = buffer.getSize();
-    if(isButtonPressed(PUSHBUTTON) && !SFXR::playing_sample){
+    if(isButtonPressed(PUSHBUTTON) && !playing_sample){
       switch(category){
       case 7:
-	SFXR::randomize();
+	randomize();
 	break;
       case 8:
-	SFXR::mutate();
+	mutate();
 	break;
       case 9:
 	break;
       default:
-	SFXR::play(category);
+	play(category);
       }
-      SFXR::PlaySample();
+      PlaySample();
+    }else{
+      SynthSample(size, left);
     }
-    SFXR::SynthSample(size, left);    
   }
 };
 
