@@ -20,12 +20,8 @@
     */
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
-#include "gverbdsp.h"
 #include "gverb.h"
+
 
 ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 		    float revtime,
@@ -34,6 +30,17 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 		    float taillevel)
 {
   ty_gverb *p;
+  p = (ty_gverb *)malloc(sizeof(ty_gverb));
+  gverb_init(p, srate, maxroomsize, roomsize, revtime, damping, spread, inputbandwidth, earlylevel, taillevel);
+  return p;
+}
+
+void gverb_init(ty_gverb *p, int srate, float maxroomsize, float roomsize,
+		float revtime,
+		float damping, float spread,
+		float inputbandwidth, float earlylevel,
+		float taillevel)
+{
   float ga,gb,gt;
   int i,n;
   float r;
@@ -41,7 +48,6 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   int a,b,c,cc,d,dd,e;
   float spread1,spread2;
 
-  p = (ty_gverb *)malloc(sizeof(ty_gverb));
   p->rate = srate;
   p->fdndamping = damping;
   p->maxroomsize = maxroomsize;
@@ -63,14 +69,10 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   /* FDN section */
 
 
-  p->fdndels = (ty_fixeddelay **)calloc(FDNORDER, sizeof(ty_fixeddelay *));
   for(i = 0; i < FDNORDER; i++) {
     p->fdndels[i] = fixeddelay_make((int)p->maxdelay+1000);
   }
-  p->fdngains = (float *)calloc(FDNORDER, sizeof(float));
-  p->fdnlens = (int *)calloc(FDNORDER, sizeof(int));
 
-  p->fdndamps = (ty_damper **)calloc(FDNORDER, sizeof(ty_damper *));
   for(i = 0; i < FDNORDER; i++) {
     p->fdndamps[i] = damper_make(p->fdndamping);
   }
@@ -79,7 +81,7 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   gt = p->revtime;
   ga = powf(10.0f,-ga/20.0f);
   n = p->rate*gt;
-  p->alpha = pow((double)ga, 1.0/(double)n);
+  p->alpha = pow((float)ga, 1.0/(float)n);
 
   gb = 0.0;
   for(i = 0; i < FDNORDER; i++) {
@@ -95,10 +97,6 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 #endif
     p->fdngains[i] = -powf((float)p->alpha,p->fdnlens[i]);
   }
-
-  p->d = (float *)calloc(FDNORDER, sizeof(float));
-  p->u = (float *)calloc(FDNORDER, sizeof(float));
-  p->f = (float *)calloc(FDNORDER, sizeof(float));
 
   /* Diffuser section */
 
@@ -117,7 +115,6 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   dd = d-c;
   e = 1341-d;
 
-  p->ldifs = (ty_diffuser **)calloc(4, sizeof(ty_diffuser *));
   p->ldifs[0] = diffuser_make((int)(diffscale*b),0.75);
   p->ldifs[1] = diffuser_make((int)(diffscale*cc),0.75);
   p->ldifs[2] = diffuser_make((int)(diffscale*dd),0.625);
@@ -134,7 +131,6 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   dd = d-c;
   e = 1341-d;
 
-  p->rdifs = (ty_diffuser **)calloc(4, sizeof(ty_diffuser *));
   p->rdifs[0] = diffuser_make((int)(diffscale*b),0.75);
   p->rdifs[1] = diffuser_make((int)(diffscale*cc),0.75);
   p->rdifs[2] = diffuser_make((int)(diffscale*dd),0.625);
@@ -145,8 +141,8 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   /* Tapped delay section */
 
   p->tapdelay = fixeddelay_make(44000);
-  p->taps = (int *)calloc(FDNORDER, sizeof(int));
-  p->tapgains = (float *)calloc(FDNORDER, sizeof(float));
+  /* p->taps = (int *)calloc(FDNORDER, sizeof(int)); */
+  /* p->tapgains = (float *)calloc(FDNORDER, sizeof(float)); */
 
   p->taps[0] = 5+0.410*p->largestdelay;
   p->taps[1] = 5+0.300*p->largestdelay;
@@ -154,10 +150,8 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   p->taps[3] = 5+0.000*p->largestdelay;
 
   for(i = 0; i < FDNORDER; i++) {
-    p->tapgains[i] = pow(p->alpha,(double)p->taps[i]);
+    p->tapgains[i] = pow(p->alpha,(float)p->taps[i]);
   }
-
-  return(p);
 }
 
 void gverb_free(ty_gverb *p)

@@ -50,7 +50,9 @@ static inline float diffuser_do(ty_diffuser *p, float x)
   w = flush_to_zero(w);
   y = p->buf[p->idx] + w*p->coeff;
   p->buf[p->idx] = w;
-  p->idx = (p->idx + 1) % p->size;
+  /* p->idx = (p->idx + 1) % p->size; */
+  if(++p->idx >= p->size)
+    p->idx = 0;
   return(y);
 }
 

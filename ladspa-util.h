@@ -7,9 +7,7 @@
 #ifndef LADSPA_UTIL_H
 #define LADSPA_UTIL_H
 
-#include <math.h>
-#include <stdint.h>
-#include <string.h>
+#include <basicmaths.h>
 
 #define buffer_write(a, b) a=(b)
 

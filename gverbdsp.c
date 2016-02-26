@@ -21,11 +21,6 @@
 
     */
 
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "gverbdsp.h"
 
 #define TRUE 1

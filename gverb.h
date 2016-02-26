@@ -22,11 +22,7 @@
 #ifndef GVERB_H
 #define GVERB_H
 
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
 #include "gverbdsp.h"
-#include "ladspa-util.h"
 
 #define FDNORDER 4
 
@@ -41,25 +37,26 @@ typedef struct {
   float revtime;
   float maxdelay;
   float largestdelay;
-  ty_fixeddelay **fdndels;
-  float *fdngains;
-  int *fdnlens;
-  ty_damper **fdndamps; 
+  ty_fixeddelay *fdndels[FDNORDER];
+  float fdngains[FDNORDER];
+  int fdnlens[FDNORDER];
+  ty_damper *fdndamps[FDNORDER]; 
   float fdndamping;
-  ty_diffuser **ldifs;
-  ty_diffuser **rdifs;
+  ty_diffuser *ldifs[4];
+  ty_diffuser *rdifs[4];
   ty_fixeddelay *tapdelay;
-  int *taps;
-  float *tapgains;
-  float *d;
-  float *u;
-  float *f;
-  double alpha;
+  int taps[FDNORDER];
+  float tapgains[FDNORDER];
+  float d[FDNORDER];
+  float u[FDNORDER];
+  float f[FDNORDER];
+  float alpha;
 } ty_gverb;
 
 
 ty_gverb *gverb_new(int, float, float, float, float, float, float, float, float);
 void gverb_free(ty_gverb *);
+void gverb_init(ty_gverb* verb, int, float, float, float, float, float, float, float, float);
 void gverb_flush(ty_gverb *);
 static void gverb_do(ty_gverb *, float, float *, float *);
 static void gverb_set_roomsize(ty_gverb *, float);
@@ -108,40 +105,40 @@ static inline void gverb_do(ty_gverb *p, float x, float *yl, float *yr)
   unsigned int i;
   float lsum,rsum,sum,sign;
 
-  if (isnan(x) || fabsf(x) > 100000.0f) {
-    x = 0.0f;
-  }
+  /* if (isnan(x) || fabsf(x) > 100000.0f) { */
+  /*   x = 0.0f; */
+  /* } */
 
   z = damper_do(p->inputdamper, x);
 
   z = diffuser_do(p->ldifs[0],z);
 
-  for(i = 0; i < FDNORDER; i++) {
-    p->u[i] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[i]);
-  }
+  p->u[0] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[0]);
+  p->u[1] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[1]);
+  p->u[2] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[2]);
+  p->u[3] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[3]);
   fixeddelay_write(p->tapdelay,z);
 
-  for(i = 0; i < FDNORDER; i++) {
-    p->d[i] = damper_do(p->fdndamps[i],
-			p->fdngains[i]*fixeddelay_read(p->fdndels[i],
-						       p->fdnlens[i]));
-  }
+  p->d[0] = damper_do(p->fdndamps[0],p->fdngains[0]*fixeddelay_read(p->fdndels[0],p->fdnlens[0]));
+  p->d[1] = damper_do(p->fdndamps[1],p->fdngains[1]*fixeddelay_read(p->fdndels[1],p->fdnlens[1]));
+  p->d[2] = damper_do(p->fdndamps[2],p->fdngains[2]*fixeddelay_read(p->fdndels[2],p->fdnlens[2]));
+  p->d[3] = damper_do(p->fdndamps[3],p->fdngains[3]*fixeddelay_read(p->fdndels[3],p->fdnlens[3]));
 
   sum = 0.0f;
-  sign = 1.0f;
-  for(i = 0; i < FDNORDER; i++) {
-    sum += sign*(p->taillevel*p->d[i] + p->earlylevel*p->u[i]);
-    sign = -sign;
-  }
+  sum += (p->taillevel*p->d[0] + p->earlylevel*p->u[0]);
+  sum += -1*(p->taillevel*p->d[1] + p->earlylevel*p->u[1]);
+  sum += (p->taillevel*p->d[2] + p->earlylevel*p->u[2]);
+  sum += -1*(p->taillevel*p->d[3] + p->earlylevel*p->u[3]);
   sum += x*p->earlylevel;
   lsum = sum;
   rsum = sum;
 
   gverb_fdnmatrix(p->d,p->f);
 
-  for(i = 0; i < FDNORDER; i++) {
-    fixeddelay_write(p->fdndels[i],p->u[i]+p->f[i]);
-  }
+  fixeddelay_write(p->fdndels[0],p->u[0]+p->f[0]);
+  fixeddelay_write(p->fdndels[1],p->u[1]+p->f[1]);
+  fixeddelay_write(p->fdndels[2],p->u[2]+p->f[2]);
+  fixeddelay_write(p->fdndels[3],p->u[3]+p->f[3]);
 
   lsum = diffuser_do(p->ldifs[1],lsum);
   lsum = diffuser_do(p->ldifs[2],lsum);
@@ -187,7 +184,7 @@ static inline void gverb_set_roomsize(ty_gverb *p, const float a)
 static inline void gverb_set_revtime(ty_gverb *p,float a)
 {
   float ga,gt;
-  double n;
+  float n;
   unsigned int i;
 
   p->revtime = a;
@@ -196,7 +193,7 @@ static inline void gverb_set_revtime(ty_gverb *p,float a)
   gt = p->revtime;
   ga = powf(10.0f,-ga/20.0f);
   n = p->rate*gt;
-  p->alpha = (double)powf(ga,1.0f/n);
+  p->alpha = (float)powf(ga,1.0f/n);
 
   for(i = 0; i < FDNORDER; i++) {
     p->fdngains[i] = -powf((float)p->alpha, p->fdnlens[i]);
