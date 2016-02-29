@@ -26,7 +26,7 @@
  * Ref: https://github.com/swh/lv2
  */
 
-// make PATCH_OBJS='../MyPatches/gverb.o ../MyPatches/gverbdsp.o' PATCHNAME=GVerb PATCHSOURCE=../MyPatches/ patch
+// make PATCH_OBJS='gverb.o gverbdsp.o' PATCHNAME=GVerb
 
 #include "StompBox.h"
 
@@ -43,6 +43,7 @@ namespace GVerb {
 class GVerbPatch : public Patch {
 private:
   GVerb::ty_gverb verb;
+  float size;
 public:
   GVerbPatch(){
     registerParameter(PARAMETER_A, "Size");
@@ -50,10 +51,11 @@ public:
     registerParameter(PARAMETER_C, "Damp");
     registerParameter(PARAMETER_D, "Dry/Wet");
     // registerParameter(PARAMETER_E, "Early");
-    GVerb::gverb_init(&verb, getSampleRate(), GVerb::MAX_SIZE, 50.0f, 7.0f, 0.5f, 15.0f, 0.5f, 0.5f, 0.5f);
+    size = 50.0f;
+    GVerb::gverb_init(&verb, getSampleRate(), GVerb::MAX_SIZE, size, 7.0f, 0.5f, 15.0f, 0.5f, 0.5f, 0.5f);
   }      
   void processAudio(AudioBuffer &buffer) {
-    float size = getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE+1.0f;
+    size = 0.9 * size + 0.1 * getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE+1.0f;
     float time = getParameterValue(PARAMETER_B)*30.0f+0.1;
     float damp = getParameterValue(PARAMETER_C);
     float wet = getParameterValue(PARAMETER_D);
@@ -65,11 +67,15 @@ public:
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     float l, r, dry;
-    for(int i=0; i<buffer.getSize(); ++i){
-      GVerb::gverb_do(&verb, left[i], &l, &r);
-      dry = left[i]*(1-wet);
-      left[i] = l*wet + dry;
-      right[i] = r*wet + dry;
+    if(isButtonPressed(PUSHBUTTON)){
+      GVerb::gverb_flush(&verb);
+    }else{
+      for(int i=0; i<buffer.getSize(); ++i){
+	GVerb::gverb_do(&verb, left[i], &l, &r);
+	dry = left[i]*(1-wet);
+	left[i] = l*wet + dry;
+	right[i] = r*wet + dry;
+      }
     }
   }
 };
