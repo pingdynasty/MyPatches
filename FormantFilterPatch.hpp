@@ -41,7 +41,6 @@ public:
     float f2 = getParameterValue(PARAMETER_B)*(maxf-minf)+minf;
     float f3 = getParameterValue(PARAMETER_C)*(maxf-minf)+minf;
     float gain = getParameterValue(PARAMETER_D)*2;
-    debugMessage("f1/f2/qmul", f1, f2, f1*qmul);
     filter1->setBandPass(f1, f1*qmul);
     filter2->setBandPass(f2, f2*qmul);
     filter3->setBandPass(f3, f3*qmul);
