@@ -2,7 +2,7 @@
 
 #include "Envelope.h"
 #include "VoltsPerOctave.h"
-#include "SmoothFloat.hpp"
+#include "SmoothValue.h"
 
 /*
  * Oscillator that generates a cluster of sine waves
@@ -17,6 +17,11 @@ private:
   FloatArray sine;
   VoltsPerOctave hz;
   const float mul;
+  // PatchParameter* freq;
+  // PatchParameter* fraction;
+  // PatchParameter* spread;
+  // PatchParameter* amp;
+  // PatchParameter* portamento;
 public:
   SineStormPatch() :
     mul(1.0/getSampleRate()){
@@ -25,6 +30,27 @@ public:
     registerParameter(PARAMETER_C, "Spread");
     registerParameter(PARAMETER_D, "Amplitude");
     registerParameter(PARAMETER_E, "Portamento");
+
+    // freq = registerParameter(PARAMETER_A, "Pitch", -6.0, 4.0);
+    // fraction = registerParameter(PARAMETER_B, "Tones", 1.0, TONES-1.0);
+    // spread = registerParameter(PARAMETER_C, "Spread", 1.0, 2.0);
+    // amp = registerParameter(PARAMETER_D, "Amplitude", 0.0, 2.0);
+    // portamento = registerParameter(PARAMETER_E, "Portamento", 0.2, 0.02);
+
+//   PatchParameter<float> freq;
+//   PatchParameter<float> fraction;
+//   PatchParameter<float> spread;
+//   PatchParameter<float> amp;
+//   PatchParameter<float> portamento;
+// public:
+//   SineStormPatch() : 
+//     mul(1.0/getSampleRate()),
+//     freq(PARAMETER_A, "Pitch", -6.0, 4.0),
+//     fraction(PARAMETER_B, "Tones", 1.0, TONES-1.0),
+//     spread(PARAMETER_C, "Spread", 1.0, 2.0),
+//     amp(PARAMETER_D, "Amplitude", 0.0, 2.0),
+//     portamento(PARAMETER_E, "Portamento", 0.2, 0.02)
+// {
     sine = FloatArray::create(DDS_LENGTH);
     for(int i=0; i<DDS_LENGTH; ++i)
       sine[i] = sin(2*M_PI*i/(DDS_LENGTH-1));
@@ -49,12 +75,14 @@ public:
     float amp = getParameterValue(PARAMETER_D)*2.0;
     float portamento = getParameterValue(PARAMETER_E)*0.19+0.8;
     int tones = (int)fraction;
+    // int tones = (int)fraction->getValue();
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
     hz.setTune(freq);
     inc[0].lambda = portamento;
     inc[0] = hz.getFrequency(left[0])*mul;
     gain[0] = amp/tones;
+    // debugMessage("fraction/tones/fraction-tones", (float)fraction, (float)tones, (float)fraction-tones);
     for(int t=1; t<tones; ++t){
       inc[t].lambda = portamento;
       inc[t] = inc[t-1]*spread;
