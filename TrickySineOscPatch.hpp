@@ -6,7 +6,7 @@
 
 /*
  * Digitally controlled non-linear oscillator based on the function
- * sin(x)^2 + sin(x^2), x=-8.953 to 8.953
+ * sin(x)^2 + sin(x^2), x=-6.127 to 6.400
  * Left input: pitch
  * Right input: amplitude
  * Left/right output: tricky wave
@@ -16,9 +16,10 @@ private:
   const float mul;
   float pos = 0.0f;
   VoltsPerOctave hz;
-  const float HALFPERIOD = 8.953;
+  const float HALFPERIOD = 6.2635;
+  const float OFFSET = 0.1365;
   float wave(float x){
-    x *= HALFPERIOD;
+    x = x*HALFPERIOD + OFFSET;
     float sx = sinf(x);
     return sx*sx+sinf(x*x);
   }
