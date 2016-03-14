@@ -29,6 +29,7 @@
 // make PATCH_OBJS='gverb.o gverbdsp.o' PATCHNAME=GVerb
 
 #include "StompBox.h"
+#include "SmoothValue.h"
 
 namespace GVerb {
   const static float MAX_SIZE = 300.0f;
@@ -43,7 +44,7 @@ namespace GVerb {
 class GVerbPatch : public Patch {
 private:
   GVerb::ty_gverb verb;
-  float size;
+  SmoothFloat size;
 public:
   GVerbPatch(){
     registerParameter(PARAMETER_A, "Size");
@@ -55,7 +56,7 @@ public:
     GVerb::gverb_init(&verb, getSampleRate(), GVerb::MAX_SIZE, size, 7.0f, 0.5f, 15.0f, 0.5f, 0.5f, 0.5f);
   }      
   void processAudio(AudioBuffer &buffer) {
-    size = 0.9 * size + 0.1 * getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE+1.0f;
+    size = getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE;
     float time = getParameterValue(PARAMETER_B)*30.0f+0.1;
     float damp = getParameterValue(PARAMETER_C);
     float wet = getParameterValue(PARAMETER_D);
