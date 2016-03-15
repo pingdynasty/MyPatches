@@ -25,7 +25,7 @@ public:
     for(int i=0; i<buffer.getSize();){
       uint16_t out = calculate(index, time);
       if(time++ == 65532)
-	time = startpos;
+	time = 0;
       out = ~out;
       uint16_t toplimit = ((out & 0x0f) << 3) + 0x84;
       toplimit <<= ((unsigned)out & 0x70) >> 4;
