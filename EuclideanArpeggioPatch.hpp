@@ -43,7 +43,7 @@ public:
     FloatArray::destroy(envelope);
   }
   void processAudio(AudioBuffer &buffer) {
-    frequency = getParameterValue(PARAMETER_A)*1650+110;
+    frequency = getParameterValue(PARAMETER_A)*1705+55;
     int steps = getParameterValue(PARAMETER_B)*16;
     int fills = getParameterValue(PARAMETER_C)*steps+1;
     int divs = getParameterValue(PARAMETER_D)*12+1;
