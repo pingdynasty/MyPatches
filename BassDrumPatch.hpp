@@ -79,18 +79,17 @@ class DrumVoice : public Oscillator {
 private:
   // AdsrEnvelope* env;
   // FloatArray env;
-  // SineOscillator* sine;
+  SineOscillator* sine;
   ChirpOscillator* chirp;
   ExponentialDecayEnvelope* env;
   float freq;
-  int pos;
 public:
   DrumVoice(float sr){
     // env = new AdsrEnvelope(sr);
     // env = FloatArray::create(1024);
     // for(int i=0; i<env.getSize(); ++i)
     //   env[i] = expf(-M_E*i/env.getSize());
-    // sine = new SineOscillator(sr);
+    sine = new SineOscillator(sr);
     chirp = new ChirpOscillator(sr);
     env = new ExponentialDecayEnvelope();
   }  
@@ -101,12 +100,13 @@ public:
     env->setDecay(d);
   }
   void trigger(){
-    pos = 0;
     env->trigger();
     chirp->setDescending(freq);
+    sine->setFrequency(freq);
   }
   float getNextSample(){
-    return chirp->getNextSample()*env->getNextSample();
+    // return chirp->getNextSample()*env->getNextSample();
+    return sine->getNextSample()*env->getNextSample() + chirp->getNextSample();
   }
 };
 
@@ -129,7 +129,7 @@ public:
     float b = getParameterValue(PARAMETER_B);
     float c = getParameterValue(PARAMETER_C);
     float d = getParameterValue(PARAMETER_D)*2;
-    kick->setDecay(b*0.2+0.79);
+    kick->setDecay(b*0.2+0.799999);
     kick->setFrequency(a*4000+10);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
