@@ -49,7 +49,6 @@ public:
     hz.setTune(tune);
     float lfreq = hz.getFrequency(left[0]);
     float rfreq = hz.getFrequency(right[0]);
-    int size = buffer.getSize();
     losc.setFrequency(lfreq);
     losc.setShape(shape);
     losc.setPulseWidth(pw);
@@ -63,7 +62,6 @@ public:
       envelope.multiply(gain);
     }else{
       envelope.add(gain-1.0);
-//      envelope.multiply(1.0/gain); // scale down to avoid clipping
     }
     left.multiply(envelope);
     right.multiply(envelope);
