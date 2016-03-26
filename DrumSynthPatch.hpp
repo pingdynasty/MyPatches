@@ -22,7 +22,12 @@ public:
     float a = getParameterValue(PARAMETER_A);
     int b = getParameterValue(PARAMETER_B)*127;
     int c = getParameterValue(PARAMETER_C)*127;
-    //    if(isButtonPressed(RED_BUTTON)){
+    if(isButtonPressed(PUSHBUTTON)){
+      voice.startNote(b, c);
+    }else if(isButtonPressed(RED_BUTTON)){
+      voice.stopNote(true);
+    }
+    /*
     if(a > 0.8){
       voice.startNote(b, c);
     }else if(a < 0.1){
@@ -30,6 +35,7 @@ public:
     }else if(a < 0.3){
       voice.stopNote(true);
     }
+    */
     voice.renderNextBlock(buffer);
   }
 };
