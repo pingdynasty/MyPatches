@@ -616,7 +616,7 @@ public:
     //==============================================================================
     void renderNextBlock(AudioBuffer& outputBuffer)
     {
-      float numSamples = outputBuffer.getSize();
+      int numSamples = outputBuffer.getSize();
         if (angleDelta != 0.0 && tpos < Length)
         {
             int t;
