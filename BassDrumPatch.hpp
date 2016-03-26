@@ -46,7 +46,7 @@ public:
     incr = 1+freq*2*M_PI/fs;
   }
   void setDescending(float freq){
-    incr = 1+freq*2*M_PI/fs;
+    incr = 1-freq*2*M_PI/fs;
   }
   float getNextSample(){
     float sample = sinf(phase);
@@ -131,8 +131,8 @@ public:
     float b = getParameterValue(PARAMETER_B);
     float c = getParameterValue(PARAMETER_C);
     float d = getParameterValue(PARAMETER_D)*2;
-    kick->setDecay(b*0.2+0.8);
-    kick->setFrequency(a*1000+10);
+    kick->setDecay(b*0.1+0.9);
+    kick->setFrequency(a*600+10);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
@@ -142,7 +142,8 @@ public:
     }
     kick->getSamples(left);
     left.multiply(d);
-    chirp->setFrequency(a*200);
+    // chirp->setDescending(a*200);
+    chirp->incr = 1-a*0.01;
     chirp->getSamples(right);
     right.multiply(c);
   }
