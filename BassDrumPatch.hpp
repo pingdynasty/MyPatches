@@ -38,21 +38,29 @@ class ChirpOscillator : public Oscillator {
 private:
   const float fs;
   float phase;
-public:
   float incr;
+public:
+  float rate;
   ChirpOscillator(float sr)
     : fs(sr), phase(0.0f), incr(1.0f){}
-  void setAscending(float freq){
-    incr = 1+freq*2*M_PI/fs;
+  void setFrequency(float freq){
+    incr = freq*2*M_PI/fs;
   }
-  void setDescending(float freq){
-    incr = 1-freq*2*M_PI/fs;
+  // void setAscending(float freq){
+  //   incr = 1+freq*2*M_PI/fs;
+  //   phase = 0;
+  // }
+  void setDescending(float r){
+    phase = 0;
+    rate = r;
   }
   float getNextSample(){
     float sample = sinf(phase);
-    phase *= incr;
-    if(phase >= 2*M_PI)
-      phase -= 2*M_PI;
+    phase += incr;
+    incr *= rate;
+    // phase %= 2*M_PI;
+    // if(phase >= 2*M_PI)
+    //   phase -= 2*M_PI;
     return sample;
   }
 };
@@ -98,11 +106,12 @@ public:
   }
   void setDecay(float d){
     env->setDecay(d);
+    chirp->setDescending(d);
   }
   void trigger(){
     env->trigger();
-    chirp->setDescending(freq);
     sine->setFrequency(freq);
+    chirp->setFrequency(freq);
   }
   float getNextSample(){
     // return chirp->getNextSample()*env->getNextSample();
@@ -142,8 +151,8 @@ public:
     }
     kick->getSamples(left);
     left.multiply(d);
-    // chirp->setDescending(a*200);
-    chirp->incr = 1-a*0.01;
+    chirp->setFrequency(a*2000);
+    chirp->setDescending(1-b*0.01);
     chirp->getSamples(right);
     right.multiply(c);
   }
