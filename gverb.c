@@ -21,7 +21,7 @@
 
 
 #include "gverb.h"
-
+#include <string.h>
 
 ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 		    float revtime,
