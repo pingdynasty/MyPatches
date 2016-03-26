@@ -10,7 +10,7 @@
 class EuclideanArpeggioPatch : public Patch {
 private:
   AdsrEnvelope env;
-  PolyBlepOscillator osc[3];
+  PolyBlepOscillator osc[2];
   FloatArray envelope;
   SmoothFloat freq;
   SmoothFloat gain;
@@ -27,7 +27,7 @@ public:
     registerParameter(PARAMETER_B, "Steps");
     registerParameter(PARAMETER_C, "Fills");
     registerParameter(PARAMETER_D, "Divs");
-    for(int i=0; i<3; ++i){
+    for(int i=0; i<2; ++i){
       osc[i].setSampleRate(getSampleRate());
       osc[i].setShape(0.5);
       osc[i].setPulseWidth(0.5);
