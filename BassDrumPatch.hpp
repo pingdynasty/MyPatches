@@ -114,6 +114,7 @@ class BassDrumPatch : public Patch {
 private:
   DrumVoice* kick;
   bool buttonstate = false;
+  ChirpOscillator* chirp;
 public:
   BassDrumPatch(){
     registerParameter(PARAMETER_A, "Tone");
@@ -121,6 +122,7 @@ public:
     registerParameter(PARAMETER_C, "");
     registerParameter(PARAMETER_D, "Level");
     kick = new DrumVoice(getSampleRate());
+    chirp = new ChirpOscillator(getSampleRate());
   }
   ~BassDrumPatch(){
   }
@@ -129,9 +131,10 @@ public:
     float b = getParameterValue(PARAMETER_B);
     float c = getParameterValue(PARAMETER_C);
     float d = getParameterValue(PARAMETER_D)*2;
-    kick->setDecay(b*0.2+0.799999);
-    kick->setFrequency(a*4000+10);
+    kick->setDecay(b*0.2+0.8);
+    kick->setFrequency(a*1000+10);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate)
@@ -139,6 +142,9 @@ public:
     }
     kick->getSamples(left);
     left.multiply(d);
+    chirp->setFrequency(a*200);
+    chirp->getSamples(right);
+    right.multiply(c);
   }
 };
 
