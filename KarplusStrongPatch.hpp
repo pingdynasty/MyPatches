@@ -3,19 +3,20 @@
 
 #include "StompBox.h"
 #include "Oscillator.h"
+#include "CircularBuffer.hpp"
 
 class KarplusStrongOscillator : public Oscillator {
 private:
   FloatArray noise; // whitenoise
-  FloatArray pluck; // output y(n)
+  CircularBuffer* pluck; // output y(n)
   int phase;
   int numSamps;
 public:
-  float duration;
+  int duration;
   float gain; // filter gain/string tension/decay factor
   bool noteOn;
 public:
-  KarplusStrongOscillator(FloatArray nbf, FloatArray pbf){
+  KarplusStrongOscillator(FloatArray nbf, CircularBuffer* pbf){
     noise = nbf;
     pluck = pbf;
     // initalize phase
@@ -31,23 +32,18 @@ public:
   void setWavelength(float f){
     numSamps = min(noise.getSize()-1, max(2, f*noise.getSize()));
   }
-
-  void setDuration(float d){
-    duration = min(pluck.getSize()-1, max(2, d*pluck.getSize()));
-  }
   
   float getNextSample(){
-    float sample;
+    float sample = 0.0f;
     if(noteOn){
       if(phase > (numSamps +  1)){
 	// if we have filled up our delay line, y(n) = gain * (y(n-N) + y( n-(N+1) ))
-	pluck[phase] = gain * ( pluck[phase-numSamps] + pluck[phase - (numSamps + 1)] );
-      // pluck can presumably be replaced with a circular buffer of same length as noise
+	sample = gain * ( pluck->read(numSamps) + pluck->read(numSamps + 1));
       }else{
 	// computing the first N samples, y(n) = x(n)
-	pluck[phase] = noise[phase];
+	sample = noise[phase];
       }
-      sample = pluck[phase];
+      pluck->write(sample);
       if(phase >= duration){
 	// if we have reached the end of our duration
 	phase = 0;
@@ -59,8 +55,15 @@ public:
     return sample;
   }
 
-  static KarplusStrongOscillator* create(int noise, int pluck){
-    KarplusStrongOscillator* kp = new KarplusStrongOscillator(FloatArray::create(noise), FloatArray::create(pluck));
+  static void destroy(KarplusStrongOscillator* kp){
+    FloatArray::destroy(kp->noise);
+    CircularBuffer::destroy(kp->pluck);
+    delete kp;
+  }
+
+  static KarplusStrongOscillator* create(int size){
+    KarplusStrongOscillator* kp = new KarplusStrongOscillator(FloatArray::create(size),
+							      CircularBuffer::create(size));
     // kp.noiseType = KP_NOISETYPE_GAUSSIAN;
 
     //generate white gaussian noise:
@@ -110,22 +113,25 @@ public:
 class KarplusStrongPatch : public Patch {
 private:
   KarplusStrongOscillator* osc;
+  int maxDuration;
 public:
   KarplusStrongPatch(){
     registerParameter(PARAMETER_A, "Freq");
     registerParameter(PARAMETER_B, "Amp");
     registerParameter(PARAMETER_C, "Tension");
     registerParameter(PARAMETER_D, "Duration");
-    osc = KarplusStrongOscillator::create(1500, 1<<16);
+    osc = KarplusStrongOscillator::create(1500);
+    maxDuration = getSampleRate()*3; // 3 seconds
   }
 
   void processAudio(AudioBuffer &buffer){
     float freq = getParameterValue(PARAMETER_A);
+    // float gain = getParameterValue(PARAMETER_C)*(0.5-0.48)+0.48;
     float gain = getParameterValue(PARAMETER_C)*(0.5-0.48)+0.48;
-    float duration = getParameterValue(PARAMETER_D);
+    int duration = getParameterValue(PARAMETER_D)*maxDuration;
     osc->setFrequency(freq);
     osc->gain = gain;
-    osc->setDuration(duration);
+    osc->duration = duration;
     if(isButtonPressed(PUSHBUTTON) && !osc->noteOn)
       osc->noteOn = true;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
