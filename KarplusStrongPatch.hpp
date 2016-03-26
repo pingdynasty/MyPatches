@@ -24,11 +24,11 @@ public:
     noteOn = false;
   }
 
-  // set normalised frequency (0.0 to 1.0 for DC to Nyquist)
   void setFrequency(float f){
     setWavelength(1.0/f);
   }
 
+  // set normalised wavelength
   void setWavelength(float f){
     numSamps = min(noise.getSize()-1, max(2, f*noise.getSize()));
   }
@@ -120,7 +120,7 @@ public:
     registerParameter(PARAMETER_B, "Amp");
     registerParameter(PARAMETER_C, "Tension");
     registerParameter(PARAMETER_D, "Duration");
-    osc = KarplusStrongOscillator::create(1500);
+    osc = KarplusStrongOscillator::create(2048);
     maxDuration = getSampleRate()*3; // 3 seconds
   }
 
@@ -129,7 +129,7 @@ public:
     // float gain = getParameterValue(PARAMETER_C)*(0.5-0.48)+0.48;
     float gain = getParameterValue(PARAMETER_C)*(0.5-0.48)+0.48;
     int duration = getParameterValue(PARAMETER_D)*maxDuration;
-    osc->setFrequency(freq);
+    osc->setWavelength(1.0-freq);
     osc->gain = gain;
     osc->duration = duration;
     if(isButtonPressed(PUSHBUTTON) && !osc->noteOn)
