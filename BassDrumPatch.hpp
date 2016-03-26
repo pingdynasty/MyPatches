@@ -50,7 +50,7 @@ public:
   //   incr = 1+freq*2*M_PI/fs;
   //   phase = 0;
   // }
-  void setDescending(float r){
+  void setRate(float r){
     rate = r;
   }
   void trigger(){
@@ -114,7 +114,7 @@ public:
     sine->setFrequency(freq);
     chirp->setFrequency(freq);
     env->setDecay(decay);
-    chirp->setDescending(decay);
+    chirp->setRate(decay);
     env->trigger();
     chirp->trigger();
   }
@@ -145,7 +145,7 @@ public:
     float b = getParameterValue(PARAMETER_B);
     float c = getParameterValue(PARAMETER_C);
     float d = getParameterValue(PARAMETER_D)*2;
-    kick->setDecay(b*0.1+0.9);
+    kick->setDecay(b*0.02+0.981);
     kick->setFrequency(a*600+10);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
@@ -153,13 +153,13 @@ public:
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate){
 	kick->trigger();
+	chirp->setRate(1-b*0.01);
+	chirp->setFrequency(a*2000);
 	chirp->trigger();
       }
     }
     kick->getSamples(left);
     left.multiply(d);
-    chirp->setFrequency(a*2000);
-    chirp->setDescending(1-b*0.01);
     chirp->getSamples(right);
     right.multiply(c);
   }
