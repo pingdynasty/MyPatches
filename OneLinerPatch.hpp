@@ -7,7 +7,6 @@
 class OneLinerPatch : public Patch {
 private:
   uint32_t time = 0;
-  float previous;
 public:
   OneLinerPatch(){
     registerParameter(PARAMETER_A, "Program");
@@ -16,8 +15,8 @@ public:
     registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer) {
-    uint8_t index = getParameterValue(PARAMETER_A)*66;
-    int rate = 32-getParameterValue(PARAMETER_B)*32;
+    uint8_t index = getParameterValue(PARAMETER_A)*65+1;
+    int rate = 16-getParameterValue(PARAMETER_B)*16;
     uint32_t startpos = getParameterValue(PARAMETER_C)*65000;
     float gain = getParameterValue(PARAMETER_D);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
@@ -26,18 +25,15 @@ public:
     for(int i=0; i<buffer.getSize();){
       uint16_t out = calculate(index, time);
       if(time++ == 65532)
-	time = startpos;
+	time = 0;
       out = ~out;
       uint16_t toplimit = ((out & 0x0f) << 3) + 0x84;
       toplimit <<= ((unsigned)out & 0x70) >> 4;
       toplimit = ((out & 0x80) ? (0x84 - toplimit) : (toplimit - 0x84));
-      float sample = gain * toplimit / 65532.0f - 0.5f;
+      float sample = gain * ((toplimit>>8) / 255.0f) - 0.5f;
       rate = max(1, min(buffer.getSize()-i, rate));
-      for(int n=0; n<rate; ++n){
-	float ratio = (float)n/rate;
-	left[i++] = previous * (1.0-ratio) + sample * ratio;
-      }
-      previous = sample;
+      for(int n=0; n<rate; ++n)
+	left[i++] = sample;
     }
   }
 };

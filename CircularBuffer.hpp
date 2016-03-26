@@ -11,6 +11,11 @@ public:
   CircularBuffer(float* buf, int size) : buffer(buf, size), writeIndex(0) {
   }
 
+  void write(FloatArray samples){
+    for(int i=0; i<samples.getSize(); ++i)
+      write(samples[i]);
+  }
+
   /** 
    * write to the tail of the circular buffer 
    */
@@ -56,7 +61,7 @@ public:
     float low = read(idx);
     float high = read(idx+1);
     float frac = index - idx;
-    return low*frac + high*(1-frac);
+    return low*frac + high*(1.0-frac);
   }
 
   FloatArray getSamples(){
