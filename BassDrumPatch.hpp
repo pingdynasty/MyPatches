@@ -51,8 +51,10 @@ public:
   //   phase = 0;
   // }
   void setDescending(float r){
-    phase = 0;
     rate = r;
+  }
+  void trigger(){
+    phase = 0.0f;
   }
   float getNextSample(){
     float sample = sinf(phase);
@@ -91,6 +93,7 @@ private:
   ChirpOscillator* chirp;
   ExponentialDecayEnvelope* env;
   float freq;
+  float decay;
 public:
   DrumVoice(float sr){
     // env = new AdsrEnvelope(sr);
@@ -105,13 +108,15 @@ public:
     freq = f;
   }
   void setDecay(float d){
-    env->setDecay(d);
-    chirp->setDescending(d);
+    decay = d;
   }
   void trigger(){
-    env->trigger();
     sine->setFrequency(freq);
     chirp->setFrequency(freq);
+    env->setDecay(decay);
+    chirp->setDescending(decay);
+    env->trigger();
+    chirp->trigger();
   }
   float getNextSample(){
     // return chirp->getNextSample()*env->getNextSample();
@@ -146,8 +151,10 @@ public:
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
       buttonstate = isButtonPressed(PUSHBUTTON);
-      if(buttonstate)
+      if(buttonstate){
 	kick->trigger();
+	chirp->trigger();
+      }
     }
     kick->getSamples(left);
     left.multiply(d);
