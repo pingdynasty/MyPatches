@@ -94,9 +94,18 @@ private:
 public:
   ExponentialDecayEnvelope(float sr)
     : fs(sr){}
-  void setDecay(float s){
-    incr = 1 + (s-1)/fs;
+  void setRate(float r){
+    if(r < 0)
+      incr = 1.0f - (1/(1-r))/fs;
+    else
+      incr = 1.0f + r/fs;
   }
+  void setDecay(float d){
+    setRate(-1.0f/d);
+  }
+  // void setDecay(float s){
+  //   incr = 1 + (s-1)/fs;
+  // }
   void trigger(){
     value = 1.0;
   }
@@ -146,8 +155,8 @@ public:
   void trigger(){
     sine->setFrequency(freq);
     chirp->setFrequency(freq);
-    env1->setDecay(decay*2);
-    env2->setDecay(decay);
+    env1->setDecay(decay);
+    env2->setDecay(decay/2);
     chirp->setDecay(decay);
     env1->trigger();
     env2->trigger();
@@ -177,7 +186,7 @@ class BassDrumPatch : public Patch {
 private:
   DrumVoice* kick;
   bool buttonstate = false;
-  // ChirpOscillator* chirp;
+  ChirpOscillator* chirpo;
 public:
   BassDrumPatch(){
     registerParameter(PARAMETER_A, "Tone");
@@ -185,7 +194,7 @@ public:
     registerParameter(PARAMETER_C, "");
     registerParameter(PARAMETER_D, "Level");
     kick = new DrumVoice(getSampleRate());
-    // chirp = new ChirpOscillator(getSampleRate());
+    chirpo = new ChirpOscillator(getSampleRate());
   }
   ~BassDrumPatch(){
   }
@@ -204,15 +213,15 @@ public:
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate){
 	kick->trigger();
-	// chirp->setDecay(b);
-	// chirp->setFrequency(a*2000);
-	// chirp->trigger();
+	chirpo->setDecay(b);
+	chirpo->setFrequency(a*2000);
+	chirpo->trigger();
       }
     }
     kick->getSamples(left);
     left.multiply(d);
-    // chirp->getSamples(right);
-    // right.multiply(e);
+    chirpo->getSamples(right);
+    right.multiply(e);
   }
 };
 
