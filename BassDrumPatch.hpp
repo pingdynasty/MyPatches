@@ -88,11 +88,14 @@ public:
 
 class ExponentialDecayEnvelope {
 private:
+  const float fs;
   float value;
   float incr;
 public:
+  ExponentialDecayEnvelope(float sr)
+    : fs(sr){}
   void setDecay(float s){
-    incr = s*0.005+0.995;
+    incr = 1 + (s-1)/fs;
   }
   void trigger(){
     value = 1.0;
@@ -128,8 +131,8 @@ public:
     sine = new SineOscillator(sr);
     chirp = new ChirpOscillator(sr);
     impulse = new ImpulseOscillator();
-    env1 = new ExponentialDecayEnvelope();
-    env2 = new ExponentialDecayEnvelope();
+    env1 = new ExponentialDecayEnvelope(sr);
+    env2 = new ExponentialDecayEnvelope(sr);
     noise = new PinkNoiseOscillator();
     filter = BiquadFilter::create(1);
   }  
@@ -143,8 +146,8 @@ public:
   void trigger(){
     sine->setFrequency(freq);
     chirp->setFrequency(freq);
-    env1->setDecay(decay);
-    env2->setDecay(decay/2);
+    env1->setDecay(decay*2);
+    env2->setDecay(decay);
     chirp->setDecay(decay);
     env1->trigger();
     env2->trigger();
@@ -158,8 +161,12 @@ public:
     vca1 *= env1->getNextSample();
 
     float vca2 = impulse->getNextSample();
-    vca2 += filter->process(noise->getNextSample());
+    // vca2 += filter->process(noise->getNextSample());
+    // vca2 *= env2->getNextSample();
+    vca2 += noise->getNextSample();
+    vca2 = filter->process(vca2);
     vca2 *= env2->getNextSample();
+    
 
     float sample = vca1*balance + vca2*(1.0-balance);
     return sample;
@@ -170,7 +177,7 @@ class BassDrumPatch : public Patch {
 private:
   DrumVoice* kick;
   bool buttonstate = false;
-  ChirpOscillator* chirp;
+  // ChirpOscillator* chirp;
 public:
   BassDrumPatch(){
     registerParameter(PARAMETER_A, "Tone");
@@ -178,7 +185,7 @@ public:
     registerParameter(PARAMETER_C, "");
     registerParameter(PARAMETER_D, "Level");
     kick = new DrumVoice(getSampleRate());
-    chirp = new ChirpOscillator(getSampleRate());
+    // chirp = new ChirpOscillator(getSampleRate());
   }
   ~BassDrumPatch(){
   }
@@ -197,15 +204,15 @@ public:
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate){
 	kick->trigger();
-	chirp->setDecay(b);
-	chirp->setFrequency(a*2000);
-	chirp->trigger();
+	// chirp->setDecay(b);
+	// chirp->setFrequency(a*2000);
+	// chirp->trigger();
       }
     }
     kick->getSamples(left);
     left.multiply(d);
-    chirp->getSamples(right);
-    right.multiply(e);
+    // chirp->getSamples(right);
+    // right.multiply(e);
   }
 };
 
