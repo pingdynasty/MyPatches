@@ -2,89 +2,12 @@
 #define __BassDrumPatch_hpp__
 
 #include "StompBox.h"
+#include "SmoothValue.h"
 #include "BiquadFilter.h"
 #include "Envelope.h"
 #include "Oscillator.h"
 #include "NoiseOscillator.h"
-
-class SineOscillator : public Oscillator {
-private:
-  const float fs;
-  float phase;
-  float incr;
-public:
-  SineOscillator(float sr)
-    : fs(sr), phase(0.0f), incr(0.0f){}
-  void setFrequency(float freq){
-    incr = freq*2*M_PI/fs;
-  }
-  void setPhase(float ph){
-    phase = ph;
-    while(phase >= 2*M_PI)
-      phase -= 2*M_PI;
-  }
-  float getPhase(){
-    return phase;
-  }
-  float getNextSample(){
-    float sample = sinf(phase);
-    phase += incr;
-    if(phase >= 2*M_PI)
-      phase -= 2*M_PI;
-    return sample;
-  }
-};
-
-class ImpulseOscillator : public Oscillator {
-private:
-  bool triggered = false;
-public:
-  void trigger(){
-    triggered = false;
-  }
-  float getNextSample(){
-    if(triggered)
-      return 0.0f;
-    triggered = true;
-    return 1.0f;
-  }
-};
-
-class ChirpOscillator : public Oscillator {
-private:
-  const float fs;
-  float phase;
-  float incr;
-public:
-  float rate;
-  ChirpOscillator(float sr)
-    : fs(sr), phase(0.0f), incr(1.0f){}
-  void setFrequency(float freq){
-    incr = freq*2*M_PI/fs;
-  }
-  void setRate(float r){
-    // should be: rate 0: 1 (constant), rate -1: 1-0.5/sr (halved in a second), rate 1: 1+1/sr (doubled in a second)
-    if(r < 0)
-      rate = 1.0f - (1/(1-r))/fs;
-    else
-      rate = 1.0f + r/fs;
-  }
-  void setDecay(float d){
-    setRate(-1.0f/d);
-  }
-  void trigger(){
-    phase = 0.0f;
-  }
-  float getNextSample(){
-    float sample = sinf(phase);
-    phase += incr;
-    incr *= rate;
-    // phase %= 2*M_PI;
-    // if(phase >= 2*M_PI)
-    //   phase -= 2*M_PI;
-    return sample;
-  }
-};
+#include "Oscillators.hpp"
 
 class ExponentialDecayEnvelope {
 private:
@@ -96,16 +19,13 @@ public:
     : fs(sr){}
   void setRate(float r){
     if(r < 0)
-      incr = 1.0f - (1/(1-r))/fs;
+      incr = 1.0f - 100*(1/(1-r))/fs;
     else
-      incr = 1.0f + r/fs;
+      incr = 1.0f + 100*r/fs;
   }
   void setDecay(float d){
-    setRate(-1.0f/d);
+    setRate(-(d+1/fs));
   }
-  // void setDecay(float s){
-  //   incr = 1 + (s-1)/fs;
-  // }
   void trigger(){
     value = 1.0;
   }
@@ -129,14 +49,17 @@ private:
   BiquadFilter* filter;
   float freq;
   float decay;
-  float fs;
+  SmoothFloat snare;
+  float balance;
+  const float fs;
 public:
-  DrumVoice(float sr){
-    fs = sr;
+  DrumVoice(float sr) : fs(sr) {
     // env = new AdsrEnvelope(sr);
     // env = FloatArray::create(1024);
     // for(int i=0; i<env.getSize(); ++i)
     //   env[i] = expf(-M_E*i/env.getSize());
+    snare = 0;
+    balance = 0.2;
     sine = new SineOscillator(sr);
     chirp = new ChirpOscillator(sr);
     impulse = new ImpulseOscillator();
@@ -144,40 +67,45 @@ public:
     env2 = new ExponentialDecayEnvelope(sr);
     noise = new PinkNoiseOscillator();
     filter = BiquadFilter::create(1);
+    filter->setLowPass(0.6, FilterStage::BUTTERWORTH_Q);
   }  
   void setFrequency(float f){
     freq = f;
-    filter->setLowPass(f*2/(fs*2), FilterStage::BUTTERWORTH_Q);
+    // filter->setLowPass(f*2/(fs*2), FilterStage::BUTTERWORTH_Q);
   }
   void setDecay(float d){
     decay = d;
   }
+  void setSnap(float s){
+    snare = s;
+    balance = s*0.5;
+    filter->setLowPass(0.25+balance, FilterStage::BUTTERWORTH_Q);
+  }
   void trigger(){
     sine->setFrequency(freq);
-    chirp->setFrequency(freq);
+    chirp->setFrequency(freq*2);
     env1->setDecay(decay);
-    env2->setDecay(decay/2);
+    env2->setDecay(decay*snare*0.5);
     chirp->setDecay(decay);
     env1->trigger();
     env2->trigger();
     chirp->trigger();
     impulse->trigger();
   }
-  float balance;
   float getNextSample(){
     float vca1 = sine->getNextSample();
     vca1 += chirp->getNextSample();
     vca1 *= env1->getNextSample();
 
-    float vca2 = impulse->getNextSample();
+    float vca2 = 0.0f;
+    vca2 += impulse->getNextSample();
     // vca2 += filter->process(noise->getNextSample());
     // vca2 *= env2->getNextSample();
     vca2 += noise->getNextSample();
     vca2 = filter->process(vca2);
     vca2 *= env2->getNextSample();
     
-
-    float sample = vca1*balance + vca2*(1.0-balance);
+    float sample = vca1*(1.0-balance) + vca2*balance;
     return sample;
   }
 };
@@ -186,42 +114,34 @@ class BassDrumPatch : public Patch {
 private:
   DrumVoice* kick;
   bool buttonstate = false;
-  ChirpOscillator* chirpo;
 public:
   BassDrumPatch(){
     registerParameter(PARAMETER_A, "Tone");
     registerParameter(PARAMETER_B, "Decay");
-    registerParameter(PARAMETER_C, "");
+    registerParameter(PARAMETER_C, "Snare");
     registerParameter(PARAMETER_D, "Level");
     kick = new DrumVoice(getSampleRate());
-    chirpo = new ChirpOscillator(getSampleRate());
   }
   ~BassDrumPatch(){
   }
   void processAudio(AudioBuffer& buffer){
-    float a = getParameterValue(PARAMETER_A);
-    float b = getParameterValue(PARAMETER_B);
+    float tone = 20*powf(2, getParameterValue(PARAMETER_A)*4);
+    float decay = getParameterValue(PARAMETER_B)*100;
     float c = getParameterValue(PARAMETER_C);
-    float d = getParameterValue(PARAMETER_D)*2;
-    float e = getParameterValue(PARAMETER_E);
-    kick->setDecay(b);
-    kick->setFrequency(a*600+10);
+    float level = getParameterValue(PARAMETER_D)*2;
+    kick->setDecay(decay);
+    kick->setFrequency(tone);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    kick->balance = c;
+    kick->setSnap(c);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
       buttonstate = isButtonPressed(PUSHBUTTON);
-      if(buttonstate){
+      if(buttonstate)
 	kick->trigger();
-	chirpo->setDecay(b);
-	chirpo->setFrequency(a*2000);
-	chirpo->trigger();
-      }
     }
     kick->getSamples(left);
-    left.multiply(d);
-    chirpo->getSamples(right);
-    right.multiply(e);
+    left.multiply(level);
+    right.copyFrom(left);
   }
 };
 
