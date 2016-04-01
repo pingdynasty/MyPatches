@@ -91,6 +91,7 @@ public:
     filter->setLowPass(fc, q);
     right.copyFrom(left);
     filter->process(right);
+    right.multiply(0.8); // avoid excessive clipping
   }
 };
 
