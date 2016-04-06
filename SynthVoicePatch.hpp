@@ -42,8 +42,8 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
-    float fc = getParameterValue(PARAMETER_B)*10.0 - 6.0;
-    float q = getParameterValue(PARAMETER_C)*3+0.25;
+    float fc = getParameterValue(PARAMETER_B)*10.0 - 4.0;
+    float q = getParameterValue(PARAMETER_C)*3+0.75;
     float shape = getParameterValue(PARAMETER_E)*2;
     float pw = 0.5;
     if(shape > 1.0){
@@ -82,16 +82,16 @@ public:
     osc.setShape(shape);
     osc.setPulseWidth(pw);
     osc.getSamples(left);
-    env.getEnvelope(envelope);
-    envelope.add(gain);
-    left.multiply(envelope);
     hz.setTune(fc);
     fc = hz.getFrequency(right[0]);
     fc = min(0.999, max(0.01, fc/(getSampleRate()*2))); // normalised and bounded
     filter->setLowPass(fc, q);
+    env.getEnvelope(envelope);
+    envelope.add(gain);
+    left.multiply(envelope);
     right.copyFrom(left);
     filter->process(right);
-    right.multiply(0.8); // avoid excessive clipping
+    right.multiply(0.8-q*0.2); // avoid excessive clipping
   }
 };
 
