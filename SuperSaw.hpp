@@ -2,7 +2,7 @@
 #define __SuperSaw_h__
 
 #include "FloatArray.h"
-#include "BiquadFilter.hpp"
+#include "BiquadFilter.h"
 
 /**
  * SuperSaw by Giulio Moro
