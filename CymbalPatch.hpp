@@ -122,7 +122,7 @@ public:
     cymbal[0]->setFmAmount(fm);
     cymbal[1]->setFrequency(tone);
     cymbal[1]->setFilter(filter*0.5);
-    cymbal[1]->setDecay(decay/2);
+    cymbal[1]->setDecay(decay/4);
     cymbal[1]->setFmAmount(fm);
     if(buttonstate != isButtonPressed(PUSHBUTTON)){
       buttonstate = isButtonPressed(PUSHBUTTON);
