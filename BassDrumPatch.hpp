@@ -2,10 +2,8 @@
 #define __BassDrumPatch_hpp__
 
 #include "StompBox.h"
-#include "SmoothValue.h"
 #include "BiquadFilter.h"
 #include "Envelope.h"
-#include "Oscillator.h"
 #include "NoiseOscillator.h"
 #include "Oscillators.hpp"
 
@@ -49,7 +47,7 @@ private:
   BiquadFilter* filter;
   float freq;
   float decay;
-  SmoothFloat snare;
+  float snare;
   float balance;
   const float fs;
 public:
@@ -112,7 +110,7 @@ public:
 
 class BassDrumPatch : public Patch {
 private:
-  DrumVoice* kick;
+  DrumVoice* drum[2];
   bool buttonstate = false;
 public:
   BassDrumPatch(){
@@ -120,7 +118,9 @@ public:
     registerParameter(PARAMETER_B, "Decay");
     registerParameter(PARAMETER_C, "Snare");
     registerParameter(PARAMETER_D, "Level");
-    kick = new DrumVoice(getSampleRate());
+    drum[0] = new DrumVoice(getSampleRate());
+    drum[1] = new DrumVoice(getSampleRate());
+    drum[0]->setSnap(0.2);
   }
   ~BassDrumPatch(){
   }
@@ -129,19 +129,24 @@ public:
     float decay = getParameterValue(PARAMETER_B)*100;
     float c = getParameterValue(PARAMETER_C);
     float level = getParameterValue(PARAMETER_D)*2;
-    kick->setDecay(decay);
-    kick->setFrequency(tone);
+    drum[0]->setDecay(decay);
+    drum[0]->setFrequency(tone);
+    drum[1]->setDecay(decay*2);
+    drum[1]->setFrequency(tone*2);
+    drum[1]->setSnap(c);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    kick->setSnap(c);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
       buttonstate = isButtonPressed(PUSHBUTTON);
-      if(buttonstate)
-	kick->trigger();
+      if(buttonstate){
+	drum[0]->trigger();
+	drum[1]->trigger();
+      }
     }
-    kick->getSamples(left);
+    drum[0]->getSamples(left);
+    drum[1]->getSamples(right);
     left.multiply(level);
-    right.copyFrom(left);
+    right.multiply(level);
   }
 };
 

@@ -2,13 +2,9 @@
 #define __CymbalPatch_hpp__
 
 #include "StompBox.h"
-#include "SmoothValue.h"
 #include "BiquadFilter.h"
 #include "Envelope.h"
-#include "Oscillator.h"
-#include "NoiseOscillator.h"
 #include "Oscillators.hpp"
-#include "ExponentialDecayEnvelope.hpp"
   
 class CymbalVoice : public Oscillator {
 private:
@@ -73,7 +69,7 @@ public:
     osc[2]->setModulatorGain(value*0.4);
   }
   void setDecay(float d){
-    eg[0]->setDecay(d*2);
+    eg[0]->setDecay(d*1.5);
     eg[1]->setDecay(d); 
     eg[1]->setRelease(d); 
  }
@@ -112,17 +108,17 @@ public:
   void processAudio(AudioBuffer& buffer){
     float tone = 60*powf(2, getParameterValue(PARAMETER_A)*6);
     float decay = getParameterValue(PARAMETER_B);
-    float filter = getParameterValue(PARAMETER_C);
+    float fc = getParameterValue(PARAMETER_C)*0.498+0.01;
     float fm = getParameterValue(PARAMETER_D);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     cymbal[0]->setFrequency(tone);
-    cymbal[0]->setFilter(filter*0.5);
+    cymbal[0]->setFilter(fc);
     cymbal[0]->setDecay(decay);
     cymbal[0]->setFmAmount(fm);
     cymbal[1]->setFrequency(tone);
-    cymbal[1]->setFilter(filter*0.5);
-    cymbal[1]->setDecay(decay/4);
+    cymbal[1]->setFilter(fc);
+    cymbal[1]->setDecay(decay/2);
     cymbal[1]->setFmAmount(fm);
     if(buttonstate != isButtonPressed(PUSHBUTTON)){
       buttonstate = isButtonPressed(PUSHBUTTON);
