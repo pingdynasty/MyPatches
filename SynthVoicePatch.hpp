@@ -35,10 +35,10 @@ public:
     env.setRelease(0.0);
     envelope = FloatArray::create(getBlockSize());
     filter = BiquadFilter::create(4); // 8-pole filter 48dB
-    filter->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
   }
   ~SynthVoicePatch(){
     FloatArray::destroy(envelope);
+    BiquadFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
@@ -50,48 +50,52 @@ public:
       pw += 0.49*(shape-1.0); // pw 0.5 to 0.99
       shape = 1.0; // square wave
     }
-    float df = getParameterValue(PARAMETER_D);
-    int di = getParameterValue(PARAMETER_D)*4;
+    float df = getParameterValue(PARAMETER_D)*4;
+    int di = (int)df;
     float gain = 0.0f;
     switch(di){
       // a/d
     case 0: // l/s
-      env.setAttack(1.0-df*4);
+      env.setAttack(1.0-df);
       env.setRelease(0.0);
       break;
     case 1: // s/s
       env.setAttack(0.0);
-      env.setRelease((df-0.25)*4);
+      env.setRelease(df-1);
       break;
     case 2: // s/l
-      env.setAttack((df-0.5)*4);
+      env.setAttack(df-2);
       env.setRelease(1.0);
       break;
     case 3: // l/l
       env.setAttack(1.0);
       env.setRelease(1.0);
-      gain = (df-0.75)*4;
+      gain = df-3;
       break;
     }
     env.trigger(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
+    // vco
     hz.setTune(tune);
     float lfreq = hz.getFrequency(left[0]);
     osc.setFrequency(lfreq);
     osc.setShape(shape);
     osc.setPulseWidth(pw);
     osc.getSamples(left);
+    // vcf
     hz.setTune(fc);
     fc = hz.getFrequency(right[0]);
     fc = min(0.999, max(0.01, fc/(getSampleRate()*2))); // normalised and bounded
     filter->setLowPass(fc, q);
+    right.copyFrom(left);
+    filter->process(right);
+    right.multiply(0.8-q*0.2); // gain compensation for high q
+    // vca
     env.getEnvelope(envelope);
     envelope.add(gain);
     left.multiply(envelope);
-    right.copyFrom(left);
-    filter->process(right);
-    right.multiply(0.8-q*0.2); // avoid excessive clipping
+    right.multiply(envelope);
   }
 };
 
