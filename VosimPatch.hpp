@@ -9,12 +9,12 @@
 class VosimOscillator : public Oscillator {
 private:
   const float fs;
-  Oscillator* formant;
+  SineOscillator* formant;
   // PolyBlepOscillator saw;
   float phase;
   float incr;
 public:
-  VosimOscillator(float samplerate, Oscillator* osc) :
+  VosimOscillator(float samplerate, SineOscillator* osc) :
     fs(samplerate), formant(osc) {}
   void setFrequency(float freq){
     incr = freq/fs;
