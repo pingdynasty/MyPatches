@@ -56,7 +56,7 @@ public:
     osc->setFrequency(lfreq);
     hz.setTune(formant);
     float rfreq = hz.getFrequency(right[0]);
-    sine->setFrequency(lfreq);
+    sine->setFrequency(rfreq);
     osc->getSamples(left);
     left.multiply(gain);
   }
