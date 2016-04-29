@@ -1,5 +1,5 @@
-#ifndef __ExponentialDecayEnvelopePatch_hpp__
-#define __ExponentialDecayEnvelopePatch_hpp__
+#ifndef __ExponentialDecayEnvelope_hpp__
+#define __ExponentialDecayEnvelope_hpp__
 
 class ExponentialDecayEnvelope {
 private:
@@ -28,4 +28,4 @@ public:
   }
 };
 
-#endif   // __ExponentialDecayEnvelopePatch_hpp__
+#endif   // __ExponentialDecayEnvelope_hpp__
