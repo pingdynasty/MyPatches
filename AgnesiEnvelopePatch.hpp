@@ -2,7 +2,6 @@
 #define __AgnesiEnvelopePatch_h__
 
 #include "StompBox.h"
-#include "SmoothValue.h"
 
 /**
  * Envelope generator that produces two different curves:
@@ -13,7 +12,7 @@
  *  y=(8a^3)/(x^2+4a^2), a=-0.5 to 0.5
  * Equivalent to the probability density function of the Cauchy distribution.
  * The cross-section of a single water wave has a shape similar to the Witch of Agnesi.
- * Serpentine curve
+ * Serpentine curve: y = a*b*x / (x^2 + a^2)
  * http://mathworld.wolfram.com/SerpentineCurve.html
 
  * todo: Tractrix curve
@@ -31,7 +30,6 @@ public:
     registerParameter(PARAMETER_C, "Offset");
     envelope = FloatArray::create(getBlockSize());
     x = 0;
-    y = 0;
   }
   float agnesi(float x, float a){
     return (8*a*a*a) / (x*x + 4*a*a);
