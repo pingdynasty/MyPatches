@@ -22,7 +22,7 @@ public:
   }
   void processAudio(AudioBuffer& buffer){
     float tone = 20*powf(2, getParameterValue(PARAMETER_A)*4);
-    float decay = getParameterValue(PARAMETER_B)*100;
+    float decay = getParameterValue(PARAMETER_B);
     float c = getParameterValue(PARAMETER_C);
     float level = getParameterValue(PARAMETER_D)*2;
     drum[0]->setDecay(decay);
