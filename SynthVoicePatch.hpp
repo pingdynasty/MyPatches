@@ -6,7 +6,29 @@
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
+#include "SmoothValue.h"
 
+class TriggerButton {
+private:
+  Envelope* env;
+  bool state;
+public:
+  TriggerButton(Envelope* envelope) : 
+    env(envelope), state(false){}
+  bool trigger(bool isOn, int delay = 0){
+    if(state != isOn && isOn)
+      env->trigger(delay);
+    state = isOn;
+  }
+  void gate(bool isOn, int delay){
+    if(state != isOn){
+      env->gate(isOn, delay);
+      state = isOn;
+    }
+  }
+};
+
+/* todo: quantize A to semitones */
 /*
  * A: Pitch
  * B: Fc exp
@@ -19,10 +41,12 @@
 class SynthVoicePatch : public Patch {
 private:
   AdsrEnvelope env;
+  TriggerButton* button;
   FloatArray envelope;
   PolyBlepOscillator osc;
   VoltsPerOctave hz;
   BiquadFilter* filter;
+  SmoothFloat tune, fc, q;
 public:
   SynthVoicePatch() : osc(getSampleRate()), env(getSampleRate()) {
     registerParameter(PARAMETER_A, "Pitch");
@@ -35,15 +59,16 @@ public:
     env.setRelease(0.0);
     envelope = FloatArray::create(getBlockSize());
     filter = BiquadFilter::create(4); // 8-pole filter 48dB
+    button = new TriggerButton(&env);
   }
   ~SynthVoicePatch(){
     FloatArray::destroy(envelope);
     BiquadFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer) {
-    float tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
-    float fc = getParameterValue(PARAMETER_B)*10.0 - 4.0;
-    float q = getParameterValue(PARAMETER_C)*3+0.75;
+    tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
+    float cutoff = getParameterValue(PARAMETER_B)*10.0 - 4.0;
+    q = getParameterValue(PARAMETER_C)*3+0.75;
     float shape = getParameterValue(PARAMETER_E)*2;
     float pw = 0.5;
     if(shape > 1.0){
@@ -73,20 +98,22 @@ public:
       gain = df-3;
       break;
     }
-    env.trigger(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    button->gate(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    // if(button.gate(isButtonPressed(PUSHBUTTON))
+    //    env.trigger(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     // vco
     hz.setTune(tune);
-    float lfreq = hz.getFrequency(left[0]);
-    osc.setFrequency(lfreq);
+    float freq = hz.getFrequency(left[0]);
+    osc.setFrequency(freq);
     osc.setShape(shape);
     osc.setPulseWidth(pw);
     osc.getSamples(left);
     // vcf
-    hz.setTune(fc);
-    fc = hz.getFrequency(right[0]);
-    fc = min(0.999, max(0.01, fc/(getSampleRate()*2))); // normalised and bounded
+    hz.setTune(cutoff);
+    cutoff = hz.getFrequency(right[0]);
+    fc = min(0.999, max(0.01, cutoff/(getSampleRate()*2))); // normalised and bounded
     filter->setLowPass(fc, q);
     right.copyFrom(left);
     filter->process(right);
