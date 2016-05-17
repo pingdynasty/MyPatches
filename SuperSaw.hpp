@@ -1,6 +1,7 @@
 #ifndef __SuperSaw_h__
 #define __SuperSaw_h__
 
+#include "Oscillator.h"
 #include "FloatArray.h"
 #include "BiquadFilter.h"
 
@@ -15,7 +16,7 @@
  * Main reference is <a href="https://www.nada.kth.se/utbildning/grukth/exjobb/rapportlistor/2010/rapporter10/szabo_adam_10131.pdf">https://www.nada.kth.se/utbildning/grukth/exjobb/rapportlistor/2010/rapporter10/szabo_adam_10131.pdf</a>
  */
 
-class SuperSaw{
+class SuperSaw : public Oscillator {
 private:
   enum lastCalls {
     kNone,
