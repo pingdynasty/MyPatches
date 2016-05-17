@@ -50,8 +50,10 @@ private:
   float snare;
   float balance;
   const float fs;
+  float gain;
+  float accent;
 public:
-  BassDrumVoice(float sr) : fs(sr) {
+  BassDrumVoice(float sr) : fs(sr), gain(0.0), accent(0.0) {
     // env = new AdsrEnvelope(sr);
     // env = FloatArray::create(1024);
     // for(int i=0; i<env.getSize(); ++i)
@@ -79,6 +81,9 @@ public:
     balance = s*0.5;
     filter->setLowPass(0.25+balance, FilterStage::BUTTERWORTH_Q);
   }
+  void setAccent(float amount){
+    accent = amount;
+  }
   void trigger(bool state, int delay){
     sine->setFrequency(freq);
     chirp->setFrequency(freq*2);
@@ -89,22 +94,21 @@ public:
     env2->trigger();
     chirp->trigger();
     impulse->trigger();
+    gain = accent * 0.6 + 0.7;
   }
   float getNextSample(){
     float vca1 = sine->getNextSample();
     vca1 += chirp->getNextSample();
     vca1 *= env1->getNextSample();
-
     float vca2 = 0.0f;
     vca2 += impulse->getNextSample();
     // vca2 += filter->process(noise->getNextSample());
     // vca2 *= env2->getNextSample();
     vca2 += noise->getNextSample();
     vca2 = filter->process(vca2);
-    vca2 *= env2->getNextSample();
-    
+    vca2 *= env2->getNextSample();    
     float sample = vca1*(1.0-balance) + vca2*balance;
-    return sample;
+    return sample * gain;
   }
 };
 

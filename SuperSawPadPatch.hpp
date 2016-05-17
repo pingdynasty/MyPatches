@@ -7,6 +7,7 @@
 #include "Oscillators.hpp"
 #include "BiquadFilter.h"
 #include "Envelope.h"
+#include "SmoothValue.h"
 
 #define P1      1.0
 #define m2      (P1+1.0/12)
@@ -38,7 +39,7 @@ private:
   const float sr;
   const int bs;
   // const float q = FilterStage::BUTTERWORTH_Q;
-  const float q = 0.95;
+  float q = 0.95;
   float lfoamt = 0.85;
 public:
   PadVoice(float samplingrate, int blocksize) :
@@ -49,17 +50,21 @@ public:
     eg2 = new AdsrEnvelope(sr/bs);
     filter = BiquadFilter::create(1);
     eg1->setSustain(0.8);
-    eg2->setSustain(0.75);
-    osc->setDetune(0.2);
-    osc->setMix(0.8);
+    eg2->setSustain(1.0);
+    eg2->setDecay(0.0);
+    osc->setDetune(0.06);
+    osc->setMix(0.4);
     setTime(0.6);
     setFrequency(440);
+  }
+  void setResonance(float resonance){
+    q = resonance;
   }
   void setModulationRate(float rate){
     lfo->setFrequency(rate);
   }
   void setModulationAmount(float amount){
-    lfoamt = amount*.15;
+    lfoamt = amount*.1;
   }
   void setTime(float time){
     time += 0.1;
@@ -67,14 +72,14 @@ public:
     eg1->setAttack(time*0.2);
     eg2->setAttack(time*0.3);
     eg1->setDecay(time*0.18);
-    eg2->setDecay(time*0.2);
+    // eg2->setDecay(time*0.2);
     eg1->setRelease(time*1.2);
     eg2->setRelease(time*1.6);
     lfo->setFrequency(1/time);
   }
   void setFrequency(float freq){
     osc->setFrequency(freq);
-    float fc = freq*1.33/((sr/bs)*2);
+    float fc = freq/((sr/bs)*2);
     fc += lfoamt * lfo->getNextSample();
     fc *= eg2->getNextSample();
     fc = min(0.999, max(0.01, fc)); // normalised and bounded
@@ -113,6 +118,7 @@ private:
   PadVoice* pad[3];
   VoltsPerOctave hz;
   FloatArray buffer;
+  SmoothFloat resonance;
   bool buttonstate;
 public:
   SuperSawPadPatch() {
@@ -120,6 +126,7 @@ public:
     registerParameter(PARAMETER_B, "Time");
     registerParameter(PARAMETER_C, "Modulation");
     registerParameter(PARAMETER_D, "Gain");
+    registerParameter(PARAMETER_E, "Resonance");
     pad[0] = new PadVoice(getSampleRate(), getBlockSize());
     pad[1] = new PadVoice(getSampleRate(), getBlockSize());
     pad[2] = new PadVoice(getSampleRate(), getBlockSize());
@@ -145,6 +152,10 @@ public:
     float time = getParameterValue(PARAMETER_B);
     float lfo = getParameterValue(PARAMETER_C);
     float gain = getParameterValue(PARAMETER_D)*2;
+    resonance = getParameterValue(PARAMETER_E)*4 + 0.7;
+    pad[0]->setResonance(resonance);
+    pad[1]->setResonance(resonance);
+    pad[2]->setResonance(resonance);
     pad[0]->setTime(time);
     pad[1]->setTime(time*1.38);
     pad[2]->setTime(time*1.83);
@@ -165,10 +176,10 @@ public:
     left.multiply(0.4);
     pad[1]->getSamples(buffer);
     buffer.multiply(0.4);
-    left.add(buffer, left);
+    left.add(buffer);
     pad[2]->getSamples(buffer);
     buffer.multiply(0.4);
-    left.add(buffer, left);
+    left.add(buffer);
     left.multiply(gain);
   }
 };

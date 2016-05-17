@@ -14,8 +14,10 @@ public:
   BiquadFilter* hp;
   AdsrEnvelope* eg[3];
   const float fs;
+  float gain;
+  float accent;
 public:
-  CymbalVoice(float sr) : fs(sr) {
+  CymbalVoice(float sr) : fs(sr), gain(0.0), accent(0.0) {
     osc[0] = new SquareFMOscillator(sr);
     osc[1] = new SquareFMOscillator(sr);
     osc[2] = new SquareFMOscillator(sr);
@@ -50,10 +52,12 @@ public:
   void trigger(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->trigger(state, delay);
+    gain = accent * 0.6 + 0.7;
   }
   void gate(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->gate(state, delay);
+    gain = accent * 0.3 + 0.8;
   }
   void setFrequency(float f){
     osc[0]->setFrequency(f*2);
@@ -77,6 +81,9 @@ public:
     bp->setBandPass(f, FilterStage::BUTTERWORTH_Q);
     hp->setHighPass(f, FilterStage::BUTTERWORTH_Q);
   }
+  void setAccent(float amount){
+    accent = amount;
+  }
   float getNextSample(){
     float impact = osc[0]->getNextSample();
     impact += osc[1]->getNextSample();
@@ -86,7 +93,7 @@ public:
     impact *= eg[0]->getNextSample();
     body = hp->process(body);
     body *= eg[1]->getNextSample();
-    return impact + body;
+    return (impact + body) * gain;
   }
 };
 

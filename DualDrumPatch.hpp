@@ -76,6 +76,7 @@ public:
     registerParameter(PARAMETER_B, "Hat Decay");
     registerParameter(PARAMETER_C, "Kick Tone");
     registerParameter(PARAMETER_D, "Kick Decay");
+    registerParameter(PARAMETER_E, "Accent");
     hat = new CymbalVoice(getSampleRate());
     kick = new BassDrumVoice(getSampleRate());
     drum[0] = new DrumTrigger(hat);
@@ -85,14 +86,18 @@ public:
   ~DualDrumPatch(){
   }
   void processAudio(AudioBuffer& buffer){
-    float tone = 60*powf(2, getParameterValue(PARAMETER_A)*6);    
+    float tone = 120*powf(2, getParameterValue(PARAMETER_A)*4);
     float decay = getParameterValue(PARAMETER_B);
+    float accent = getParameterValue(PARAMETER_E);
     hat->setFrequency(tone);
+    hat->setFilter(getParameterValue(PARAMETER_A)*0.3 + 0.5);
     hat->setDecay(decay);
+    hat->setAccent(accent);
     tone = 20*powf(2, getParameterValue(PARAMETER_C)*4);
     decay = getParameterValue(PARAMETER_D);
     kick->setFrequency(tone);
     kick->setDecay(decay);
+    kick->setAccent(accent);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     drum[0]->getSamples(left);
