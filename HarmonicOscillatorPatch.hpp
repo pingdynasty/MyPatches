@@ -9,7 +9,7 @@
 
 class HarmonicOscillatorPatch : public Patch {
 private:
-  static const int samples = 1024;
+  static const int samples = 512;
   static const int controls = 4;
   HarmonicOscillator<samples, controls> harms;
   WavetableOscillator* osc;
