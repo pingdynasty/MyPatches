@@ -146,7 +146,7 @@ public:
   void setDistance(int distance){
     // HALFd = controls / 2.0;
     HALFd = (distance * controls) / (MAX_VALUE);
-    initialisePSIArray();
+    // initialisePSIArray();
   }
 
   // HalfSize controls the width of the waveform
@@ -205,9 +205,9 @@ public:
   }
 
   //    Setting of amplitudes for Glauber State by energy selector scroller
-  void setGlauberState(int Nvalue){
-    //         AverageEnerg=EnergyConstant+0.0001+(10.0-0.1*(float)Nvalue );  // SETENERGY
-    AverageEnerg = EnergyConstant + 10.0f * Nvalue / MAX_VALUE;  // SETENERGY
+  void setGlauberState(float Nvalue){
+    AverageEnerg=EnergyConstant+0.0001+(10.0-0.1*(float)Nvalue );  // SETENERGY
+    // AverageEnerg = EnergyConstant + 10.0f * Nvalue / MAX_VALUE;  // SETENERGY
 
     float Xx = sqrtf(AverageEnerg-EnergyConstant);
     float Xx2;
