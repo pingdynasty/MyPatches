@@ -17,13 +17,18 @@ private:
   VoltsPerOctave hz;
 public:
 HarmonicOscillatorPatch(){
+    registerParameter(PARAMETER_A, "Tune");
+    registerParameter(PARAMETER_B, "Rate");
+    registerParameter(PARAMETER_C, "H2");
+    registerParameter(PARAMETER_D, "H3");
+    registerParameter(PARAMETER_E, "H4");
     wavetable = FloatArray::create(samples);
     osc = new WavetableOscillator(getSampleRate(), wavetable);
     osc->setFrequency(440);
-    // harms.setWavelength(64);
     for(int i=0; i<controls; ++i)
       harms.setControl(i, 0.25);
     harms.calculate(wavetable, samples);
+    
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*8.0 - 6.0;
