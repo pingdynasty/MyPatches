@@ -37,6 +37,7 @@ public:
       input.copyFrom((float*)(ir+i*blocksize), blocksize);
       fft.fft(input, irbuf[i]);
     }
+    registerParameter(PARAMETER_D, "Wet/Dry");
   }
 
   void cmac(ComplexFloatArray dest, ComplexFloatArray a, ComplexFloatArray b){
@@ -59,11 +60,17 @@ public:
   }
 
   void processAudio(AudioBuffer &buffer) {
+    float wet = getParameterValue(PARAMETER_D);
+    float dry = 1.0f - wet;
+    wet *= 1.0f/segments; // gain adjust
+
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     input.clear();
     input.copyFrom(left, blocksize);
+
     // forward fft
     fft.fft(input, cbuf[current]);
+
     // complex multiply and accumulate
     rbuf.setAll(0);
     for(int i=1; i<segments; ++i){
@@ -73,14 +80,13 @@ public:
     cmac(rbuf, cbuf[current], irbuf[0]);
     // inverse fft
     fft.ifft(rbuf, input);
-    // copy first half to destination
-    left.copyFrom(input, blocksize);
-    // add previous overlap
-    left.add(overlap);
+
+    for(int i=0; i<blocksize; ++i)
+      left[i] = wet*(input[i]+overlap[i]) + dry*left[i];
+
     // save overlap
     overlap.copyFrom(input.subArray(blocksize, blocksize));
     current = (current > 0) ? (current - 1) : (segments - 1);
-    left.multiply(1.0f/segments);
   }
 };
 
