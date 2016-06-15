@@ -31,7 +31,7 @@ public:
       // allocate fft buffers
       irbuf[i] = ComplexFloatArray::create(segsize);
       cbuf[i] = ComplexFloatArray::create(segsize);
-      cbuf[i].clear();
+      cbuf[i].setAll(0);
       // load IR and zero-pad to segment size
       input.clear();
       input.copyFrom((float*)(ir+i*blocksize), blocksize);
@@ -64,8 +64,8 @@ public:
     input.copyFrom(left, blocksize);
     // forward fft
     fft.fft(input, cbuf[current]);
-    // complex vector multiplication
-    rbuf.clear();
+    // complex multiply and accumulate
+    rbuf.setAll(0);
     for(int i=1; i<segments; ++i){
       int seg = (current+i) % segments;
       cmac(rbuf, irbuf[i], cbuf[seg]);
