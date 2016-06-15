@@ -3,35 +3,40 @@
 
 #include "StompBox.h"
 #include "FastFourierTransform.h"
+#include "irpozzella128ms.c"
 
 class ConvolutionPatch : public Patch {
 private:
+  static const int segments = 6;
   int segsize;
   int blocksize;
-  ComplexFloatArray irbuf;
-  ComplexFloatArray cbuf;
+  ComplexFloatArray irbuf[segments];
+  ComplexFloatArray cbuf[segments];
   ComplexFloatArray rbuf;
   FloatArray input;
   FloatArray overlap;
   FastFourierTransform fft;
+  int current;
 public:
-  ConvolutionPatch(){
+  ConvolutionPatch() : current(0) {
     blocksize = getBlockSize();
     segsize = 2*blocksize;
-    irbuf = ComplexFloatArray::create(segsize);
-    cbuf = ComplexFloatArray::create(segsize);
+    input = FloatArray::create(segsize);
     rbuf = ComplexFloatArray::create(segsize);
     overlap = FloatArray::create(blocksize);
     overlap.clear();
-    FloatArray ir = FloatArray::create(segsize);
-    // todo: load IR and zero-pad to segment size
-    ir.clear();
     fft.init(segsize);
     // do forward fft into irbuf
-    fft.fft(ir, irbuf);
-    // IR buffer can now be used as input buffer
-    input = ir;
-    input.clear();
+    for(int i=0; i<segments; ++i){
+      // allocate fft buffers
+      irbuf[i] = ComplexFloatArray::create(segsize);
+      cbuf[i] = ComplexFloatArray::create(segsize);
+      cbuf[i].clear();
+      // load IR and zero-pad to segment size
+      input.clear();
+      input.copyFrom((float*)(ir+i*blocksize), blocksize);
+      fft.fft(input, irbuf[i]);
+    }
   }
 
   void cmac(ComplexFloatArray dest, ComplexFloatArray a, ComplexFloatArray b){
@@ -55,14 +60,17 @@ public:
 
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    input.clear();
     input.copyFrom(left, blocksize);
     // forward fft
-    fft.fft(input, cbuf);
+    fft.fft(input, cbuf[current]);
     // complex vector multiplication
-    // rbuf.clear();
-    // cmac(rbuf, cbuf, irbuf);
-    // test if this can be done in-place: cbuf.multiply(irbuf);
-    cbuf.complexByComplexMultiplication(irbuf, rbuf);
+    rbuf.clear();
+    for(int i=1; i<segments; ++i){
+      int seg = (current+i) % segments;
+      cmac(rbuf, irbuf[i], cbuf[seg]);
+    }
+    cmac(rbuf, cbuf[current], irbuf[0]);
     // inverse fft
     fft.ifft(rbuf, input);
     // copy first half to destination
@@ -71,6 +79,8 @@ public:
     left.add(overlap);
     // save overlap
     overlap.copyFrom(input.subArray(blocksize, blocksize));
+    current = (current > 0) ? (current - 1) : (segments - 1);
+    left.multiply(1.0f/segments);
   }
 };
 
