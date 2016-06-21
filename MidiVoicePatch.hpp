@@ -24,8 +24,10 @@ private:
   BiquadFilter* filter;
   AdsrEnvelope env;
   SmoothFloat fc, q;
+  float gain;
 public:
-  SynthVoice(float sr, BiquadFilter* f) : osc(sr), filter(f), env(sr) {
+  SynthVoice(float sr, BiquadFilter* f) : 
+    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f) {    
     env.setSustain(1.0);
     env.setDecay(0.0);
     env.setRelease(0.0);
@@ -59,6 +61,9 @@ public:
     env.setAttack(attack);
     env.setRelease(release);    
   }
+  void setGain(float value){
+    gain = value;
+  }
   void setGate(bool state, int delay){
     env.gate(state, delay);
   }
@@ -66,6 +71,7 @@ public:
     filter->setLowPass(fc, q);
     osc.getSamples(samples);
     filter->process(samples);
+    samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
     samples.multiply(0.8-q*0.2); // gain compensation for high q
     env.attenuate(samples);
   }
@@ -79,7 +85,6 @@ private:
   int8_t notes[2];
 public:
   MidiVoicePatch() {
-    debugMessage("hello");
     registerParameter(PARAMETER_A, "Waveshape");
     registerParameter(PARAMETER_B, "Fc");
     registerParameter(PARAMETER_C, "Resonance");
@@ -88,7 +93,6 @@ public:
     notes[1] = -1;
     voice[0] = SynthVoice::create(getSampleRate());
     voice[1] = SynthVoice::create(getSampleRate());
-    debugMessage("goodbye");
   }
   ~MidiVoicePatch(){
     SynthVoice::destroy(voice[0]);
@@ -105,10 +109,12 @@ public:
 	if(notes[0] == -1){
 	  notes[0] = note;
 	  voice[0]->setFrequency(freq);
+	  voice[0]->setGain(value/4095.0f);
 	  voice[0]->setGate(true, samples);
 	}else if(notes[1] == -1){
 	  notes[1] = note;
 	  voice[1]->setFrequency(freq);
+	  voice[1]->setGain(value/4095.0f);
 	  voice[1]->setGate(true, samples);
 	}	  
       }else{
@@ -122,13 +128,9 @@ public:
 	}
       }
     }else if(bid == PUSHBUTTON){
-      debugMessage("push event", bid, value, samples);
-    }else{
-      debugMessage("button event", bid, value, samples);
     }
   }
   void processAudio(AudioBuffer &buffer) {
-    debugMessage("doit");
     float shape = getParameterValue(PARAMETER_A)*2;
     float cutoff = getParameterValue(PARAMETER_B)*0.5;
     float q = getParameterValue(PARAMETER_C)*3+0.75;
