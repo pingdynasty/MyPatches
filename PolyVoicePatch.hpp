@@ -33,6 +33,7 @@ public:
     osc.setFrequency(freq);
   }
   void setFilter(float freq, float res){
+    fc = min(0.45, max(0.05, freq));
     fc = freq;
     q = res;
   }
@@ -69,6 +70,7 @@ template<int VOICES>
 class Voices {
 private:
   static const uint8_t EMPTY = 0xff;
+  static const uint16_t TAKEN = 0xffff;
   SynthVoice* voice[VOICES];
   uint8_t notes[VOICES];
   uint16_t allocation[VOICES];
@@ -77,17 +79,15 @@ private:
 
 private:
   void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
-    float freq = (440.0f / 32) * fastpow2f((note - 9) / 12.0f);
     notes[ch] = note;
-    allocation[ch] = ++allocated;
-    voice[ch]->setFrequency(freq);
+    allocation[ch] = TAKEN;
     voice[ch]->setGain(velocity/(4095.0f*(VOICES/2)));
     voice[ch]->setGate(true, samples);
   }
 
   void release(uint8_t ch, uint16_t samples){
-    notes[ch] = EMPTY;
-    allocation[ch] = 0;
+    // notes[ch] = EMPTY;
+    allocation[ch] = ++allocated;
     voice[ch]->setGate(false, samples);
   }
 
@@ -95,7 +95,7 @@ public:
   Voices(float sr, int bs) : allocated(0) {
     for(int i=0; i<VOICES; ++i){
       voice[i] = SynthVoice::create(sr);
-      notes[i] = EMPTY;
+      notes[i] = 69; // middle A, 440Hz
       allocation[i] = 0;
     }
     buffer = FloatArray::create(bs);
@@ -121,17 +121,14 @@ public:
   }
 
   void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
-    uint16_t minval = 0XFFFF;
+    uint16_t minval = allocation[0];
     uint8_t minidx = 0;
-    for(int i=0; i<VOICES; ++i){
-      if(notes[i] == EMPTY || notes[i] == note){
-	take(i, note, velocity, samples);
-	return;
-      }
+    // take oldest free voice, to allow voices to ring out
+    for(int i=1; i<VOICES; ++i){
       if(allocation[i] < minval)
 	minidx = i;
     }
-    // steal oldest voice
+    // take oldest voice
     take(minidx, note, velocity, samples);
   }
 
@@ -141,11 +138,14 @@ public:
 	release(i, samples);
   }
 
-  void setParameters(float shape, float fc, float q, float attack, float release){
+  void setParameters(float shape, float fc, float q, float attack, float release, float pb){
     for(int i=0; i<VOICES; ++i){
+      float freq = 440.0f*fastpow2f((notes[i]-69 + pb*2)/12.0);
+      // float freq = (440.0f / 32) * fastpow2f((notes[i] - 9 + pb*2) / 12.0f);
+      voice[i]->setFrequency(freq);
       voice[i]->setWaveshape(shape);
       voice[i]->setFilter(fc, q);
-      voice[i]->setEnvelope(attack, release);      
+      voice[i]->setEnvelope(attack, release);
     }
   }
 
@@ -187,9 +187,13 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float shape = getParameterValue(PARAMETER_A)*2;
-    float cutoff = getParameterValue(PARAMETER_B)*0.5;
+    float cutoff = getParameterValue(PARAMETER_B)*0.48 + 0.01;
     float q = getParameterValue(PARAMETER_C)*3+0.75;
     float df = getParameterValue(PARAMETER_D)*4;
+    cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
+    float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
+    // debugMessage("af/ag/ah", getParameterValue(PARAMETER_AF), getParameterValue(PARAMETER_AG), getParameterValue(PARAMETER_AH));
+    // debugMessage("f/g/h", getParameterValue(PARAMETER_F), getParameterValue(PARAMETER_G), getParameterValue(PARAMETER_H));
     int di = (int)df;
     float attack, release;
     switch(di){
@@ -213,7 +217,7 @@ public:
     }
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    voices.setParameters(shape, cutoff, q, attack, release);
+    voices.setParameters(shape, cutoff, q, attack, release, pitchbend);
     voices.getSamples(left);
     right.copyFrom(left);
   }

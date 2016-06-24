@@ -3,7 +3,8 @@
 
 #include "StompBox.h"
 #include "FastFourierTransform.h"
-#include "irpozzella128ms.c"
+#include "impulse-response.h"
+// ./wav2float MyPatches/ir/EMT\ 244\ \(A.\ Bernhard\)/0\,4s\ Low\*2\ \ High_2.wav > MyPatches/impulse-response.h
 
 class ConvolutionPatch : public Patch {
 private:
@@ -19,6 +20,7 @@ private:
   int current;
 public:
   ConvolutionPatch() : current(0) {
+    // ASSERT(sizeof(ir)/sizeof(float) >= segments*blocksize, "Impulse response array too small");
     blocksize = getBlockSize();
     segsize = 2*blocksize;
     input = FloatArray::create(segsize);
@@ -26,6 +28,13 @@ public:
     overlap = FloatArray::create(blocksize);
     overlap.clear();
     fft.init(segsize);
+
+    // normalise IR level
+    FloatArray impulse(ir, segments*blocksize);
+    float scale = 0.5f/max(impulse.getMaxValue(), -impulse.getMinValue());
+    impulse.multiply(scale);
+    debugMessage("normalised", scale);
+
     // do forward fft into irbuf
     for(int i=0; i<segments; ++i){
       // allocate fft buffers
@@ -34,7 +43,7 @@ public:
       cbuf[i].setAll(0);
       // load IR and zero-pad to segment size
       input.clear();
-      input.copyFrom((float*)(ir+i*blocksize), blocksize);
+      input.copyFrom(impulse.subArray(i*blocksize, blocksize));
       fft.fft(input, irbuf[i]);
     }
     registerParameter(PARAMETER_D, "Wet/Dry");
