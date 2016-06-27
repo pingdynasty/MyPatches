@@ -1,7 +1,7 @@
 #ifndef __PolyVoicePatch_hpp__
 #define __PolyVoicePatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 #include "Envelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
@@ -140,7 +140,6 @@ public:
   void setParameters(float shape, float fc, float q, float attack, float release, float pb){
     for(int i=0; i<VOICES; ++i){
       float freq = 440.0f*fastpow2f((notes[i]-69 + pb*2)/12.0);
-      // float freq = (440.0f / 32) * fastpow2f((notes[i] - 9 + pb*2) / 12.0f);
       voice[i]->setFrequency(freq);
       voice[i]->setWaveshape(shape);
       voice[i]->setFilter(fc, q);
@@ -172,7 +171,6 @@ public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
       uint8_t note = bid - MIDI_NOTE_BUTTON;
-      debugMessage("midi note", note, value, samples);
       if(value) // note on
 	voices.noteOn(note, value, samples);
       else // note off
@@ -191,8 +189,6 @@ public:
     float df = getParameterValue(PARAMETER_D)*4;
     cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
     float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
-    // debugMessage("af/ag/ah", getParameterValue(PARAMETER_AF), getParameterValue(PARAMETER_AG), getParameterValue(PARAMETER_AH));
-    // debugMessage("f/g/h", getParameterValue(PARAMETER_F), getParameterValue(PARAMETER_G), getParameterValue(PARAMETER_H));
     int di = (int)df;
     float attack, release;
     switch(di){

@@ -35,8 +35,8 @@ public:
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate){
-	drum[0]->trigger();
-	drum[1]->trigger();
+	drum[0]->trigger(true, 0);
+	drum[1]->trigger(true, 0);
       }
     }
     drum[0]->getSamples(left);
