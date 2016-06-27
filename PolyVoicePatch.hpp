@@ -61,7 +61,6 @@ public:
     osc.getSamples(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
-    samples.multiply(0.8-q*0.2); // gain compensation for high q
     env.attenuate(samples);
   }
 };
