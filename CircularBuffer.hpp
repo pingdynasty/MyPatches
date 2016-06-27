@@ -10,6 +10,8 @@ public:
   }
   CircularBuffer(float* buf, int size) : buffer(buf, size), writeIndex(0) {
   }
+  CircularBuffer(FloatArray buf) : buffer(buf), writeIndex(0) {
+  }
 
   void write(FloatArray samples){
     for(int i=0; i<samples.getSize(); ++i)
@@ -76,6 +78,7 @@ public:
 
   static void destroy(CircularBuffer* buf){
     FloatArray::destroy(buf->buffer);
+    delete buf;
   }
 };
 
