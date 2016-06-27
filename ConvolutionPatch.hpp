@@ -8,30 +8,30 @@
 
 class ConvolutionPatch : public Patch {
 private:
-  static const int segments = 6;
+  static const int segments = 10;
+  int current;
   int segsize;
   int blocksize;
   ComplexFloatArray irbuf[segments];
-  ComplexFloatArray cbuf[segments];
-  ComplexFloatArray rbuf;
+  ComplexFloatArray cinbuf[segments];
+  ComplexFloatArray coutbuf;
+  ComplexFloatArray cmulbuf;
   FloatArray input;
   FloatArray overlap;
   FastFourierTransform fft;
-  int current;
 public:
-  ConvolutionPatch() : current(0) {
+  ConvolutionPatch() : current(0), blocksize(getBlockSize()), segsize(2*getBlockSize()) {
     // ASSERT(sizeof(ir)/sizeof(float) >= segments*blocksize, "Impulse response array too small");
-    blocksize = getBlockSize();
-    segsize = 2*blocksize;
     input = FloatArray::create(segsize);
-    rbuf = ComplexFloatArray::create(segsize);
-    overlap = FloatArray::create(blocksize);
+    // coutbuf = ComplexFloatArray::create(segsize);
+    // cmulbuf = ComplexFloatArray::create(segsize);
+    // overlap = FloatArray::create(blocksize);
     overlap.clear();
     fft.init(segsize);
 
     // normalise IR level
-    FloatArray impulse(ir, segments*blocksize);
-    float scale = 0.5f/max(impulse.getMaxValue(), -impulse.getMinValue());
+    FloatArray impulse(ir[0], segments*blocksize);
+    float scale = 1.0f/max(impulse.getMaxValue(), -impulse.getMinValue());
     impulse.multiply(scale);
     debugMessage("normalised", scale);
 
@@ -39,33 +39,21 @@ public:
     for(int i=0; i<segments; ++i){
       // allocate fft buffers
       irbuf[i] = ComplexFloatArray::create(segsize);
-      cbuf[i] = ComplexFloatArray::create(segsize);
-      cbuf[i].setAll(0);
+      cinbuf[i] = ComplexFloatArray::create(segsize);
+      cinbuf[i].clear();
       // load IR and zero-pad to segment size
       input.clear();
       input.copyFrom(impulse.subArray(i*blocksize, blocksize));
       fft.fft(input, irbuf[i]);
+      // fft.fft(impulse.subArray(i*blocksize, blocksize), irbuf[i]);
     }
     registerParameter(PARAMETER_D, "Wet/Dry");
-  }
 
-  void cmac(ComplexFloatArray dest, ComplexFloatArray a, ComplexFloatArray b){
-    int size = dest.getSize();
-    const size_t blockend = 4 * (size / 4);
-    for(size_t i=0; i<blockend; i+=4){
-      dest[i+0].re += a[i+0].re * b[i+0].re - a[i+0].im * b[i+0].im;
-      dest[i+1].re += a[i+1].re * b[i+1].re - a[i+1].im * b[i+1].im;
-      dest[i+2].re += a[i+2].re * b[i+2].re - a[i+2].im * b[i+2].im;
-      dest[i+3].re += a[i+3].re * b[i+3].re - a[i+3].im * b[i+3].im;
-      dest[i+0].im += a[i+0].re * b[i+0].im + a[i+0].im * b[i+0].re;
-      dest[i+1].im += a[i+1].re * b[i+1].im + a[i+1].im * b[i+1].re;
-      dest[i+2].im += a[i+2].re * b[i+2].im + a[i+2].im * b[i+2].re;
-      dest[i+3].im += a[i+3].re * b[i+3].im + a[i+3].im * b[i+3].re;
-    }
-    for(size_t i=blockend; i<size; ++i){
-      dest[i].re += a[i].re * b[i].re - a[i].im * b[i].im;
-      dest[i].im += a[i].re * b[i].im + a[i].im * b[i].re;
-    }
+    // repurpose impulse response memory
+    cmulbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse, segsize);
+    coutbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse.subArray(blocksize*4, blocksize*4), segsize);
+    // input = FloatArray((float*)impulse.subArray(blocksize*8, blocksize*2), segsize);
+    overlap = FloatArray((float*)impulse.subArray(blocksize*8, blocksize), blocksize);
   }
 
   void processAudio(AudioBuffer &buffer) {
@@ -78,17 +66,17 @@ public:
     input.copyFrom(left, blocksize);
 
     // forward fft
-    fft.fft(input, cbuf[current]);
+    fft.fft(input, cinbuf[current]);
 
     // complex multiply and accumulate
-    rbuf.setAll(0);
+    irbuf[0].complexByComplexMultiplication(cinbuf[current], coutbuf);
     for(int i=1; i<segments; ++i){
       int seg = (current+i) % segments;
-      cmac(rbuf, irbuf[i], cbuf[seg]);
+      irbuf[i].complexByComplexMultiplication(cinbuf[seg], cmulbuf);
+      coutbuf.add(cmulbuf);
     }
-    cmac(rbuf, cbuf[current], irbuf[0]);
     // inverse fft
-    fft.ifft(rbuf, input);
+    fft.ifft(coutbuf, input);
 
     for(int i=0; i<blocksize; ++i)
       left[i] = wet*(input[i]+overlap[i]) + dry*left[i];
