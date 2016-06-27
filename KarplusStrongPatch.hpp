@@ -6,7 +6,7 @@
 
 class KarplusStrongPatch : public Patch {
 private:
-  KarplusStrongOscillator* osc[2];
+  KarplusStrongOscillator* osc;
   int maxDuration;
   bool buttonstate = false;
 public:
@@ -15,8 +15,7 @@ public:
     registerParameter(PARAMETER_B, "Decay");
     registerParameter(PARAMETER_C, "Freq");
     registerParameter(PARAMETER_D, "Decay");
-    osc[0] = KarplusStrongOscillator::create(getSampleRate(), 1024);
-    osc[1] = KarplusStrongOscillator::create(getSampleRate(), 1024);
+    osc = KarplusStrongOscillator::create(getSampleRate(), 1024);
     maxDuration = getSampleRate()*3; // 3 seconds
   }
 
