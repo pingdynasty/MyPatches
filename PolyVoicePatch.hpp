@@ -124,8 +124,14 @@ public:
     uint8_t minidx = 0;
     // take oldest free voice, to allow voices to ring out
     for(int i=1; i<VOICES; ++i){
-      if(allocation[i] < minval)
+      if(notes[i] == note){
 	minidx = i;
+	break;
+      }
+      if(allocation[i] < minval){
+	minidx = i;
+	minval = allocation[i];
+      }
     }
     // take oldest voice
     take(minidx, note, velocity, samples);
