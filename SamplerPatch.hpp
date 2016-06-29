@@ -1,14 +1,16 @@
 #ifndef __SamplerPatch_hpp__
 #define __SamplerPatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 #include "Envelope.h"
 #include "Oscillator.h"
 #include "VoltsPerOctave.h"
 #define SAMPLENAME sample1[0]
-#define SAMPLESIZE (13*1024)
 #include "sample.h"
 #define MIDDLE_C 261.6
+
+#include "Control.h"
+#include "SmoothValue.h"
 
 /*
   need a buffer that can be read in a circular fashion
@@ -17,9 +19,9 @@ class SampleOscillator : public Oscillator {
 private:
   const float fs;
   FloatArray buffer;
-  float rate = 1.0f;
   float pos = 0.0f;
   uint16_t size;
+  float rate = 1.0f;
 public:
   SampleOscillator(float sr, FloatArray sample) :
     fs(sr), buffer(sample){
@@ -28,6 +30,9 @@ public:
   void setFrequency(float freq){
     rate = freq/MIDDLE_C;
   }
+  // void setPortamento(float portamento){
+  //   rate.lambda = portamento*0.19 + 0.8;
+  // }
   void reset(){
     pos = 0.0f;
   }
@@ -49,8 +54,23 @@ public:
     increment();
     return interpolate(pos, buffer);
   }
-  void setLength(uint16_t samples){
-    size = min(samples, buffer.getSize()-1);
+  uint16_t findZeroCrossing(uint16_t index){
+    uint16_t limit = buffer.getSize()-1;
+    uint16_t i = min(index, limit);
+    if(buffer[i] > 0)
+      while(i < limit && buffer[i] > 0)
+	i++;
+    else
+      while(i < limit && buffer[i] < 0)
+	i++;
+    return i;
+  }
+  void setDuration(uint16_t samples){
+    size = findZeroCrossing(samples);
+  }
+  /* @return the audio length in samples */
+  uint16_t getSampleLength(){
+    return buffer.getSize();
   }
   // void getSamples(FloatArray out){
   //   // unwind interpolation
@@ -62,6 +82,12 @@ private:
   SampleOscillator osc;
   AdsrEnvelope env;
   float gain;
+  Control<PARAMETER_AA> attack = 0.0f;
+  Control<PARAMETER_AB> decay = 0.0f;
+  Control<PARAMETER_AC> sustain = 1.0f;
+  Control<PARAMETER_AD> release = 0.0f;
+  // Control<PARAMETER_AE> portamento = 0.0f;
+  Control<PARAMETER_AF> duration = 1.0f;
 public:
   SamplerVoice(float sr, FloatArray buf) : 
     osc(sr, buf), env(sr), gain(1.0f) {
@@ -76,11 +102,16 @@ public:
     delete voice;
   }
   void setFrequency(float freq){
+    // osc.setPortamento(portamento); // portamento won't work across voices
     osc.setFrequency(freq);
   }
-  void setEnvelope(float attack, float release){
-    env.setAttack(attack);
-    env.setRelease(release);
+  void setEnvelope(float att, float rel){
+    // env.setAttack(att);
+    // env.setRelease(rel);
+    env.setAttack((float)attack+att);
+    env.setDecay(decay);
+    env.setSustain(sustain);
+    env.setRelease((float)release+rel);
   }
   void setGain(float value){
     gain = value;
@@ -91,6 +122,7 @@ public:
       osc.reset();
   }
   void getSamples(FloatArray samples){
+    osc.setDuration(duration*osc.getSampleLength());
     osc.getSamples(samples);
     samples.multiply(gain);
     env.attenuate(samples);
@@ -156,8 +188,14 @@ public:
     uint8_t minidx = 0;
     // take oldest free voice, to allow voices to ring out
     for(int i=1; i<VOICES; ++i){
-      if(allocation[i] < minval)
+      if(notes[i] == note){
 	minidx = i;
+	break;
+      }
+      if(allocation[i] < minval){
+	minidx = i;
+	minval = allocation[i];
+      }
     }
     // take oldest voice
     take(minidx, note, velocity, samples);
@@ -190,12 +228,15 @@ class SamplerPatch : public Patch {
 private:
   Voices<8> voices;
 public:
-  SamplerPatch() : voices(getSampleRate(), getBlockSize(), FloatArray(SAMPLENAME, SAMPLESIZE)) {
+  SamplerPatch() : 
+    voices(getSampleRate(), getBlockSize(), 
+	   FloatArray(SAMPLENAME, // SAMPLESIZE)){ // 
+		      sizeof(SAMPLENAME)/sizeof(float))) {
     registerParameter(PARAMETER_A, "Waveshape");
     registerParameter(PARAMETER_B, "Fc");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
-    FloatArray sample(SAMPLENAME, SAMPLESIZE);
+    FloatArray sample(SAMPLENAME, sizeof(SAMPLENAME)/sizeof(float));
     float scale = 1.0f/max(sample.getMaxValue(), -sample.getMinValue());
     sample.multiply(scale);
     debugMessage("normalised", scale);
@@ -222,33 +263,18 @@ public:
     float shape = getParameterValue(PARAMETER_A)*2;
     float cutoff = getParameterValue(PARAMETER_B)*0.48 + 0.01;
     float q = getParameterValue(PARAMETER_C)*3+0.75;
-    float df = getParameterValue(PARAMETER_D)*4;
+    float env = getParameterValue(PARAMETER_D);
     cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
     float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
     pitchbend += getParameterValue(PARAMETER_A);
     // debugMessage("af/ag/ah", getParameterValue(PARAMETER_AF), getParameterValue(PARAMETER_AG), getParameterValue(PARAMETER_AH));
     // debugMessage("f/g/h", getParameterValue(PARAMETER_F), getParameterValue(PARAMETER_G), getParameterValue(PARAMETER_H));
-    int di = (int)df;
-    float attack, release;
-    switch(di){
-      // a/d
-    case 0: // l/s
-      attack = 1.0-df;
-      release = 0.0;
-      break;
-    case 1: // s/s
-      attack = 0.0;
-      release = df-1;
-      break;
-    case 2: // s/l
-      attack = df-2;
-      release = 1.0;
-      break;
-    case 3: // l/l
-      attack = 1.0;
-      release = 1.0;
-      break;
-    }
+    float attack = 0.0f;
+    float release = 0.0f;
+    if(env < 0.5)
+      attack = 2*(0.5 - env);
+    else
+      release = 2*(env - 0.5);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices.setParameters(attack, release, pitchbend);
