@@ -8,8 +8,7 @@ int main(int argc, char* argv[])
 {
   SNDFILE *sf;
   SF_INFO info;
-  int num_channels;
-  int num, num_items;
+  int num;
   float *buf;
   int channels;
   int i, j;
@@ -36,7 +35,7 @@ int main(int argc, char* argv[])
   /* samples = samples > info.frames ? info.frames : samples; */
   printf("Writing %d channels, %d samples\n", channels, samples);
   /* Allocate space for the data to be read, then read it. */
-  buf = (float*)malloc(num_items*sizeof(float));
+  buf = (float*)malloc(samples*sizeof(float));
   num = sf_read_float(sf, buf, samples*info.channels);
   sf_close(sf);
   printf("Read %d items\n*/\n", num);
