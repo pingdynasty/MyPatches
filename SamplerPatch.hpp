@@ -239,20 +239,20 @@ public:
     FloatArray sample(SAMPLENAME, sizeof(SAMPLENAME)/sizeof(float));
     float scale = 1.0f/max(sample.getMaxValue(), -sample.getMinValue());
     sample.multiply(scale);
-    debugMessage("normalised", scale);
+    // debugMessage("normalised", scale);
   }
   ~SamplerPatch(){
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
       uint8_t note = bid - MIDI_NOTE_BUTTON;
-      debugMessage("midi note", note, value, samples);
+      // debugMessage("midi note", note, value, samples);
       if(value) // note on
 	voices.noteOn(note, value, samples);
       else // note off
 	voices.noteOff(note, samples);
     }else if(bid == PUSHBUTTON){
-      debugMessage("push", bid, value, samples);
+      // debugMessage("push", bid, value, samples);
       if(value)
 	voices.allNotesOn();
       else
@@ -267,8 +267,6 @@ public:
     cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
     float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
     pitchbend += getParameterValue(PARAMETER_A);
-    // debugMessage("af/ag/ah", getParameterValue(PARAMETER_AF), getParameterValue(PARAMETER_AG), getParameterValue(PARAMETER_AH));
-    // debugMessage("f/g/h", getParameterValue(PARAMETER_F), getParameterValue(PARAMETER_G), getParameterValue(PARAMETER_H));
     float attack = 0.0f;
     float release = 0.0f;
     if(env < 0.5)
