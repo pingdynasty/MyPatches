@@ -232,9 +232,7 @@ public:
     voices(getSampleRate(), getBlockSize(), 
 	   FloatArray(SAMPLENAME, // SAMPLESIZE)){ // 
 		      sizeof(SAMPLENAME)/sizeof(float))) {
-    registerParameter(PARAMETER_A, "Waveshape");
-    registerParameter(PARAMETER_B, "Fc");
-    registerParameter(PARAMETER_C, "Resonance");
+    registerParameter(PARAMETER_A, "Pitchbend");
     registerParameter(PARAMETER_D, "Envelope");
     FloatArray sample(SAMPLENAME, sizeof(SAMPLENAME)/sizeof(float));
     float scale = 1.0f/max(sample.getMaxValue(), -sample.getMinValue());
@@ -260,11 +258,7 @@ public:
     }
   }
   void processAudio(AudioBuffer &buffer) {
-    float shape = getParameterValue(PARAMETER_A)*2;
-    float cutoff = getParameterValue(PARAMETER_B)*0.48 + 0.01;
-    float q = getParameterValue(PARAMETER_C)*3+0.75;
     float env = getParameterValue(PARAMETER_D);
-    cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
     float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
     pitchbend += getParameterValue(PARAMETER_A);
     float attack = 0.0f;
