@@ -17,7 +17,6 @@
  * Left: Pitch
  * Right: Fc lin
  */
-
 class SynthVoice {
 private:
   PolyBlepOscillator osc;
@@ -106,12 +105,12 @@ public:
 	// note on
 	// float freq = (440.0f / 32) * (2 ^ ((note - 9) / 12));
 	float freq = (440.0f / 32) * fastpow2f((note - 9) / 12.0f);
-	if(notes[0] == -1){
+	if(notes[0] == -1 || notes[0] == note){
 	  notes[0] = note;
 	  voice[0]->setFrequency(freq);
 	  voice[0]->setGain(value/4095.0f);
 	  voice[0]->setGate(true, samples);
-	}else if(notes[1] == -1){
+	}else if(notes[1] == -1 || notes[1] == note){
 	  notes[1] = note;
 	  voice[1]->setFrequency(freq);
 	  voice[1]->setGain(value/4095.0f);
@@ -128,6 +127,15 @@ public:
 	}
       }
     }else if(bid == PUSHBUTTON){
+      if(value){
+	voice[0]->setGate(true, 0);
+	voice[1]->setGate(true, 0);
+      }else{
+	notes[0] = -1;
+	voice[0]->setGate(false, 0);
+	notes[1] = -1;
+	voice[1]->setGate(false, 0);
+      }
     }
   }
   void processAudio(AudioBuffer &buffer) {
