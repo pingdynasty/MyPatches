@@ -6,11 +6,13 @@
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
+#include "Control.h"
 
 #include "Oscillators.hpp"
 
 class Operator : public Oscillator {
 private:
+public:
   AdsrEnvelope env;
   SineOscillator osc;
 public:
@@ -40,8 +42,12 @@ public:
 };
 
 class SixOp : public Oscillator {
-private:
+// private:
+public:
   Operator ops[6];
+  Control<PARAMETER_B> mix;
+  Control<PARAMETER_C> attack;
+  Control<PARAMETER_D> release;
 public:
   SixOp(){
     // D-7 preset
@@ -69,12 +75,12 @@ public:
     ops[5].ratio = 0.5001;
     ops[5].offset = -0.06;
     
-    ops[0].setEnvelope(0, 0.75, 0.4, 1.7);
-    ops[1].setEnvelope(0, 0.15, 0.3, 0.4);
-    ops[1].setEnvelope(0, 0.00, 0.9, 1.8);
-    ops[1].setEnvelope(0, 0.00, 0.7, 0.4);
-    ops[1].setEnvelope(0, 0.40, 0.3, 5.0);
-    ops[1].setEnvelope(0, 0.08, 0.7, 3.0);
+    ops[0].setEnvelope(0, 0.75, 0.4, 1.3);
+    ops[1].setEnvelope(0, 0.15, 0.3, 0.7);
+    ops[2].setEnvelope(0, 0.00, 0.9, 0.7);
+    ops[3].setEnvelope(0, 0.00, 0.7, 0.4);
+    ops[4].setEnvelope(0, 0.40, 0.3, 2.0);
+    ops[5].setEnvelope(0, 0.08, 0.7, 1.2);
   }
   void gate(bool state){
     ops[0].gate(state);
@@ -91,32 +97,24 @@ public:
     ops[3].setFrequency(freq);
     ops[4].setFrequency(freq);
     ops[5].setFrequency(freq);
-
-      ops[0].setEnvelope(0.0, 0.0, 1.0, 0.0);
-      // osc[0].setEnvelope(0.0, 0.0, 1.0, 0.0);
-    // osc.gate(true);
-    // osc.setFrequency(440);
+    ops[2].index = 1.0-mix;
+    ops[5].index = mix;
+    ops[2].env.setAttack(attack*0.2);
+    ops[5].env.setAttack(attack*1.2);
+    ops[2].env.setRelease(release*1.3);
+    ops[5].env.setRelease(release*1.9);
   }
- Operator osc;
-
   float getNextSample(){
     float sample, out;
+    // 0>1>2>
+    // 3>4>5>
     sample = ops[0].getNextSample();
     sample = ops[1].getNextSample(sample);
     out = ops[2].getNextSample(sample);
     sample = ops[3].getNextSample();
     sample = ops[4].getNextSample(sample);
     out += ops[5].getNextSample(sample);
-    // out = ops[0].getNextSample();
-    // out += ops[1].getNextSample();
-    // out += ops[2].getNextSample();
-    // out += ops[3].getNextSample();
-    // out += ops[4].getNextSample();
-    // out += ops[5].getNextSample();
     return out;
-    // static SineOscillator osc(48000);
-    // osc.setFrequency(440);
-    // return ops[0].getNextSample();
   }
 };
 
@@ -131,31 +129,21 @@ public:
       algo.gate(value);
     }
   }
-
   OperatorPatch() {
     registerParameter(PARAMETER_A, "Pitch");
-    registerParameter(PARAMETER_B, "Detune");
-    registerParameter(PARAMETER_C, "FM Ratio");
-    registerParameter(PARAMETER_D, "FM Index");
-    registerParameter(PARAMETER_E, "Gain");
+    registerParameter(PARAMETER_B, "Operator Mix");
+    registerParameter(PARAMETER_C, "Attack");
+    registerParameter(PARAMETER_D, "Decay");
   }
   ~OperatorPatch(){
   }
-  bool buttonstate = false;
   void processAudio(AudioBuffer &buffer) {
-    float fundamental = getParameterValue(PARAMETER_A)*6.0 - 1.0;
-    float gain = getParameterValue(PARAMETER_D)*2;
+    float fundamental = getParameterValue(PARAMETER_A)*5.0 - 1.0;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
-    if(isButtonPressed(PUSHBUTTON) != buttonstate){
-      buttonstate = isButtonPressed(PUSHBUTTON);
-      algo.gate(buttonstate);
-    }
     hz.setTune(fundamental);
     float freq = hz.getFrequency(0);
     algo.setFrequency(freq);
-    // algo.setFrequency(440);
     algo.getSamples(left);
-    left.multiply(gain);
   }
 };
 

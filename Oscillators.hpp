@@ -92,11 +92,11 @@ public:
     while(phase >= 2*M_PI)
       phase -= 2*M_PI;
   }
+  void reset(){
+    phase = 0.0f;
+  }
   float getPhase(){
     return phase;
-  }
-  void reset(){
-    phase = 0.0;
   }
   float getNextSample(){
     float sample = sinf(phase);
@@ -105,6 +105,13 @@ public:
       phase -= 2*M_PI;
     return sample;
   }
+  float getNextSample(float fm){
+    float sample = sinf(phase);
+    phase += incr + fm;
+    if(phase >= 2*M_PI)
+      phase -= 2*M_PI;
+    return sample;
+  }  
 };
 
 class ImpulseOscillator : public Oscillator {
