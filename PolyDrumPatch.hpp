@@ -30,7 +30,7 @@ public:
       uint8_t note = bid - MIDI_NOTE_BUTTON;
       if(value){
 	if(note < 40){
-	  float freq = 120.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+	  float freq = 220.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
 	  voices[0]->setFrequency(freq);
 	  voices[0]->setAccent(value/4096.0f);
 	  voices[0]->trigger();
