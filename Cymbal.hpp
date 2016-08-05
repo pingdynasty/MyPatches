@@ -79,7 +79,7 @@ public:
   void gate(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->gate(state, delay);
-    gain = accent * 0.3 + 0.8;
+    gain = accent * 0.6 + 0.7;
   }
   void setFrequency(float f){
     osc[0]->setFrequency(f*2);

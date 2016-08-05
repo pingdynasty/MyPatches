@@ -16,8 +16,8 @@ public:
     sum = FloatArray::create(getBlockSize());
     registerParameter(PARAMETER_A, "Kick Decay");
     registerParameter(PARAMETER_B, "Snare Decay");
-    registerParameter(PARAMETER_C, "Hat Decay");
-    registerParameter(PARAMETER_D, "Hi Decay");
+    registerParameter(PARAMETER_C, "Hi Decay");
+    registerParameter(PARAMETER_D, "Hat Decay");
     voices[0] = new BassDrumVoice(getSampleRate(), 80, 0.1);
     voices[1] = new BassDrumVoice(getSampleRate(), 120, 0.3);
     voices[2] = new CymbalVoice(getSampleRate(), 1760, 0.75, 0.7);
@@ -28,28 +28,30 @@ public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
       uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(note < 40){
-	float freq = 120.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
-	voices[0]->setFrequency(freq);
-	voices[0]->setAccent(value/4096.0f);
-	voices[0]->trigger(value, samples);
-      }else if(note < 60){
-	float freq = 220.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
-	voices[1]->setFrequency(freq);
-	voices[1]->setAccent(value/4096.0f);
-	voices[1]->trigger(value, samples);
-      }else if(note < 80){
-	float freq = 440.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
-	voices[2]->setFrequency(freq);
-	voices[2]->setAccent(value/4096.0f);
-	voices[2]->trigger(value, samples);
-      }else{
-	float freq = 440.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
-	voices[3]->setFrequency(freq);
-	voices[3]->setAccent(value/4096.0f);
-	voices[3]->trigger(value, samples);
+      if(value){
+	if(note < 40){
+	  float freq = 120.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+	  voices[0]->setFrequency(freq);
+	  voices[0]->setAccent(value/4096.0f);
+	  voices[0]->trigger();
+	}else if(note < 60){
+	  float freq = 220.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+	  voices[1]->setFrequency(freq);
+	  voices[1]->setAccent(value/4096.0f);
+	  voices[1]->trigger();
+	}else if(note < 80){
+	  float freq = 440.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+	  voices[2]->setFrequency(freq);
+	  voices[2]->setAccent(value/4096.0f);
+	  voices[2]->trigger();
+	}else{
+	  float freq = 440.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+	  voices[3]->setFrequency(freq);
+	  voices[3]->setAccent(value/4096.0f);
+	  voices[3]->trigger();
+	}
+	debugMessage("note on", note, value);
       }
-      debugMessage("note on", note, value);
     }else if(bid == PUSHBUTTON){
       for(int i=0; i<4; ++i)
 	voices[i]->trigger(value, samples);
