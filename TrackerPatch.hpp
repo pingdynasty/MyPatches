@@ -31,7 +31,7 @@ public:
     FloatArray::destroy(output);
   }
   void setPortamento(float portamento){
-    freq.lambda = portamento;
+    freq.lambda = SmoothFloat::normal(portamento, output.getSize());
   }
   void setShape(float shape){
     if(shape > 1.0){
@@ -43,48 +43,46 @@ public:
     }
   }
   void process(float tune, float mix, FloatArray samples) {
-    zcc.process(samples);
-    freq = zcc.getFrequency()*tune;
     float rms = samples.getRms();
-    if(rms > 0.1)
+    if(rms > 0.1){
       gain = rms*1.66;
-    else
-      gain = 0.0;
-    samples.multiply(1.0-mix);
-    osc.setFrequency(freq);
-    osc.getSamples(output);
-    output.multiply(mix*gain);
-    samples.add(output);
+      zcc.process(samples);
+      freq = zcc.getFrequency()*tune;
+      samples.multiply(1.0-mix);
+      osc.setFrequency(freq);
+      osc.getSamples(output);
+      output.multiply(mix*gain);
+      samples.add(output);
+    }else{
+      samples.multiply(1.0-mix);
+    }
   }
 };
 
 class TrackerPatch : public Patch {
 private:
   TrackerVoice left, right;
+  FloatParameter tune, glide, shape, mix, pitch;
 public:
   TrackerPatch() :
     left(getSampleRate(), getBlockSize()),
     right(getSampleRate(), getBlockSize()) {
-    registerParameter(PARAMETER_A, "Tune");
-    registerParameter(PARAMETER_B, "Glide");
-    registerParameter(PARAMETER_C, "Shape");
-    registerParameter(PARAMETER_D, "Dry/Wet");
-    registerParameter(PARAMETER_E, "Pitch");
+    tune = getFloatParameter("Tune", 0.5, 2.0, 1.0); // up/down 1 octave
+    glide = getFloatParameter("Glide", 0.8, 1.0, 0.9, 0.0, 0.0, EXP);
+    shape = getFloatParameter("Shape", 0, 2);
+    mix = getFloatParameter("Dry/Wet", 0, 1);
+    pitch = getFloatParameter("Pitch", 0, 1); // pitch up one more octave
   }      
   void processAudio(AudioBuffer &buffer) {
-    float portamento = getParameterValue(PARAMETER_B)*0.1+0.9;
-    float tune = getParameterValue(PARAMETER_A)*1.5+0.5; // up/down 1 octave
-    float shape = getParameterValue(PARAMETER_C)*2;
-    float mix = getParameterValue(PARAMETER_D);
-    tune += getParameterValue(PARAMETER_E); // pitch up by up to one octave
-    left.setPortamento(portamento);
-    right.setPortamento(portamento);
+    left.setPortamento(glide);
+    right.setPortamento(glide);
     left.setShape(shape);
     right.setShape(shape);
+    debugMessage("tune/glide/shape", tune, glide, shape);
     FloatArray lbuf = buffer.getSamples(LEFT_CHANNEL);
     FloatArray rbuf = buffer.getSamples(RIGHT_CHANNEL);
-    left.process(tune, mix, lbuf);
-    right.process(tune, mix, rbuf);
+    left.process(tune+pitch, mix, lbuf);
+    right.process(tune+pitch, mix, rbuf);
   }
 };
 

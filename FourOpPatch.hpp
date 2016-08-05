@@ -20,6 +20,10 @@ public:
   float ratio = 1.0;
   float offset = 0.0;
   Operator() : env(48000), osc(48000) {}
+  void setSampleRate(float value){
+    osc.setSampleRate(value);
+    env.setSampleRate(value);
+  }
   void setFrequency(float freq){
     osc.setFrequency(freq*ratio+offset);
     // osc.setFrequency(freq);
@@ -42,7 +46,6 @@ public:
 };
 
 class FourOp : public Oscillator {
-// private:
 public:
   Operator ops[4];
   Control<PARAMETER_A> a;
@@ -75,16 +78,20 @@ public:
   Control<PARAMETER_CF> cf;
   Control<PARAMETER_CG> cg;
   Control<PARAMETER_CH> ch;
-  FloatArray buffer;
 public:
-  FourOp(int blocksize){
-    buffer = FloatArray::create(blocksize);
+  FourOp(){
   }
   void gate(bool state, uint16_t samples){
     ops[0].gate(state, samples);
     ops[1].gate(state, samples);
     ops[2].gate(state, samples);
     ops[3].gate(state, samples);
+  }
+  void setSampleRate(float value){
+    ops[0].setSampleRate(value);
+    ops[1].setSampleRate(value);
+    ops[2].setSampleRate(value);
+    ops[3].setSampleRate(value);
   }
   void setFrequency(float freq){
     ops[0].setFrequency(freq);
@@ -113,7 +120,7 @@ public:
     ops[3].setEnvelope(ce, cf, cg, ch);
   }
   void getSamples(FloatArray samples){
-    int algo = h*12;
+    int algo = h*13;
     switch(algo){
     case 0:
       for(int i=0; i<samples.getSize(); ++i)
@@ -158,6 +165,14 @@ public:
     case 10:
       for(int i=0; i<samples.getSize(); ++i)
 	samples[i] = algo11();
+      break;
+    case 11:
+      for(int i=0; i<samples.getSize(); ++i)
+	samples[i] = algo12();
+      break;
+    case 12:
+      for(int i=0; i<samples.getSize(); ++i)
+	samples[i] = algo13();
       break;
     }
   }
@@ -264,6 +279,27 @@ public:
     out += ops[3].getNextSample();
     return out;
   }
+  float algo12(){
+    // 3>3>
+    // 0>1>2>
+    static float fb = 0.0f;
+    fb = ops[3].getNextSample(fb);
+    // tx81z appears to have global feedback(op4) parameter
+    float out = ops[0].getNextSample();
+    out = ops[1].getNextSample(out);
+    out = ops[2].getNextSample(out+fb);
+    return out;
+  }
+  float algo13(){
+    // 3>3>2>
+    //     0>1>
+    static float fb = 0.0f;
+    float out = ops[0].getNextSample();
+    fb = ops[3].getNextSample(fb);
+    out += ops[2].getNextSample(fb);
+    out = ops[1].getNextSample(out);
+    return out;
+  }
   void noteOn(uint16_t note, uint16_t velocity, uint16_t samples){
     float freq = 440.0f*fastpow2f((note-69 + pb*2)/12.0);
     setFrequency(freq);
@@ -290,7 +326,8 @@ public:
       algo.gate(value, samples);
     }
   }
-  FourOpPatch() : algo(getBlockSize()) {
+  FourOpPatch() { // : algo(getBlockSize()) {
+    algo.setSampleRate(getSampleRate());
     registerParameter(PARAMETER_A, "Operator 1");
     registerParameter(PARAMETER_B, "Operator 2");
     registerParameter(PARAMETER_C, "Operator 3");

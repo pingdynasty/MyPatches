@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
   int samples;
   filename = argc > 1 ? argv[1] : "file.wav";
   varname = argc > 2 ? argv[2] : "ir";
-  samples = argc > 3 ? atol(argv[3]) : 8*1024; // default size 8kB
+  samples = argc > 3 ? atol(argv[3]) : 10*1024; // default size 8kB
   channels = argc > 4 ? atol(argv[4]) : 1;
   /* Open the WAV file. */
   info.format = 0;
@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
   /* Allocate space for the data to be read, then read it. */
   buf = (float*)malloc(samples*sizeof(float));
   num = sf_read_float(sf, buf, samples*info.channels);
-  sf_close(sf);
+  /* sf_close(sf); */
   printf("Read %d items\n*/\n", num);
   /* Write the data to std out */
   printf("float %s[%d][%d] = {\n", varname, channels, samples);
