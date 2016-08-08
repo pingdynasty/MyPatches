@@ -22,32 +22,49 @@
 #define SEMI    1
 #define WHOLE   2
 
+/*
+ * Random LFO generates a random excursion LFO at a given rate and range 
+ * on the left output channel.
+ * If the rate is zero, the LFO can only be incremented by external trigger.
+ * The right channel has a pitch quantizer which quantizes an input voltage
+ * (assumed 1v/oct) to:
+ * - no quantization
+ * - chromatic (semitones)
+ * - major scale
+ * - harmonic minor
+ * - melodic minor
+ * The quantizer then adds a fixed semitone offset, effectively
+ * changing the root note of the scale.
+ * Tips: 
+ * - feed the left output back into the right input for quantized random LFO
+ * - feed some of the left output into rate
+ */
 class RandomLfoPatch : public Patch {
+private:
   const int scales[3][12] = {
     {P1, P1, M2, M2, M3, P4, P4, P5, P5, M6, M6, M7 }, // Major scale
     {P1, P1, M2, m3, m3, P4, P4, P5, m6, m6, M7, M7 }, // Harmonic Minor scale
     {P1, P1, M2, m3, m3, P4, P4, P5, P5, M6, M7, M7 }, // Melodic Minor scale
   };
-public:
+  static constexpr float near = 0.00001f;
   const int maxrate;
   const int minrate;
   Oscillator* noise;
   float last, target;
-  int step;
   FloatParameter range;
   IntParameter rate;
   VoltsPerOctave hz;
   IntParameter scale;
   IntParameter offset;
+public:
   RandomLfoPatch() : maxrate(getSampleRate()*2),
 		     minrate(getSampleRate()/2000) {
     noise = WhiteNoiseOscillator::create();
     range = getFloatParameter("Range", 0.01, 1.0, 1.0);
     rate = getIntParameter("Rate", 0, maxrate, 0);
     scale = getIntParameter("Scale", 0, 5, 0);
-    offset = getIntParameter("Offset", 0, 12, 0);
+    offset = getIntParameter("Root", -11, 12, 0);
     target = last = 0.0f;
-    step = 0;
   }
   float getIncrement(){
     if(rate < minrate)
@@ -63,24 +80,22 @@ public:
     default:
       int octave = (int)volts;
       int semitone = (int)round(volts*12) % 12;
-      return scales[scale-2][semitone] + octave + offset;
+      return scales[scale-2][semitone] + octave + offset/12.0f;
     }
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid == PUSHBUTTON && value){
       // skip straight to target
       last = target;
-      step = 0;
     }
-  }  
+  }
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     for(int i = 0; i<buffer.getSize(); i++){
-      if(++step >= (maxrate-rate)){
+      if(abs(last-target) < near){
 	last = target;
 	target = noise->getNextSample()*range;
-	step = 0;
       }
       left[i] = last;
       last += getIncrement();
