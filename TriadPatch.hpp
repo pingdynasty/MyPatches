@@ -13,9 +13,9 @@
  */
 #define SEMI    (1.0/12)
 #define WHOLE   (2.0/12)
-#define TRIADS 4
+#define TRIADS 5
 static const float TRIAD_SEMITONES[TRIADS][5] = {
-  //  {0, 1, 6, 12, 12+1}, // Viennese trichord
+  {0, 1, 6, 12, 12+1}, // Viennese trichord
   {0, 3, 6, 12, 12+3}, // Diminishied triad
   {0, 3, 7, 12, 12+3}, // Minor triad
   {0, 4, 7, 12, 12+4}, // Major triad

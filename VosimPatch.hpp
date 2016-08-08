@@ -47,7 +47,7 @@ public:
     osc = new VosimOscillator(getSampleRate(), sine1, sine2);
     registerParameter(PARAMETER_A, "Fundamental");
     registerParameter(PARAMETER_B, "Formant");
-    registerParameter(PARAMETER_B, "Offset");
+    registerParameter(PARAMETER_C, "Detune");
     registerParameter(PARAMETER_D, "Gain");
   }
   void processAudio(AudioBuffer &buffer) {

@@ -12,7 +12,7 @@ public:
   SquareFMOscillator* osc[3];
   BiquadFilter* bp;
   BiquadFilter* hp;
-  AdsrEnvelope* eg[3];
+  AdsrEnvelope* eg[2];
   const float fs;
   float gain;
   float accent;
@@ -23,13 +23,12 @@ public:
     osc[2] = new SquareFMOscillator(sr);
     eg[0] = new AdsrEnvelope(sr);
     eg[1] = new AdsrEnvelope(sr);
-    eg[2] = new AdsrEnvelope(sr);
     eg[0]->setAttack(0.0f);
     eg[0]->setDecay(0.4f);
     eg[0]->setSustain(0.0f);
     eg[0]->setRelease(0.0f);
     eg[1]->setAttack(0.0f);
-    eg[0]->setDecay(0.2f);
+    eg[1]->setDecay(0.2f);
     eg[1]->setSustain(0.8f);
     eg[1]->setRelease(0.2f);
     bp = BiquadFilter::create(2);
@@ -49,6 +48,29 @@ public:
     osc[2]->setModulatorFrequency(936.8196);
     osc[2]->setModulatorGain(0.1052);
   }
+  CymbalVoice(float sr, float freq, float filter, float fm) : fs(sr), gain(0.0), accent(0.0) {
+    osc[0] = new SquareFMOscillator(sr);
+    osc[1] = new SquareFMOscillator(sr);
+    osc[2] = new SquareFMOscillator(sr);
+    osc[0]->setGain(2.5);
+    osc[1]->setGain(1.5);
+    osc[2]->setGain(1);
+    eg[0] = new AdsrEnvelope(sr);
+    eg[1] = new AdsrEnvelope(sr);
+    eg[0]->setAttack(0.0f);
+    eg[0]->setDecay(0.4f);
+    eg[0]->setSustain(0.0f);
+    eg[0]->setRelease(0.0f);
+    eg[1]->setAttack(0.0f);
+    eg[1]->setDecay(0.2f);
+    eg[1]->setSustain(0.8f);
+    eg[1]->setRelease(0.2f);
+    bp = BiquadFilter::create(2);
+    hp = BiquadFilter::create(2);
+    setFrequency(freq);
+    setFilter(filter);
+    setFmAmount(fm);
+  }
   void trigger(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->trigger(state, delay);
@@ -57,7 +79,7 @@ public:
   void gate(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->gate(state, delay);
-    gain = accent * 0.3 + 0.8;
+    gain = accent * 0.6 + 0.7;
   }
   void setFrequency(float f){
     osc[0]->setFrequency(f*2);

@@ -3,6 +3,7 @@
 
 class Drum : public Oscillator, public Envelope {
 public:
+  virtual void setDecay(float amount){}
   virtual void setAccent(float accent){}
 };
 
