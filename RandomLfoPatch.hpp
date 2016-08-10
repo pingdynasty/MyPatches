@@ -46,7 +46,6 @@ private:
     {P1, P1, M2, m3, m3, P4, P4, P5, m6, m6, M7, M7 }, // Harmonic Minor scale
     {P1, P1, M2, m3, m3, P4, P4, P5, P5, M6, M7, M7 }, // Melodic Minor scale
   };
-  static constexpr float near = 0.00001f;
   const int maxrate;
   const int minrate;
   Oscillator* noise;
@@ -70,7 +69,7 @@ public:
   float getIncrement(){
     if(rate < minrate)
       return 0.0f;
-    return (last-target)/(maxrate-rate);
+    return (target-last)/(maxrate-rate);
   }
   float quantize(float volts){
     switch(scale){
@@ -94,7 +93,7 @@ public:
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     for(int i = 0; i<buffer.getSize(); i++){
-      if(abs(last-target) < near){
+      if(abs(last-target) < 0.001){
 	last = target;
 	target = noise->getNextSample()*range;
       }
