@@ -59,7 +59,8 @@ private:
 public:
   RandomLfoPatch() : maxrate(getSampleRate()*2),
 		     minrate(getSampleRate()/2000) {
-    noise = WhiteNoiseOscillator::create();
+    // noise = WhiteNoiseOscillator::create();
+    noise = new WhiteNoiseOscillator();
     range = getFloatParameter("Range", 0.01, 1.0, 1.0);
     rate = getIntParameter("Rate", 0, maxrate, 0);
     scale = getIntParameter("Scale", 0, 5, 0);
