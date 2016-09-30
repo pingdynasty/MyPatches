@@ -18,6 +18,7 @@ public:
 public:
   float index = 1.0;
   float ratio = 1.0;
+  // int ratio = 1.0;
   float offset = 0.0;
   Operator() : env(48000), osc(48000) {}
   void setSampleRate(float value){
@@ -78,8 +79,53 @@ public:
   Control<PARAMETER_CF> cf;
   Control<PARAMETER_CG> cg;
   Control<PARAMETER_CH> ch;
+  Control<PARAMETER_DA> da;
+  Control<PARAMETER_DB> db;
+  Control<PARAMETER_DC> dc;
+  Control<PARAMETER_DD> dd;
+  Control<PARAMETER_DE> de;
+  Control<PARAMETER_DF> df;
+  Control<PARAMETER_DG> dg;
+  Control<PARAMETER_DH> dh;
+  const float RATIO_DEFAULT = 1;
+  const float RATIO_MIN = 0.5;
+  const float RATIO_RANGE = 7.5;
+  const float OFFSET_DEFAULT = 0.0;
+  const float INDEX_DEFAULT = 0.5;
+  const float ATTACK_DEFAULT = 0.5;
+  const float DECAY_DEFAULT = 0.5;
+  const float SUSTAIN_DEFAULT = 0.5;
+  const float RELEASE_DEFAULT = 0.5;
 public:
   FourOp(){
+    aa = RATIO_DEFAULT;
+    ab = OFFSET_DEFAULT;
+    ac = INDEX_DEFAULT;
+    ae = ATTACK_DEFAULT;
+    af = DECAY_DEFAULT;
+    ag = SUSTAIN_DEFAULT;
+    ah = RELEASE_DEFAULT;
+    ba = RATIO_DEFAULT;
+    bb = OFFSET_DEFAULT;
+    bc = INDEX_DEFAULT;
+    be = ATTACK_DEFAULT;
+    bf = DECAY_DEFAULT;
+    bg = SUSTAIN_DEFAULT;
+    bh = RELEASE_DEFAULT;
+    ca = RATIO_DEFAULT;
+    cb = OFFSET_DEFAULT;
+    cc = INDEX_DEFAULT;
+    ce = ATTACK_DEFAULT;
+    cf = DECAY_DEFAULT;
+    cg = SUSTAIN_DEFAULT;
+    ch = RELEASE_DEFAULT;
+    da = RATIO_DEFAULT;
+    db = OFFSET_DEFAULT;
+    dc = INDEX_DEFAULT;
+    de = ATTACK_DEFAULT;
+    df = DECAY_DEFAULT;
+    dg = SUSTAIN_DEFAULT;
+    dh = RELEASE_DEFAULT;
   }
   void gate(bool state, uint16_t samples){
     ops[0].gate(state, samples);
@@ -95,32 +141,35 @@ public:
   }
   void setFrequency(float freq){
     ops[0].setFrequency(freq);
+    ops[0].index = ac;
+    ops[0].ratio = RATIO_MIN + aa*RATIO_RANGE;
+    ops[0].offset = ab;
+    ops[0].setEnvelope(ae, af, ag, ah);
+
     ops[1].setFrequency(freq);
-    ops[2].setFrequency(freq);
-    ops[3].setFrequency(freq);
-
-    ops[0].index = a;
-    ops[1].index = b;
-    ops[2].index = c;
-    ops[3].index = d;
-
-    ops[0].ratio = aa;
-    ops[1].ratio = ab;
-    ops[2].ratio = ac;
-    ops[3].ratio = ad;
-
-    ops[0].offset = ae;
-    ops[1].offset = af;
-    ops[2].offset = ag;
-    ops[3].offset = ah;
-
-    ops[0].setEnvelope(ba, bb, bc, bd);
+    ops[1].index = b * bc;
+    ops[1].ratio = RATIO_MIN + ba*RATIO_RANGE;
+    ops[1].offset = bb;
     ops[1].setEnvelope(be, bf, bg, bh);
-    ops[2].setEnvelope(ca, cb, cc, cd);
-    ops[3].setEnvelope(ce, cf, cg, ch);
+
+    ops[2].setFrequency(freq);
+    ops[2].index = c * cc;
+    ops[2].ratio = RATIO_MIN + ca*RATIO_RANGE;
+    ops[2].offset = cb;
+    ops[2].setEnvelope(ce, cf, cg, ch);
+
+    ops[3].setFrequency(freq);
+    ops[3].index = d * dc;
+    ops[3].ratio = RATIO_MIN + da*RATIO_RANGE;
+    ops[3].offset = db;
+    ops[3].setEnvelope(de, df, dg, dh);
+  }
+  float getNextSample(){
+    return 0.0f;
   }
   void getSamples(FloatArray samples){
     int algo = h*13;
+    debugMessage("algo", algo);
     switch(algo){
     case 0:
       for(int i=0; i<samples.getSize(); ++i)
@@ -314,6 +363,7 @@ class FourOpPatch : public Patch {
 private:
   FourOp algo;
   VoltsPerOctave hz;
+  BiquadFilter* lp;
 public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
@@ -332,6 +382,8 @@ public:
     registerParameter(PARAMETER_B, "Operator 2");
     registerParameter(PARAMETER_C, "Operator 3");
     registerParameter(PARAMETER_D, "Operator 4");
+    lp = StereoBiquadFilter::create(2);
+    lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
   }
   ~FourOpPatch(){
   }
@@ -342,6 +394,7 @@ public:
     float freq = hz.getFrequency(0);
     algo.setFrequency(freq);
     algo.getSamples(left);
+    lp->process(left);
   }
 };
 
