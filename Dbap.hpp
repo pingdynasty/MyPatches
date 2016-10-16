@@ -115,13 +115,13 @@ public:
 
   static Dbap* create(unsigned int sources, unsigned int speakers){
     // creates  DBAP confiugration with the given number of
-    // speakers evenly spaced within a square with sides [0-1].
+    // speakers evenly spaced within a square with sides [-1 to 1].
     FloatArray x = FloatArray::create(speakers);
     FloatArray y = FloatArray::create(speakers);
     int rows = ceilf(sqrtf(speakers));
     int cols = ceilf(speakers/rows);
-    float xpos = 0;
-    float ypos = 0;
+    float xpos = -1.0f;
+    float ypos = -1.0f;
     for(int i=0; i<rows; ++i){
       for(int j=0; j<cols; ++j){
 	int index = i*rows+j;
@@ -129,10 +129,10 @@ public:
 	  x[index] = xpos;
 	  y[index] = ypos;
 	}
-	xpos += 1/cols;
+	xpos += 2/cols;
       }
       xpos = 0;
-      ypos += 1/rows;
+      ypos += 2/rows;
     }
     DbapSource* src = new DbapSource[sources];
     Dbap* dbap = new Dbap(src, sources, x, y);
@@ -143,10 +143,10 @@ public:
     // create a default 4-way DBAP configuration
     FloatArray x = FloatArray::create(4);
     FloatArray y = FloatArray::create(4);
-    x[0] = 0.0; y[0] = 0.0;
-    x[1] = 0.0; y[1] = 1.0;
+    x[0] = -1.0; y[0] = -1.0;
+    x[1] = -1.0; y[1] = 1.0;
     x[2] = 1.0; y[2] = 1.0;
-    x[3] = 1.0; y[3] = 0.0;
+    x[3] = 1.0; y[3] = -1.0;
     DbapSource* src = new DbapSource[sources];
     Dbap* dbap = new Dbap(src, sources, x, y);
     return dbap;
