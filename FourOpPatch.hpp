@@ -18,7 +18,6 @@ public:
 public:
   float index = 1.0;
   float ratio = 1.0;
-  // int ratio = 1.0;
   float offset = 0.0;
   Operator() : env(48000), osc(48000) {}
   void setSampleRate(float value){
@@ -27,7 +26,6 @@ public:
   }
   void setFrequency(float freq){
     osc.setFrequency(freq*ratio+offset);
-    // osc.setFrequency(freq);
   }
   void setEnvelope(float a, float d, float s, float r){
     env.setAttack(a);
@@ -169,7 +167,7 @@ public:
   }
   void getSamples(FloatArray samples){
     int algo = h*13;
-    debugMessage("algo", algo);
+    // debugMessage("algo", algo);
     switch(algo){
     case 0:
       for(int i=0; i<samples.getSize(); ++i)
@@ -376,7 +374,7 @@ public:
       algo.gate(value, samples);
     }
   }
-  FourOpPatch() { // : algo(getBlockSize()) {
+  FourOpPatch() {
     algo.setSampleRate(getSampleRate());
     registerParameter(PARAMETER_A, "Operator 1");
     registerParameter(PARAMETER_B, "Operator 2");
