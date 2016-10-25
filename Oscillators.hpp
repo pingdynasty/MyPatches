@@ -78,14 +78,21 @@ public:
 
 class SineOscillator : public Oscillator {
 private:
-  const float fs;
+  float mul;
   float phase;
   float incr;
 public:
-  SineOscillator(float sr)
-    : fs(sr), phase(0.0f), incr(0.0f){}
+  SineOscillator() : phase(0.0f), incr(0.0f) {    
+    setSampleRate(48000);
+  }
+  SineOscillator(float sr) : phase(0.0f), incr(0.0f){
+    setSampleRate(sr);
+  }    
+  void setSampleRate(float sr){
+    mul = 2*M_PI/sr;
+  }
   void setFrequency(float freq){
-    incr = freq*2*M_PI/fs;
+    incr = freq*mul;
   }
   void setPhase(float ph){
     phase = ph;
