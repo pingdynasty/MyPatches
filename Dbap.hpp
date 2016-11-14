@@ -17,17 +17,30 @@ public:
       a(rolloff / (20 * log10f(2))) {}
 
   void setSpread(float newSpread){
-    rSquared = newSpread * newSpread;
+    rSquared = max(0.001, newSpread * newSpread); // avoid div by zero caused by zero distance
   }
-
   void setPosition(float newX, float newY){
     xs = newX;
     ys = newY;
   }
-
   void setPolarPosition(float angle, float r){
     xs = r * cosf(angle / 360 * 2*M_PI);
     ys = r * sinf(angle / 360 * 2*M_PI);
+  }
+  float getX(){
+    return xs;
+  }
+  float getY(){
+    return ys;
+  }
+  float getSpread(){
+    return spread;
+  }
+  float getAngle(){
+    return atanf(xs/ys);
+  }
+  float getDistance(){
+    return sqrtf(xs*xs+ys*ys);
   }
 
   void getAmplitudes(FloatArray outputs, FloatArray speakersX, FloatArray speakersY){
@@ -85,6 +98,12 @@ public:
       speakersY[speaker] = y;
   }
   
+
+  DbapSource* getSource(unsigned int source){
+    if(source < numSources)
+      return &sources[source];
+  }
+
   void setSourcePosition(unsigned int source, float x, float y){
     if(source < numSources)
       sources[source].setPosition(x, y);
@@ -114,27 +133,19 @@ public:
   }
 
   static Dbap* create(unsigned int sources, unsigned int speakers){
-    // creates  DBAP confiugration with the given number of
-    // speakers evenly spaced within a square with sides [-1 to 1].
+    // creates  DBAP configuration with the given number of
+    // speakers evenly spaced on the unity circle
     FloatArray x = FloatArray::create(speakers);
     FloatArray y = FloatArray::create(speakers);
-    int rows = ceilf(sqrtf(speakers));
-    int cols = ceilf(speakers/rows);
-    float xpos = -1.0f;
-    float ypos = -1.0f;
-    for(int i=0; i<rows; ++i){
-      for(int j=0; j<cols; ++j){
-	int index = i*rows+j;
-	if(index < speakers){
-	  x[index] = xpos;
-	  y[index] = ypos;
-	}
-	xpos += 2/cols;
-      }
-      xpos = 0;
-      ypos += 2/rows;
-    }
     DbapSource* src = new DbapSource[sources];
+    float angle = 360/sources;
+    for(int i=0; i<sources; ++i)
+      src->setPolarPosition(angle*i, 1.0f);
+    angle = (2*M_PI)/speakers;
+    for(int i=0; i<speakers; ++i){
+      x[i] = cosf(angle*i+angle/2);
+      y[i] = sinf(angle*i+angle/2);
+    }
     Dbap* dbap = new Dbap(src, sources, x, y);
     return dbap;
   }
