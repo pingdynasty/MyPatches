@@ -13,7 +13,7 @@ public:
   public:
     float x, y;
   };
-  static constexpr unsigned int numSources = 4;
+  static constexpr unsigned int numSources = 2;
   static constexpr unsigned int numSpeakers = 4;
   static constexpr unsigned int SEND_INTERVAL = 0; // set parameters every X blocks
   float lambda;
@@ -24,16 +24,21 @@ public:
   PatchParameterId outputParameters[numSources][numSpeakers] = {
     { PARAMETER_AA, PARAMETER_AB, PARAMETER_AC, PARAMETER_AD},
     { PARAMETER_AE, PARAMETER_AF, PARAMETER_AG, PARAMETER_AH},
-    { PARAMETER_BA, PARAMETER_BB, PARAMETER_BC, PARAMETER_BD},
-    { PARAMETER_BE, PARAMETER_BF, PARAMETER_BG, PARAMETER_BH},
+    // { PARAMETER_BA, PARAMETER_BB, PARAMETER_BC, PARAMETER_BD},
+    // { PARAMETER_BE, PARAMETER_BF, PARAMETER_BG, PARAMETER_BH},
   };
   Dbap* dbap;
   uint32_t controlledSources;
   FloatArray gains;
   QuadPanningPatch()
-    : controlledSources(0) {    
+    : controlledSources(0) {
     dbap = Dbap::create(numSources, numSpeakers);
-    dbap->homeSources();
+// #ifdef POSITION_CARTESIAN
+//     dbap = Dbap::create(numSources);
+//     dbap->homeSources();
+// #else
+//     dbap = Dbap::create(numSources, numSpeakers);
+// #endif
     gains = FloatArray::create(numSpeakers);
     registerParameter(PARAMETER_A, "Source");
 #ifdef POSITION_CARTESIAN
@@ -70,7 +75,7 @@ public:
       // if(isButtonPressed(PUSHBUTTON)){
       	moveSources(b, c, spread);
       // }else{
-	// moveSourcesRelative(b - lastB, c - lastC, spread);
+      // 	moveSourcesRelative(b - lastB, c - lastC, spread);
       // }
       lastB = b;
       lastC = c;
@@ -95,13 +100,9 @@ public:
       if(isSourceControlled(n)){
 	DbapSource* src = dbap->getSource(n);
 #ifdef POSITION_CARTESIAN
-	b = src->getX() + b;
-	c = src->getY() + c;
-        dbap->setSourcePosition(n, b, c);
+        dbap->setSourcePosition(n, src->getX() + b, src->getY() + c);
 #else
-	b = src->getAngle() + b;
-	c = src->getDistance() + c;
-        dbap->setSourcePolarPosition(n, b, c);
+        dbap->setSourcePolarPosition(n, src->getAngle() + b, src->getDistance() + c);
 #endif
         dbap->setSourceSpread(n, spread);
 	dbap->getAmplitudes(n, gains);
@@ -127,22 +128,23 @@ public:
 
   void updateControlledSources(float par){
     static float previousPar = -1;
-    const int numStates = numSources+3;
+    // const int numStates = numSources+3;
+    const int numStates = numSources+1;
     if(fabsf(par - previousPar) > 0.005){
       previousPar = par;
       unsigned int state = (int)(par * numStates);
       resetControlledSources();
       switch(state){
-      case numStates - 3: // controls the first half	
-        for(unsigned int n = 0; n < numSources / 2; ++n)
-          controlSource(n);
-        debugMessage("Controlling lower half");
-      break;
-      case numStates - 2: // controls the second half	
-        for(unsigned int n =  numSources / 2; n < numSources; ++n)
-          controlSource(n);
-        debugMessage("Controlling upper half");
-      break;
+      // case numStates - 3: // controls the first half	
+      //   for(unsigned int n = 0; n < numSources / 2; ++n)
+      //     controlSource(n);
+      //   debugMessage("Controlling lower half");
+      // break;
+      // case numStates - 2: // controls the second half	
+      //   for(unsigned int n =  numSources / 2; n < numSources; ++n)
+      //     controlSource(n);
+      //   debugMessage("Controlling upper half");
+      // break;
       case numStates - 1: // controls all sources	
         for(unsigned int n =  0; n < numSources; ++n)
           controlSource(n);

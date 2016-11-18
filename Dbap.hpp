@@ -37,7 +37,7 @@ public:
     return spread;
   }
   float getAngle(){
-    return atanf(xs/ys);
+    return ys == 0 ? 0 : atanf(xs/ys)*360/(2*M_PI);
   }
   float getDistance(){
     return sqrtf(xs*xs+ys*ys);
