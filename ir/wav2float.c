@@ -2,7 +2,11 @@
 #include <stdlib.h>
 #include <sndfile.h>
 /*
+  compile with:
   gcc wav2float.c -o wav2float  -lsndfile
+  run with:
+  ./wav2float sample.wav foobar 512 1 > sample.h
+  (makes a float array named 'foobar' with the first 512 samples, 1 channel of sample.wav)
 */
 int main(int argc, char* argv[])
 {
