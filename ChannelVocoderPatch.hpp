@@ -19,6 +19,7 @@ public:
     window = Window::create(Window::HannWindow, blocksize);
     registerParameter(PARAMETER_A, "Bands");
     registerParameter(PARAMETER_B, "Smooth");
+    registerParameter(PARAMETER_C, "Gain");
     registerParameter(PARAMETER_D, "Dry/Wet");
     fft.init(blocksize);
   }
@@ -45,6 +46,7 @@ public:
   void processAudio(AudioBuffer &buffer) {
     int bands = getParameterValue(PARAMETER_A)*(blocksize/4)+2;
     float smooth = getParameterValue(PARAMETER_B);
+    float gain = getParameterValue(PARAMETER_C)*4; // Hann window processing loss is 1.76dB
     float wet = getParameterValue(PARAMETER_D);
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
@@ -62,7 +64,7 @@ public:
     fft.ifft(carrier, left);
 
     // dry/wet
-    left.multiply(wet);
+    left.multiply(wet*gain);
     right.multiply(1.0f - wet);
     right.add(left);
   }
