@@ -46,22 +46,22 @@ public:
   void processAudio(AudioBuffer &buffer) {
     int bands = getParameterValue(PARAMETER_A)*(blocksize/4)+2;
     float smooth = getParameterValue(PARAMETER_B);
-    float gain = getParameterValue(PARAMETER_C)*4; // Hann window processing loss is 1.76dB
+    float gain = getParameterValue(PARAMETER_C)*4+1; // Hann window processing loss is 1.76dB
     float wet = getParameterValue(PARAMETER_D);
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    window.apply(left);
     window.apply(right);
-
-    // forward fft
-    fft.fft(left, modulator); // voice
     fft.fft(right, carrier);  // synth
+    right.copyFrom(left); // store dry signal
+    window.apply(left);
+    fft.fft(left, modulator); // voice
 
     vocode(modulator, carrier, bands, smooth);
 
     // inverse fft
     fft.ifft(carrier, left);
+    // window.apply(left);
 
     // dry/wet
     left.multiply(wet*gain);
