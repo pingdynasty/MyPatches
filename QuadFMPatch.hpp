@@ -308,8 +308,6 @@ public:
     registerParameter(PARAMETER_D, "Operator 4");
     lp = StereoBiquadFilter::create(2);
     lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
-    hz.offset = -0.0589f;
-    hz.multiplier = -4.399f;
   }
   ~QuadFMPatch(){
   }
