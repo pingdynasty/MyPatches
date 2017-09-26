@@ -3,13 +3,10 @@
 
 #include "Patch.h"
 #include "VoltsPerOctave.h"
-// #include "PolyBlepOscillator.h"
 #include "SineOscillator.h"
 #include "BiquadFilter.h"
 #include "Control.h"
 #include "SmoothValue.h"
-
-#include "Oscillators.hpp"
 
 class Operator : public Oscillator {
 private:
