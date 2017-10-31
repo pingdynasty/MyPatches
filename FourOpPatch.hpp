@@ -4,10 +4,9 @@
 #include "Patch.h"
 #include "Envelope.h"
 #include "VoltsPerOctave.h"
-#include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
 #include "Control.h"
-
+#include "SineOscillator.h"
 #include "Oscillators.hpp"
 
 class Operator : public Oscillator {
@@ -348,7 +347,7 @@ public:
     return out;
   }
   void noteOn(uint16_t note, uint16_t velocity, uint16_t samples){
-    float freq = 440.0f*fastpow2f((note-69 + pb*2)/12.0);
+    float freq = 440.0f*exp2f((note-69 + pb*2)/12.0);
     setFrequency(freq);
     gate(true, samples);
   }
