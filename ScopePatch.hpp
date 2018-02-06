@@ -18,8 +18,13 @@ private:
   Colour trace1 = WHITE; // RED
   Colour trace2 = WHITE; // GREEN
   Colour buffer[2][128];
-  int writepos = 0;
-  int div = 1;
+  int writepos;
+  int divisions;
+  float triggerLevel;
+  float gain;
+  float offset;
+  int height;
+  int width;
 private:
   uint16_t drawVerticalLine(ScreenBuffer& screen, uint16_t x, uint16_t y, uint16_t to, uint16_t c){
     if(y > to)
@@ -33,31 +38,25 @@ private:
 public:
   ScopePatch(){
     registerParameter(PARAMETER_A, "Divisions");
+    registerParameter(PARAMETER_B, "Trigger");
+    registerParameter(PARAMETER_C, "Gain");
+    registerParameter(PARAMETER_D, "Offset");
     reset();
   }
   void reset(){
     // width = height = 0;
     width = 128;
     height = 24;
-    div = 2;
+    divisions = 2;
+    triggerLevel = 0.0;
+    gain = 2.0;
+    offset = 0.0;
     writepos = 0;
     for(int i=0; i<128; ++i){
       buffer[0][i] = 31;
       buffer[1][i] = 33;
     }
   }
-
-  // void encoderChanged(uint8_t encoder, int32_t dir){
-  //   if(dir > 0 && div < 16)
-  //     div++;
-  //   else if(div > 1)
-  //     div--;
-  //   writepos = 0;
-  //   reset();
-  // }
-
-  int height;
-  int width;
 
   void processScreen(ScreenBuffer& screen){
     height = screen.getHeight()/2;
@@ -68,7 +67,7 @@ public:
     screen.setCursor(35, 0);
     screen.print("Scope");
     screen.setCursor(0, screen.getHeight()-8);
-    screen.print(div);
+    screen.print(divisions);
     int ly = buffer[0][0];
     int ry = buffer[1][0];
     for(int i=1; i<width; ++i){
@@ -78,25 +77,25 @@ public:
    }
 
   void processAudio(AudioBuffer& samples){
-    div = getParameterValue(PARAMETER_A)*16+1;
+    // divisions = getParameterValue(PARAMETER_A)*16+1;
+    // triggerLevel = getParameterValue(PARAMETER_B)*2-1;
+    // gain = getParameterValue(PARAMETER_C)*4;
+    // offset = getParameterValue(PARAMETER_D)*2-1;
     int size = samples.getSize();
     float* left = samples.getSamples(0);
     float* right = samples.getSamples(1);
-    float trig = 0.0f;
-    int offset = 0;
+    int skip = 0;
     // fast forward to trigger
     // look for rising edge
     if(writepos == 0){
-      while(left[offset] > trig-0.0001 && offset < size)
-	offset++;
-      while(left[offset] < trig && offset < size)
-	offset++;
+      while(left[skip] > triggerLevel-0.0001 && skip < size)
+	skip++;
+      while(left[skip] < triggerLevel && skip < size)
+	skip++;
     }
-    // if(offset+width*div < size)
-      // writepos = 0;
-    for(int i=offset; i<samples.getSize() && writepos < width; i+=div){
-      buffer[0][writepos] = height+height*left[i];
-      buffer[1][writepos] = height+height*right[i]+2;
+    for(int i=skip; i<samples.getSize() && writepos < width; i+=divisions){
+      buffer[0][writepos] = height+height*offset+height*left[i]*gain;
+      buffer[1][writepos] = height+height*offset+height*right[i]*gain + 2;
       writepos++;
     }
     if(writepos >= width)
