@@ -23,11 +23,18 @@ public:
     registerParameter(PARAMETER_AA, "Root");
     registerParameter(PARAMETER_AB, "Envelope>");
 
+    setParameterValue(PARAMETER_A, 0.3);
+    setParameterValue(PARAMETER_B, 0.3);
+    setParameterValue(PARAMETER_AA, 0.126);
+
     // FILT
     registerParameter(PARAMETER_C, "Cutoff");
     registerParameter(PARAMETER_D, "Resonance");
     registerParameter(PARAMETER_AC, "3rds");
     registerParameter(PARAMETER_AD, "5ths");
+
+    setParameterValue(PARAMETER_C, 0.7);
+    setParameterValue(PARAMETER_D, 0.2);
 
     // HAT
     registerParameter(PARAMETER_E, "Hat Tone");
@@ -35,11 +42,19 @@ public:
     registerParameter(PARAMETER_AE, "Hat Beats");
     registerParameter(PARAMETER_AF, "LFO1>");
 
+    setParameterValue(PARAMETER_E, 0.8);
+    setParameterValue(PARAMETER_F, 0.25);
+    setParameterValue(PARAMETER_AE, 0.51);
+
     // KICK
     registerParameter(PARAMETER_G, "Kick Tone");
     registerParameter(PARAMETER_H, "Kick Decay");
     registerParameter(PARAMETER_AG, "Kick Beats");
     registerParameter(PARAMETER_AH, "LFO2>");
+
+    setParameterValue(PARAMETER_G, 0.2);
+    setParameterValue(PARAMETER_H, 0.25);
+    setParameterValue(PARAMETER_AG, 0.26);
 
     registerParameter(PARAMETER_BA, "Waveshape");
     // registerParameter(PARAMETER_BB, "Kick Snap");
@@ -47,8 +62,9 @@ public:
     registerParameter(PARAMETER_BC, "LFO1");
     registerParameter(PARAMETER_BD, "LFO2");
 
-    // setParameterValue(PARAMETER_BC, 0.2);
-    // setParameterValue(PARAMETER_BD, 0.4);
+    setParameterValue(PARAMETER_BB, 0.5);
+    setParameterValue(PARAMETER_BC, 0.2);
+    setParameterValue(PARAMETER_BD, 0.4);
     
     hat = new CymbalVoice(getSampleRate());
     kick = new BassDrumVoice(getSampleRate());
@@ -134,7 +150,7 @@ public:
     left.add(right);
     left.multiply(0.2);
     right.copyFrom(left);
-    // setParameterValue(PARAMETER_AB, voice->getEnvelopeLevel());
+    setParameterValue(PARAMETER_AB, voice->getEnvelopeLevel()*0.5);
   
     // debugMessage("avg/max", right.getMean(), right.getMaxValue());
 
@@ -179,7 +195,8 @@ public:
     }else{
     }
     // lfo1 += 2 * getBlockSize() / getSampleRate();
-    lfo1 += (getParameterValue(PARAMETER_BC)*8+0.1) * getBlockSize() / getSampleRate();
+    tempo = getParameterValue(PARAMETER_BC)*4+0.01;
+    lfo1 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AF, lfo1*0.4);
 
     static float lfo2 = 0;
@@ -188,7 +205,8 @@ public:
     }else{
     }
     // lfo2 += 1 * getBlockSize() / getSampleRate();
-    lfo2 += (getParameterValue(PARAMETER_BD)*8+0.1) * getBlockSize() / getSampleRate();
+    tempo = getParameterValue(PARAMETER_BD)*4+0.01;
+    lfo2 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AH, lfo2*0.4);
   }
 };
