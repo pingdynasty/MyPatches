@@ -7,7 +7,17 @@
 #include "BiquadFilter.h"
 #include "SineOscillator.h"
 // #include "Oscillators.hpp"
-#include "MidiVoiceAllocator.hpp"
+// #include "MidiVoiceAllocator.hpp"
+
+#define MIDI_CHANNELS 4
+
+class MidiVoice {
+public:
+  virtual void noteOn(uint8_t note, uint8_t velocity, uint16_t delay){}
+  virtual void noteOff(uint8_t note, uint16_t delay){}
+  virtual void pitchBend(int16_t bend, uint16_t delay){}
+  virtual void controlChange(uint8_t cc, uint8_t value, uint16_t delay){}
+};
 
 class Operator : public Oscillator {
 private:
@@ -72,17 +82,18 @@ public:
   }
 };
 
-class FourOpVoice : public Oscillator, MidiVoice {
-public:
-  Operator ops[4];
-  int algo;
-  float freq, pb, gain;
   const float RATIO_DEFAULT = 1;
   const float RATIO_MIN = 0.5;
   const float RATIO_RANGE = 7.5;
   const float OFFSET_DEFAULT = 0.0;
   const float INDEX_DEFAULT = 0.5;
   const float ENVELOPE_DEFAULT = 0.5;
+
+class FourOpVoice : public Oscillator, MidiVoice {
+public:
+  Operator ops[4];
+  int algo;
+  float freq, pb, gain;
 public:
   FourOpVoice(){
     reset();
@@ -113,7 +124,7 @@ public:
   }  
   void setParameters(uint8_t op, float index, float ratio, float offset, float env){
     ops[op].index = index;
-    ops[op].ratio = ratio;
+    ops[op].ratio = RATIO_MIN + ratio*RATIO_RANGE;
     ops[op].offset = offset;
     ops[op].setEnvelope(env);
   }
@@ -314,9 +325,11 @@ public:
     gain = (velocity*velocity)/16129.0f + 0.2;
     // setFrequency(freq);
     gate(true, samples);
+    debugMessage("note on", note, velocity);
   }
   void noteOff(uint8_t note, uint16_t samples){
     gate(false, samples);
+    debugMessage("note off", note);
   }
   void pitchBend(int16_t bend, uint16_t delay){
     pb = bend/8192.0f;
@@ -405,54 +418,89 @@ private:
   BiquadFilter* lp;
 public:
   PolyOpPatch() {
-    FourOpVoiceAllocator* allocator = FourOpVoiceAllocator::create(getSampleRate());
+    allocator = FourOpVoiceAllocator::create(getSampleRate());
 
     // algo.setSampleRate(getSampleRate());
-    registerParameter(PARAMETER_A, "Operator 1");
-    registerParameter(PARAMETER_B, "Operator 2");
-    registerParameter(PARAMETER_C, "Operator 3");
-    registerParameter(PARAMETER_D, "Operator 4");
+    registerParameter(PARAMETER_A, "Op1:Ratio");
+    registerParameter(PARAMETER_B, "Op1:Amount");
+    registerParameter(PARAMETER_AA, "Op1:Envelope");
+    registerParameter(PARAMETER_AB, "<Op1:Envelope");
+    setParameterValue(PARAMETER_A, RATIO_DEFAULT);
+    setParameterValue(PARAMETER_B, INDEX_DEFAULT);
+    setParameterValue(PARAMETER_AA, ENVELOPE_DEFAULT);
+
+    registerParameter(PARAMETER_C, "Op2:Ratio");
+    registerParameter(PARAMETER_D, "Op2:Amount");
+    registerParameter(PARAMETER_AC, "Op2:Envelope");
+    registerParameter(PARAMETER_AD, "<Op2:Envelope");
+    setParameterValue(PARAMETER_C, RATIO_DEFAULT);
+    setParameterValue(PARAMETER_D, INDEX_DEFAULT);
+    setParameterValue(PARAMETER_AC, ENVELOPE_DEFAULT);
+
+    registerParameter(PARAMETER_E, "Op3:Ratio");
+    registerParameter(PARAMETER_F, "Op3:Amount");
+    registerParameter(PARAMETER_AE, "Op3:Envelope");
+    registerParameter(PARAMETER_AF, "<Op3:Envelope");
+    setParameterValue(PARAMETER_E, RATIO_DEFAULT);
+    setParameterValue(PARAMETER_F, INDEX_DEFAULT);
+    setParameterValue(PARAMETER_AF, ENVELOPE_DEFAULT);
+
+    registerParameter(PARAMETER_G, "Op4:Ratio");
+    registerParameter(PARAMETER_H, "Op4:Amount");
+    registerParameter(PARAMETER_AG, "Op4:Envelope");
+    registerParameter(PARAMETER_AH, "<Op4:Envelope");
+    setParameterValue(PARAMETER_G, RATIO_DEFAULT);
+    setParameterValue(PARAMETER_H, INDEX_DEFAULT);
+    setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT);
+
     registerParameter(PARAMETER_BA, "Algorithm");
     lp = StereoBiquadFilter::create(2);
     lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
   }
   ~PolyOpPatch(){
   }
-  // void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
   //   if(bid >= MIDI_NOTE_BUTTON){
   //     uint8_t note = bid - MIDI_NOTE_BUTTON;
   //     if(value)
   // 	algo.noteOn(note, value, samples);
   //     else
   // 	algo.noteOff(samples);
-  //   }else if(bid == PUSHBUTTON){
-  //     algo.gate(value, samples);
-  //   }
-  // }
+    if(bid == PUSHBUTTON){
+    //     algo.gate(value, samples);
+      allocator->allNotesOff(samples);
+    }
+  }
   void processMidi(MidiMessage& msg){
-    // debugMessage("port/status/d1", msg.data[0], msg.data[1], msg.data[2]);
     // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
-    // debugMessage("status/note/vel", msg.getStatus(), msg.getNote(), msg.getVelocity());
-    // if(msg.getPort() != 1) // prevent double triggering on TouchKeys / Impulse
-    //   return;
     allocator->processMidi(msg);
   }
   void processAudio(AudioBuffer &buffer) {
-    // float fundamental = getParameterValue(PARAMETER_A)*5.0 - 1.0;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     allocator->setAlgorithm(getParameterValue(PARAMETER_BA));
-    // hz.setTune(fundamental);
-    // float freq = hz.getFrequency(0);
-    // algo.setFrequency(freq);
-    // algo.getSamples(left);
     float index = 0.5;
     float ratio = 2.0;
     float offset = 0.0;
     float env = 0.6;
-    for(int i=0; i<4; ++i){
-      allocator->setParameters(i, index, ratio, offset, env);
-    }
+    ratio = getParameterValue(PARAMETER_A);
+    index = getParameterValue(PARAMETER_B);
+    env = getParameterValue(PARAMETER_AA);
+    allocator->setParameters(0, index, ratio, offset, env);
+    ratio = getParameterValue(PARAMETER_C);
+    index = getParameterValue(PARAMETER_D);
+    env = getParameterValue(PARAMETER_AC);
+    allocator->setParameters(1, index, ratio, offset, env);
+    ratio = getParameterValue(PARAMETER_E);
+    index = getParameterValue(PARAMETER_F);
+    env = getParameterValue(PARAMETER_AE);
+    allocator->setParameters(2, index, ratio, offset, env);
+    ratio = getParameterValue(PARAMETER_G);
+    index = getParameterValue(PARAMETER_H);
+    env = getParameterValue(PARAMETER_AG);
+    allocator->setParameters(3, index, ratio, offset, env);
     allocator->getSamples(left);
+    right.copyFrom(left);
     lp->process(left);
   }
 };
