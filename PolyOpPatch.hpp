@@ -37,7 +37,9 @@ public:
     osc.setSampleRate(value);
     env.setSampleRate(value);
   }
-  void setFrequency(float freq){
+  void setFrequency(float f){
+    static SmoothFloat freq;
+    freq = f;
     osc.setFrequency(freq*ratio+offset);
   }
   void setEnvelope(float a, float d, float s, float r){
@@ -55,7 +57,8 @@ public:
   void gate(bool state, uint16_t samples){
     env.gate(state, samples);
   }
-  void setEnvelope(float df){
+  void setEnvelope(float shape){
+    float df = shape*4;
     int di = (int)df;
     float attack, release;
     switch(di){
@@ -366,6 +369,7 @@ public:
       voice[i]->setFrequency(freq);
   }
   void setAlgorithm(uint8_t algo){
+    algo = max(0, min(12, algo));
     for(int i=0; i<MIDI_CHANNELS; ++i)
       voice[i]->algo = algo;
   }
@@ -423,33 +427,33 @@ public:
     // algo.setSampleRate(getSampleRate());
     registerParameter(PARAMETER_A, "Op1:Ratio");
     registerParameter(PARAMETER_B, "Op1:Amount");
-    registerParameter(PARAMETER_AA, "Op1:Envelope");
-    registerParameter(PARAMETER_AB, "<Op1:Envelope");
+    registerParameter(PARAMETER_AA, "Op1:Shape");
+    registerParameter(PARAMETER_AB, "<Op1:Env");
     setParameterValue(PARAMETER_A, RATIO_DEFAULT);
     setParameterValue(PARAMETER_B, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AA, ENVELOPE_DEFAULT);
 
     registerParameter(PARAMETER_C, "Op2:Ratio");
     registerParameter(PARAMETER_D, "Op2:Amount");
-    registerParameter(PARAMETER_AC, "Op2:Envelope");
-    registerParameter(PARAMETER_AD, "<Op2:Envelope");
-    setParameterValue(PARAMETER_C, RATIO_DEFAULT);
+    registerParameter(PARAMETER_AC, "Op2:Shape");
+    registerParameter(PARAMETER_AD, "<Op2:Env");
+    setParameterValue(PARAMETER_C, RATIO_DEFAULT*2);
     setParameterValue(PARAMETER_D, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AC, ENVELOPE_DEFAULT);
 
     registerParameter(PARAMETER_E, "Op3:Ratio");
     registerParameter(PARAMETER_F, "Op3:Amount");
-    registerParameter(PARAMETER_AE, "Op3:Envelope");
-    registerParameter(PARAMETER_AF, "<Op3:Envelope");
-    setParameterValue(PARAMETER_E, RATIO_DEFAULT);
+    registerParameter(PARAMETER_AE, "Op3:Shape");
+    registerParameter(PARAMETER_AF, "<Op3:Env");
+    setParameterValue(PARAMETER_E, RATIO_DEFAULT*4);
     setParameterValue(PARAMETER_F, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AF, ENVELOPE_DEFAULT);
 
     registerParameter(PARAMETER_G, "Op4:Ratio");
     registerParameter(PARAMETER_H, "Op4:Amount");
-    registerParameter(PARAMETER_AG, "Op4:Envelope");
-    registerParameter(PARAMETER_AH, "<Op4:Envelope");
-    setParameterValue(PARAMETER_G, RATIO_DEFAULT);
+    registerParameter(PARAMETER_AG, "Op4:Shape");
+    registerParameter(PARAMETER_AH, "<Op4:Env");
+    setParameterValue(PARAMETER_G, RATIO_DEFAULT*8);
     setParameterValue(PARAMETER_H, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT);
 
@@ -478,7 +482,7 @@ public:
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    allocator->setAlgorithm(getParameterValue(PARAMETER_BA));
+    allocator->setAlgorithm(getParameterValue(PARAMETER_BA)*13);
     float index = 0.5;
     float ratio = 2.0;
     float offset = 0.0;
