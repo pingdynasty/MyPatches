@@ -75,6 +75,7 @@ public:
   }
 
   ~KickBoxPatch(){
+    SynthVoice::destroy(voice);    
   }
 
   void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
@@ -93,6 +94,15 @@ public:
     voice->setWaveshape(shape);
     voice->setFilter(fc, q);
     voice->setEnvelope(attack, release);
+  }
+
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+    if(bid >= MIDI_NOTE_BUTTON){
+      if(value)
+	noteOn(bid-MIDI_NOTE_BUTTON, value, samples);
+      else
+	noteOff(bid-MIDI_NOTE_BUTTON, samples);
+    }
   }
 
   void processAudio(AudioBuffer& buffer){
