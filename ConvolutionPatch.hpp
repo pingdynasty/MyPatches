@@ -7,6 +7,7 @@
 // ./wav2float MyPatches/ir/EMT\ 244\ \(A.\ Bernhard\)/0\,4s\ Low\*2\ \ High_2.wav > MyPatches/impulse-response.h
 
 #define IR_RESOURCE "impulse1"
+#define REPURPOSE
 
 class ConvolutionPatch : public Patch {
 private:
@@ -25,9 +26,12 @@ public:
   ConvolutionPatch() : current(0), blocksize(getBlockSize()), segsize(2*getBlockSize()) {
     // ASSERT(sizeof(ir)/sizeof(float) >= segments*blocksize, "Impulse response array too small");
     input = FloatArray::create(segsize);
-    overlap = FloatArray::create(blocksize);
+#ifndef REPURPOSE
     coutbuf = ComplexFloatArray::create(segsize);
     cmulbuf = ComplexFloatArray::create(segsize);
+    overlap = FloatArray::create(blocksize);
+#endif
+
     overlap.clear();
     fft.init(segsize);
 
@@ -57,6 +61,14 @@ public:
       // fft.fft(impulse.subArray(i*blocksize, blocksize), irbuf[i]);
     }
     registerParameter(PARAMETER_D, "Wet/Dry");
+
+#ifdef REPURPOSE
+    // repurpose impulse response memory
+    cmulbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse, segsize);
+    coutbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse.subArray(blocksize*4, blocksize*4), segsize);
+    // input = FloatArray((float*)impulse.subArray(blocksize*8, blocksize*2), segsize);
+    overlap = FloatArray((float*)impulse.subArray(blocksize*8, blocksize), blocksize);
+#endif
   }
 
   void processAudio(AudioBuffer &buffer) {

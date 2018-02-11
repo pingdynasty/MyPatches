@@ -25,10 +25,11 @@ public:
   SimpleSinePatch(): div(getSampleRate()), pos(0){}
   void processAudio(AudioBuffer &buffer) {
     FloatArray samples = buffer.getSamples(LEFT_CHANNEL);
+    float gain = isButtonPressed(PUSHBUTTON) ? 1.0 : 0.0;
     for(int n = 0; n<buffer.getSize(); n++){
       float frequency = volts2hz(sample2volts(samples[n]));
       float linc = frequency/div;
-      samples[n] = sinf(2*M_PI*pos);
+      samples[n] = gain * sinf(2*M_PI*pos);
       if((pos += linc) > 1.0f)
 	pos -= 1.0f;
     }

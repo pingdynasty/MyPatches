@@ -4,7 +4,8 @@
 #include "Envelope.h"
 #include "BiquadFilter.h"
 #include "NoiseOscillator.h"
-#include "Oscillators.hpp"
+#include "ChirpOscillator.h"
+#include "SineOscillator.h"
 #include "Drum.hpp"
 
 class ExponentialDecayEnvelope : public Envelope {
@@ -32,6 +33,12 @@ public:
     value *= incr;
     return sample;
   }
+  static ExponentialDecayEnvelope* create(float sr){
+    return new ExponentialDecayEnvelope(sr);
+  }
+  static void destroy(ExponentialDecayEnvelope* env){
+    delete env;
+  }
 };
   
 class BassDrumVoice : public Drum {
@@ -54,10 +61,6 @@ private:
   float accent;
 public:
   BassDrumVoice(float sr) : fs(sr), gain(0.0), accent(0.0) {
-    // env = new AdsrEnvelope(sr);
-    // env = FloatArray::create(1024);
-    // for(int i=0; i<env.getSize(); ++i)
-    //   env[i] = expf(-M_E*i/env.getSize());
     snare = 0;
     balance = 0.2;
     sine = new SineOscillator(sr);
@@ -68,6 +71,18 @@ public:
     noise = new PinkNoiseOscillator();
     filter = BiquadFilter::create(1);
     filter->setLowPass(0.6, FilterStage::BUTTERWORTH_Q);
+  }  
+  BassDrumVoice(float sr, float freq, float snap) : fs(sr), gain(0.0), accent(0.0) {
+    sine = new SineOscillator(sr);
+    chirp = new ChirpOscillator(sr);
+    impulse = new ImpulseOscillator();
+    env1 = new ExponentialDecayEnvelope(sr);
+    env2 = new ExponentialDecayEnvelope(sr);
+    noise = new PinkNoiseOscillator();
+    filter = BiquadFilter::create(1);
+    filter->setLowPass(0.6, FilterStage::BUTTERWORTH_Q);
+    setFrequency(freq);
+    setSnap(snap);
   }  
   void setFrequency(float f){
     freq = f;

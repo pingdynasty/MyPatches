@@ -19,16 +19,15 @@ import("instrument.lib");
 
 // freq = nentry("h:Basic_Parameters/freq [1][unit:Hz] [tooltip:Tone frequency]",440,20,20000,1);
 // gain = nentry("h:Basic_Parameters/gain [1][tooltip:Gain (value between 0 and 1)]",1,0,1,0.01); 
-// gate = button("h:Basic_Parameters/gate [1][tooltip:noteOn = 1, noteOff = 0]");
+gate = button("h:Basic_Parameters/gate [OWL:PUSH][1][tooltip:noteOn = 1, noteOff = 0]");
 
-freq = vslider("Freq [OWL:PARAMETER_A]",440,20,2000,1);
-// gain = vslider("Gain [OWL:PARAMETER_B]",1,0,1,0.01);
-// breathPressure = vslider("Breath [OWL:PARAMETER_B]",1,0,1,0.01);
-// gate = vslider("gate [1][unit:Hz] [tooltip:Tone frequency][OWL:PARAMETER_C]",0,0,2,1);
+freq = vslider("Freq [OWL:A]",440,20,2000,1);
+// gain = vslider("Gain [OWL:B]",1,0,1,0.01);
+// breathPressure = vslider("Breath [OWL:B]",1,0,1,0.01);
 
-reedStiffness = hslider("Reed [2][tooltip:Reed stiffness (value between 0 and 1)][OWL:PARAMETER_B]",0.5,0,1,0.01);
-noiseGain = hslider("Noise [2][tooltip:Breath noise gain (value between 0 and 1)][OWL:PARAMETER_C]",0,0,1,0.01);
-pressure = hslider("Pressure [2][tooltip:Breath pressure (value bewteen 0 and 1)][OWL:PARAMETER_D]",1,0,1,0.01);
+reedStiffness = hslider("Reed [2][tooltip:Reed stiffness (value between 0 and 1)][OWL:B]",0.5,0,1,0.01);
+noiseGain = hslider("Noise [2][tooltip:Breath noise gain (value between 0 and 1)][OWL:C]",0,0,1,0.01);
+pressure = hslider("Pressure [2][tooltip:Breath pressure (value bewteen 0 and 1)][OWL:D]",1,0,1,0.01);
 
 typeModulation = 0; // nentry("h:Physical_and_Nonlinearity/v:Nonlinear_Filter_Parameters/Modulation_Type 
 // [3][tooltip: 0=theta is modulated by the incoming signal; 1=theta is modulated by the averaged incoming signal;
@@ -39,7 +38,7 @@ frequencyMod = 220; // hslider("h:Physical_and_Nonlinearity/v:Nonlinear_Filter_P
 nonLinAttack = 0.1; // hslider("h:Physical_and_Nonlinearity/v:Nonlinear_Filter_Parameters/Nonlinearity_Attack[3][unit:s][Attack duration of the nonlinearity]",0.1,0,2,0.01);
 
 vibratoFreq = 5; // hslider("h:Envelopes_and_Vibrato/v:Vibrato_Parameters/Vibrato_Freq [4][unit:Hz]",5,1,15,0.1);
-vibratoGain = 0.1; // hslider("h:Vibrato/v:Vibrato_Parameters/Vibrato_Gain[4][tooltip:A value between 0 and 1][OWL:PARAMETER_E]",0.1,0,1,0.01);
+vibratoGain = 0.1; // hslider("h:Vibrato/v:Vibrato_Parameters/Vibrato_Gain[4][tooltip:A value between 0 and 1][OWL:E]",0.1,0,1,0.01);
 vibratoAttack = 0.5; // hslider("h:Envelopes_and_Vibrato/v:Vibrato_Parameters/Vibrato_Attack [4][unit:s][tooltip:Vibrato attack duration]",0.5,0,2,0.01);
 vibratoRelease = 0.01; // hslider("h:Envelopes_and_Vibrato/v:Vibrato_Parameters/Vibrato_Release [4][unit:s][tooltip:Vibrato release duration]",0.01,0,2,0.01);
 
@@ -56,7 +55,7 @@ envelopeRelease = 0.1; // hslider("h:Envelopes_and_Vibrato/v:Envelope_Parameters
 nlfOrder = 6; 
 
 //attack - sustain - release envelope for nonlinearity (declared in instrument.lib)
-envelopeMod = 1.0; // asr(nonLinAttack,100,envelopeRelease,gate);
+envelopeMod = asr(nonLinAttack,100,envelopeRelease,gate);
 
 //nonLinearModultor is declared in instrument.lib, it adapts allpassnn from filter.lib 
 //for using it with waveguide instruments
@@ -86,7 +85,7 @@ stereo = stereoizer(SR/freq);
 //----------------------- Algorithm implementation ----------------------------
 
 //Breath pressure + vibrato + breath noise + envelope (Attack / Decay / Sustain / Release)
-envelope = pressure; // adsr(envelopeAttack,envelopeDecay,100,envelopeRelease,gate)*pressure*0.9;
+envelope = adsr(envelopeAttack,envelopeDecay,100,envelopeRelease,gate)*pressure*0.9;
 
 vibrato = // osc(vibratoFreq)*vibratoGain*
 	1.0; //	envVibrato(0.1*2*vibratoAttack,0.9*2*vibratoAttack,100,vibratoRelease,gate);
