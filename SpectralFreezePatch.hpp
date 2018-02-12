@@ -12,13 +12,12 @@ private:
     FREEZE
   };
   PatchMode mode = RECORD;
-  static const int segments = 4;
+  static const int segments = 12;
   int current;
   int segsize;
   int blocksize;
   FloatArray noise;
   ComplexFloatArray irbuf;//[segments];
-  // FloatArray noise;
   ComplexFloatArray cinbuf[segments];
   ComplexFloatArray coutbuf;
   ComplexFloatArray cmulbuf;
@@ -36,7 +35,7 @@ public:
     fft.init(segsize);
 
     noise = FloatArray::create(segsize*2);
-    irbuf = ComplexFloatArray((ComplexFloat*)noise.getData(), noise.getSize());
+    irbuf = ComplexFloatArray((ComplexFloat*)noise.getData(), segsize);
 
     // do forward fft into irbuf
     for(int i=0; i<segments; ++i){
@@ -44,6 +43,7 @@ public:
       cinbuf[i] = ComplexFloatArray::create(segsize);
       cinbuf[i].clear();
     }
+    registerParameter(PARAMETER_A, "Amount");
     registerParameter(PARAMETER_D, "Wet/Dry");
   }
 
@@ -73,12 +73,13 @@ public:
   }
 
   void freeze(FloatArray samples){
+    float amount = getParameterValue(PARAMETER_A)*2;
+    noise.noise(amount, amount);
     // complex multiply and accumulate
-    noise.noise();
     irbuf.complexByComplexMultiplication(cinbuf[current], coutbuf);
     for(int i=1; i<segments; ++i){
       int seg = (current+i) % segments;
-      noise.noise();
+      noise.noise(amount, amount);
       irbuf.complexByComplexMultiplication(cinbuf[seg], cmulbuf);
       coutbuf.add(cmulbuf);
     }
