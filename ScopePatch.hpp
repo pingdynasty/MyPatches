@@ -7,24 +7,48 @@ display buffer 96x96
 on trigger, copy circular buffer to pixel buffer and start filling
 when full, copy to display buffer with current pos and divs x and y
 on changing pos or divs copy from pixel buffer to display buffer. 
-
-split processBlock() from processFrame()
 */
 
-class ScopePatch : public Patch {
-private:
-  Colour bg = BLACK;
-  Colour fg = WHITE;
-  Colour trace1 = WHITE; // RED
-  Colour trace2 = WHITE; // GREEN
-  Colour buffer[2][128];
+#define MAX_WIDTH 128
+class AudioDisplay {
+  int16_t buffer[MAX_WIDTH]; // reduced sample buffer
   int writepos;
-  int divisions;
-  float triggerLevel;
-  float gain;
-  float offset;
   int height;
   int width;
+public:
+  AudioDisplay(){
+    reset();
+  }
+  void reset(){
+    writepos = 0;
+    width = MAX_WIDTH;
+    height = 32;
+    for(int i=0; i<MAX_WIDTH; ++i){
+      buffer[i] = height;
+    }
+  }
+  void update(FloatArray samples, uint16_t divisions, float triggerLevel, float gain, float offset){
+    int skip = 0;
+    int size = samples.getSize();
+    if(writepos == 0){
+      // fast forward to trigger
+      while(samples[skip] > triggerLevel-0.0001 && skip < size)
+	skip++;
+      while(samples[skip] < triggerLevel && skip < size)
+	skip++;
+    }
+    for(int i=skip; i<size && writepos < width; i+=divisions)
+      buffer[writepos++] = height + height*offset + height*samples[i]*gain;
+    if(writepos >= width)
+      writepos = 0;
+  }
+  void draw(ScreenBuffer& screen, Colour c){
+    height = screen.getHeight()>>2;
+    width = screen.getWidth();
+    int y = buffer[0];
+    for(int i=1; i<width; ++i)
+      y = drawVerticalLine(screen, i, y, buffer[i], c);
+  }
 private:
   uint16_t drawVerticalLine(ScreenBuffer& screen, uint16_t x, uint16_t y, uint16_t to, uint16_t c){
     if(y > to)
@@ -35,70 +59,65 @@ private:
       }while(y < to);
     return to;
   }
+};
+
+class ScopePatch : public Patch {
+private:
+  Colour bg = BLACK;
+  Colour fg = WHITE;
+  Colour trace1 = WHITE; // RED
+  Colour trace2 = WHITE; // GREEN
+  int divisions;
+  float triggerLevel;
+  float gain;
+  float offset;
+  AudioDisplay display;
 public:
   ScopePatch(){
-    registerParameter(PARAMETER_A, "Divisions");
+    registerParameter(PARAMETER_A, "X Scale");
     registerParameter(PARAMETER_B, "Trigger");
-    registerParameter(PARAMETER_C, "Gain");
-    registerParameter(PARAMETER_D, "Offset");
+    registerParameter(PARAMETER_C, "Y Scale");
+    registerParameter(PARAMETER_D, "Y Offset");
     reset();
+    setParameterValue(PARAMETER_A, 0.5);
+    setParameterValue(PARAMETER_B, 0.5);
+    setParameterValue(PARAMETER_C, 0.5);
+    setParameterValue(PARAMETER_D, 0.5);
   }
   void reset(){
-    // width = height = 0;
-    width = 128;
-    height = 24;
     divisions = 2;
-    triggerLevel = 0.0;
-    gain = 2.0;
+    triggerLevel = 0.012345;
+    gain = 1.2345678;
     offset = 0.0;
-    writepos = 0;
-    for(int i=0; i<128; ++i){
-      buffer[0][i] = 31;
-      buffer[1][i] = 33;
-    }
+    display.reset();
   }
 
   void processScreen(ScreenBuffer& screen){
-    height = screen.getHeight()/2;
-    width = screen.getWidth();
+    // int y = screen.getHeight()-9;
+    int y = 8; // screen.getHeight()-17;
     screen.setTextColour(fg);
     screen.setTextSize(1);
-    screen.fill(bg);
-    screen.setCursor(35, 0);
-    screen.print("Scope");
-    screen.setCursor(0, screen.getHeight()-8);
+    // screen.fill(bg);
+    // screen.setCursor(0, 8);
+    // screen.print("Scope");
+    screen.setCursor(0, y);
     screen.print(divisions);
-    int ly = buffer[0][0];
-    int ry = buffer[1][0];
-    for(int i=1; i<width; ++i){
-      // ly = drawVerticalLine(screen, i, ly, buffer[0][i], trace1);
-      ry = drawVerticalLine(screen, i, ry, buffer[1][i], trace2);
-    }
+    screen.setCursor(32, y);
+    screen.print(triggerLevel);
+    screen.setCursor(64, y);
+    screen.print(gain);
+    screen.setCursor(96, y);
+    screen.print(offset);
+    display.draw(screen, trace1);
    }
 
   void processAudio(AudioBuffer& samples){
-    // divisions = getParameterValue(PARAMETER_A)*16+1;
-    // triggerLevel = getParameterValue(PARAMETER_B)*2-1;
-    // gain = getParameterValue(PARAMETER_C)*4;
-    // offset = getParameterValue(PARAMETER_D)*2-1;
-    int size = samples.getSize();
-    float* left = samples.getSamples(0);
+    divisions = getParameterValue(PARAMETER_A)*64+1;
+    triggerLevel = getParameterValue(PARAMETER_B)*2-1;
+    gain = getParameterValue(PARAMETER_C)*4;
+    offset = getParameterValue(PARAMETER_D)*2-1;
+    FloatArray left = samples.getSamples(LEFT_CHANNEL);
     float* right = samples.getSamples(1);
-    int skip = 0;
-    // fast forward to trigger
-    // look for rising edge
-    if(writepos == 0){
-      while(left[skip] > triggerLevel-0.0001 && skip < size)
-	skip++;
-      while(left[skip] < triggerLevel && skip < size)
-	skip++;
-    }
-    for(int i=skip; i<samples.getSize() && writepos < width; i+=divisions){
-      buffer[0][writepos] = height+height*offset+height*left[i]*gain;
-      buffer[1][writepos] = height+height*offset+height*right[i]*gain + 2;
-      writepos++;
-    }
-    if(writepos >= width)
-      writepos = 0;
+    display.update(left, divisions, triggerLevel, gain, offset);
   }
 };
