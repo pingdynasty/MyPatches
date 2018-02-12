@@ -7,6 +7,7 @@
 #include "BassDrum.hpp"
 #include "Sequence.h"
 #include "SynthVoice.hpp"
+#include "AudioDisplay.hpp"
 
 class KickBoxPatch : public Patch {
 private:
@@ -98,10 +99,13 @@ public:
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
+      uint8_t note = bid-MIDI_NOTE_BUTTON;
+      // if(value)
+      // 	noteOn(note, value, samples);
+      // else
+      // 	noteOff(note, samples);
       if(value)
-	noteOn(bid-MIDI_NOTE_BUTTON, value, samples);
-      else
-	noteOff(bid-MIDI_NOTE_BUTTON, samples);
+	setParameterValue(PARAMETER_A, (note-20)/80.0); // set basenote parameter
     }
   }
 
@@ -139,6 +143,7 @@ public:
     }
     setParameters(shape, cutoff, q, attack, release, pitchbend);
     voice->getSamples(left);
+    display.update(left, 2, 0.0, 3.0, 0.0);
     
     // hat + kick
     float tone = 120*exp2f(getParameterValue(PARAMETER_E)*4);
@@ -218,7 +223,14 @@ public:
     tempo = getParameterValue(PARAMETER_BD)*4+0.01;
     lfo2 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AH, lfo2*0.4);
+
   }
+
+    AudioDisplay display;
+
+  void processScreen(ScreenBuffer& screen){
+    display.draw(screen, WHITE);
+   }
 };
 
 #endif   // __KickBoxPatch_hpp__

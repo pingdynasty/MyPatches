@@ -9,7 +9,10 @@
 // #include "Oscillators.hpp"
 // #include "MidiVoiceAllocator.hpp"
 
-#define MIDI_CHANNELS 4
+// semitones = 12*log(ratio)/log(2)
+// ratio = pow(2, semitones/12)
+				       
+#define MIDI_VOICES 4
 
 class MidiVoice {
 public:
@@ -85,7 +88,7 @@ public:
   }
 };
 
-  const float RATIO_DEFAULT = 1;
+  const float RATIO_DEFAULT = 0.25;
   const float RATIO_MIN = 0.5;
   const float RATIO_RANGE = 7.5;
   const float OFFSET_DEFAULT = 0.0;
@@ -96,14 +99,15 @@ class FourOpVoice : public Oscillator, MidiVoice {
 public:
   Operator ops[4];
   int algo;
-  float freq, pb, gain;
+  float pb, gain;
+  uint8_t note;
 public:
   FourOpVoice(){
     reset();
   }
   void reset(){
     algo = 0;
-    freq = 440.0;
+    note = 60;
     pb = 0;
     gain = 0.5;
     for(int i=0; i<4; ++i){
@@ -141,7 +145,7 @@ public:
     return 0.0f;
   }
   void addSamples(FloatArray samples){
-    setFrequency(freq); // update frequency in case ratio or offset has changed
+    updateFrequency(note);
     switch(algo){
     case 0:
       for(int i=0; i<samples.getSize(); ++i)
@@ -324,18 +328,26 @@ public:
     return out;
   }
   void noteOn(uint8_t note, uint8_t velocity, uint16_t samples){
-    freq = 440.0f*exp2f((note-69 + pb*2)/12.0);
+    pb = 0;
+    updateFrequency(note);
     gain = (velocity*velocity)/16129.0f + 0.2;
     // setFrequency(freq);
-    gate(true, samples);
-    debugMessage("note on", note, velocity);
+    gate(true, samples);    
+    // debugMessage("note on", note, velocity);
   }
   void noteOff(uint8_t note, uint16_t samples){
     gate(false, samples);
-    debugMessage("note off", note);
+    // debugMessage("note off", note);
+  }
+  void updateFrequency(uint8_t n){
+    note = n;
+    float freq = 440.0f*exp2f((note-69 + pb*2)/12.0);    
+    setFrequency(freq); // update frequency in case ratio or offset has changed
   }
   void pitchBend(int16_t bend, uint16_t delay){
-    pb = bend/8192.0f;
+    // pb = bend/8192.0f;
+    pb = bend/2048.0f;
+    // debugMessage("pb", pb);
   }
   void controlChange(uint8_t cc, uint8_t value, uint16_t delay){
   }
@@ -351,41 +363,43 @@ public:
 
 class FourOpVoiceAllocator { // : public MidiVoiceAllocator {
 public:
-  FourOpVoice* voice[MIDI_CHANNELS];
-  FourOpVoiceAllocator(){}
+  FourOpVoice* voice[MIDI_VOICES];
+
   void getSamples(FloatArray samples){
     samples.clear();
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->addSamples(samples);
       // voice[i]->getSamples(samples);
-    samples.multiply(1.0/MIDI_CHANNELS);
+    samples.multiply(1.0/MIDI_VOICES);
   }
   void setParameters(uint8_t op, float index, float ratio, float offset, float env){
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->setParameters(op, index, ratio, offset, env);
   }
   void setFrequency(float freq){
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->setFrequency(freq);
   }
   void setAlgorithm(uint8_t algo){
     algo = max(0, min(12, algo));
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->algo = algo;
   }
 
+#ifdef MIDI_CHANNEL_ALLOCATION
+  FourOpVoiceAllocator(){}
   ////
   void processMidi(MidiMessage& msg){
     uint16_t samples = 0;
     uint8_t ch = msg.getChannel();
     if(msg.isNoteOn()){
-      if(ch < MIDI_CHANNELS)
+      if(ch < MIDI_VOICES)
 	voice[ch]->noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);
     }else if(msg.isNoteOff()){
-      if(ch < MIDI_CHANNELS)
+      if(ch < MIDI_VOICES)
 	voice[ch]->noteOff(msg.getNote(), samples);
     }else if(msg.isPitchBend()){
-      if(ch < MIDI_CHANNELS)
+      if(ch < MIDI_VOICES)
 	voice[ch]->pitchBend(msg.getPitchBend(), samples);
     }else if(msg.isControlChange()){
       switch(msg.getControllerNumber()){
@@ -393,20 +407,98 @@ public:
 	allNotesOff(samples);
 	break;
       default:
-	if(ch < MIDI_CHANNELS)
+	if(ch < MIDI_VOICES)
 	  voice[ch]->controlChange(msg.getControllerNumber(), msg.getControllerValue(), samples);
       }
     }
   }
+
+#else
+
+  static const uint8_t EMPTY = 0xff;
+  static const uint16_t TAKEN = 0xffff;
+  uint8_t notes[MIDI_VOICES];
+  uint16_t allocation[MIDI_VOICES];
+  uint16_t allocated;
+  FourOpVoiceAllocator(){
+      for(int i=0; i<MIDI_VOICES; ++i){
+      // voice[i] = SynthVoice::create(sr);
+      notes[i] = 69; // middle A, 440Hz
+      allocation[i] = 0;
+    }
+  }
+  void processMidi(MidiMessage& msg){    
+    uint16_t samples = 0;
+    if(msg.isNoteOn()){
+      noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);
+    }else if(msg.isNoteOff()){
+      noteOff(msg.getNote(), samples);
+    }else if(msg.isPitchBend()){
+      for(int i=0; i<MIDI_VOICES; ++i)
+	voice[i]->pitchBend(msg.getPitchBend(), samples);
+    // }else if(msg.isControlChange()){
+    //   switch(msg.getControllerNumber()){
+    //   case MIDI_ALL_NOTES_OFF:
+    // 	allNotesOff(samples);
+    // 	break;
+    //   default:
+    // 	break;
+    //   }
+    }
+  }
+	     
+  void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
+    notes[ch] = note;
+    allocation[ch] = TAKEN;
+    voice[ch]->noteOn(note, velocity, samples);
+    // voice[ch]->setGain(velocity/(4095.0f*(MIDI_VOICES/2)));
+    // voice[ch]->setGate(true, samples);
+  }
+
+  void release(uint8_t ch, uint16_t samples){
+    uint8_t note = notes[ch];
+    // notes[ch] = EMPTY;
+    allocation[ch] = ++allocated;
+    // voice[ch]->setGate(false, samples);
+    voice[ch]->noteOff(note, samples);
+  }
+
+  void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
+    uint16_t minval = allocation[0];
+    uint8_t minidx = 0;
+    // take oldest free voice, to allow voices to ring out
+    for(int i=1; i<MIDI_VOICES; ++i){
+      if(notes[i] == note){
+	minidx = i;
+	break;
+      }
+      if(allocation[i] < minval){
+	minidx = i;
+	minval = allocation[i];
+      }
+    }
+    // take oldest voice
+    take(minidx, note, velocity, samples);
+    debugMessage("idx/note/vel", minidx, note, velocity);
+  }
+
+  void noteOff(uint8_t note, uint16_t samples){
+    for(int i=0; i<MIDI_VOICES; ++i)
+      if(notes[i] == note)
+	release(i, samples);
+  }
+
+#endif
+
   void allNotesOff(uint16_t samples){
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->noteOff(-1, samples);
   }
 
   //////
   static FourOpVoiceAllocator* create(float sr){
     FourOpVoiceAllocator* allocator = new FourOpVoiceAllocator();
-    for(int i=0; i<MIDI_CHANNELS; ++i)
+    for(int i=0; i<MIDI_VOICES; ++i)
       allocator->voice[i] = FourOpVoice::create(sr);
     return allocator;
   }
@@ -425,34 +517,34 @@ public:
     allocator = FourOpVoiceAllocator::create(getSampleRate());
 
     // algo.setSampleRate(getSampleRate());
-    registerParameter(PARAMETER_A, "Op1:Ratio");
+    registerParameter(PARAMETER_A, "Op1:Semis");
     registerParameter(PARAMETER_B, "Op1:Amount");
     registerParameter(PARAMETER_AA, "Op1:Shape");
-    registerParameter(PARAMETER_AB, "<Op1:Env");
+    registerParameter(PARAMETER_AB, "Op1:Env>");
     setParameterValue(PARAMETER_A, RATIO_DEFAULT);
     setParameterValue(PARAMETER_B, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AA, ENVELOPE_DEFAULT);
 
-    registerParameter(PARAMETER_C, "Op2:Ratio");
+    registerParameter(PARAMETER_C, "Op2:Semis");
     registerParameter(PARAMETER_D, "Op2:Amount");
     registerParameter(PARAMETER_AC, "Op2:Shape");
-    registerParameter(PARAMETER_AD, "<Op2:Env");
+    registerParameter(PARAMETER_AD, "Op2:Env>");
     setParameterValue(PARAMETER_C, RATIO_DEFAULT*2);
     setParameterValue(PARAMETER_D, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AC, ENVELOPE_DEFAULT);
 
-    registerParameter(PARAMETER_E, "Op3:Ratio");
+    registerParameter(PARAMETER_E, "Op3:Semis");
     registerParameter(PARAMETER_F, "Op3:Amount");
     registerParameter(PARAMETER_AE, "Op3:Shape");
-    registerParameter(PARAMETER_AF, "<Op3:Env");
+    registerParameter(PARAMETER_AF, "Op3:Env>");
     setParameterValue(PARAMETER_E, RATIO_DEFAULT*4);
     setParameterValue(PARAMETER_F, INDEX_DEFAULT);
-    setParameterValue(PARAMETER_AF, ENVELOPE_DEFAULT);
+    setParameterValue(PARAMETER_AE, ENVELOPE_DEFAULT);
 
-    registerParameter(PARAMETER_G, "Op4:Ratio");
+    registerParameter(PARAMETER_G, "Op4:Semis");
     registerParameter(PARAMETER_H, "Op4:Amount");
     registerParameter(PARAMETER_AG, "Op4:Shape");
-    registerParameter(PARAMETER_AH, "<Op4:Env");
+    registerParameter(PARAMETER_AH, "Op4:Env>");
     setParameterValue(PARAMETER_G, RATIO_DEFAULT*8);
     setParameterValue(PARAMETER_H, INDEX_DEFAULT);
     setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT);
@@ -470,13 +562,15 @@ public:
   // 	algo.noteOn(note, value, samples);
   //     else
   // 	algo.noteOff(samples);
-    if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON && value == 0){
     //     algo.gate(value, samples);
       allocator->allNotesOff(samples);
     }
   }
   void processMidi(MidiMessage& msg){
     // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
+    // if(msg.getPort() != 1) // prevent double triggering on TouchKeys / Impulse
+    //   return;
     allocator->processMidi(msg);
   }
   void processAudio(AudioBuffer &buffer) {
@@ -487,25 +581,32 @@ public:
     float ratio = 2.0;
     float offset = 0.0;
     float env = 0.6;
-    ratio = getParameterValue(PARAMETER_A);
+    // ratio = getParameterValue(PARAMETER_A);
+    // ratio = pow(2, semitones/12)
+    ratio = exp2f(int(getParameterValue(PARAMETER_A)*36-12)/12.0);
     index = getParameterValue(PARAMETER_B);
     env = getParameterValue(PARAMETER_AA);
     allocator->setParameters(0, index, ratio, offset, env);
-    ratio = getParameterValue(PARAMETER_C);
+    ratio = exp2f(int(getParameterValue(PARAMETER_C)*36-12)/12.0);
     index = getParameterValue(PARAMETER_D);
     env = getParameterValue(PARAMETER_AC);
     allocator->setParameters(1, index, ratio, offset, env);
-    ratio = getParameterValue(PARAMETER_E);
+    ratio = exp2f(int(getParameterValue(PARAMETER_E)*36-12)/12.0);
     index = getParameterValue(PARAMETER_F);
     env = getParameterValue(PARAMETER_AE);
     allocator->setParameters(2, index, ratio, offset, env);
-    ratio = getParameterValue(PARAMETER_G);
+    ratio = exp2f(int(getParameterValue(PARAMETER_G)*36-12)/12.0);
     index = getParameterValue(PARAMETER_H);
     env = getParameterValue(PARAMETER_AG);
     allocator->setParameters(3, index, ratio, offset, env);
     allocator->getSamples(left);
     right.copyFrom(left);
     lp->process(left);
+
+    setParameterValue(PARAMETER_AB, allocator->voice[0]->ops[0].env.getLevel());
+    setParameterValue(PARAMETER_AD, allocator->voice[0]->ops[1].env.getLevel());
+    setParameterValue(PARAMETER_AF, allocator->voice[0]->ops[2].env.getLevel());
+    setParameterValue(PARAMETER_AH, allocator->voice[0]->ops[3].env.getLevel());
   }
 };
 
