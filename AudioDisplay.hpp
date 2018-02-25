@@ -1,10 +1,16 @@
 
 #define MAX_WIDTH 128
 class AudioDisplay {
+public:
+    enum TriggerMode {
+    TRIGGER_AUTO, TRIGGER_FREE, TRIGGER_STOP
+  };
+private:
   int16_t buffer[MAX_WIDTH]; // reduced sample buffer
   int writepos;
   int height;
   int width;
+  TriggerMode tmode = TRIGGER_AUTO;
 public:
   AudioDisplay(){
     reset();
@@ -17,14 +23,19 @@ public:
       buffer[i] = height;
     }
   }
+  void setTriggerMode(TriggerMode mode){
+    tmode = mode;
+  }
   void update(FloatArray samples, uint16_t divisions, float triggerLevel, float gain, float offset){
     int skip = 0;
     int size = samples.getSize();
-    if(writepos == 0){
+    if(tmode == TRIGGER_STOP)
+      skip = size;
+    if(writepos == 0 && tmode == TRIGGER_AUTO){
       // fast forward to trigger
-      while(samples[skip] > triggerLevel-0.0001 && skip < size)
+      while(skip < size && samples[skip] > triggerLevel-0.0001)
 	skip++;
-      while(samples[skip] < triggerLevel && skip < size)
+      while(skip < size && samples[skip] < triggerLevel)
 	skip++;
     }
     for(int i=skip; i<size && writepos < width; i+=divisions)

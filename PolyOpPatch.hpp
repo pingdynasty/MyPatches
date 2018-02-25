@@ -12,7 +12,8 @@
 // semitones = 12*log(ratio)/log(2)
 // ratio = pow(2, semitones/12)
 				       
-#define MIDI_VOICES 4
+#define MIDI_VOICES 3
+int most_recent_voice = 0;
 
 class MidiVoice {
 public:
@@ -327,10 +328,10 @@ public:
     out = ops[1].getNextSample(out);
     return out;
   }
-  void noteOn(uint8_t note, uint8_t velocity, uint16_t samples){
+  void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
     pb = 0;
     updateFrequency(note);
-    gain = (velocity*velocity)/16129.0f + 0.2;
+    gain = velocity*velocity/16129.0f + 0.2;
     // setFrequency(freq);
     gate(true, samples);    
     // debugMessage("note on", note, velocity);
@@ -394,7 +395,7 @@ public:
     uint8_t ch = msg.getChannel();
     if(msg.isNoteOn()){
       if(ch < MIDI_VOICES)
-	voice[ch]->noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);
+	voice[ch]->noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
     }else if(msg.isNoteOff()){
       if(ch < MIDI_VOICES)
 	voice[ch]->noteOff(msg.getNote(), samples);
@@ -430,7 +431,7 @@ public:
   void processMidi(MidiMessage& msg){    
     uint16_t samples = 0;
     if(msg.isNoteOn()){
-      noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);
+      noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
     }else if(msg.isNoteOff()){
       noteOff(msg.getNote(), samples);
     }else if(msg.isPitchBend()){
@@ -448,6 +449,7 @@ public:
   }
 	     
   void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
+    most_recent_voice = ch;
     notes[ch] = note;
     allocation[ch] = TAKEN;
     voice[ch]->noteOn(note, velocity, samples);
@@ -552,6 +554,8 @@ public:
     registerParameter(PARAMETER_BA, "Algorithm");
     lp = StereoBiquadFilter::create(2);
     lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
+
+    debugMessage("hello");
   }
   ~PolyOpPatch(){
   }
@@ -562,6 +566,7 @@ public:
   // 	algo.noteOn(note, value, samples);
   //     else
   // 	algo.noteOff(samples);
+    debugMessage("button", bid, value, samples);
     if(bid == PUSHBUTTON && value == 0){
     //     algo.gate(value, samples);
       allocator->allNotesOff(samples);
@@ -603,10 +608,10 @@ public:
     right.copyFrom(left);
     lp->process(left);
 
-    setParameterValue(PARAMETER_AB, allocator->voice[0]->ops[0].env.getLevel());
-    setParameterValue(PARAMETER_AD, allocator->voice[0]->ops[1].env.getLevel());
-    setParameterValue(PARAMETER_AF, allocator->voice[0]->ops[2].env.getLevel());
-    setParameterValue(PARAMETER_AH, allocator->voice[0]->ops[3].env.getLevel());
+    setParameterValue(PARAMETER_AB, allocator->voice[most_recent_voice]->ops[0].env.getLevel());
+    setParameterValue(PARAMETER_AD, allocator->voice[most_recent_voice]->ops[1].env.getLevel());
+    setParameterValue(PARAMETER_AF, allocator->voice[most_recent_voice]->ops[2].env.getLevel());
+    setParameterValue(PARAMETER_AH, allocator->voice[most_recent_voice]->ops[3].env.getLevel());
   }
 };
 
