@@ -209,7 +209,7 @@ public:
 
   void setParameters(float attack, float release, float pb){
     for(int i=0; i<VOICES; ++i){
-      float freq = 440.0f*fastpow2f((notes[i]-69 + pb*2)/12.0);
+      float freq = 440.0f*exp2f((notes[i]-69 + pb*2)/12.0);
       voice[i]->setFrequency(freq);
       voice[i]->setEnvelope(attack, release);
     }
