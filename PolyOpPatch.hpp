@@ -13,7 +13,7 @@
 // ratio = pow(2, semitones/12)
 				       
 #define MIDI_VOICES 3
-int most_recent_voice = 0;
+// #define MIDI_CHANNEL_ALLOCATION
 
 class MidiVoice {
 public:
@@ -41,9 +41,9 @@ public:
     osc.setSampleRate(value);
     env.setSampleRate(value);
   }
-  void setFrequency(float f){
-    static SmoothFloat freq;
-    freq = f;
+  void setFrequency(float freq){
+    // static SmoothFloat freq;
+    // freq = f;
     osc.setFrequency(freq*ratio+offset);
   }
   void setEnvelope(float a, float d, float s, float r){
@@ -94,7 +94,7 @@ public:
   const float RATIO_RANGE = 7.5;
   const float OFFSET_DEFAULT = 0.0;
   const float INDEX_DEFAULT = 0.5;
-  const float ENVELOPE_DEFAULT = 0.5;
+  const float ENVELOPE_DEFAULT = 0.3;
 
 class FourOpVoice : public Oscillator, MidiVoice {
 public:
@@ -113,7 +113,7 @@ public:
     gain = 0.5;
     for(int i=0; i<4; ++i){
       ops[i].index = INDEX_DEFAULT;
-      ops[i].ratio = RATIO_MIN + RATIO_DEFAULT*RATIO_RANGE;
+      ops[i].ratio = RATIO_DEFAULT;
       ops[i].offset = OFFSET_DEFAULT;
       ops[i].setEnvelope(ENVELOPE_DEFAULT);
     }
@@ -132,7 +132,7 @@ public:
   }  
   void setParameters(uint8_t op, float index, float ratio, float offset, float env){
     ops[op].index = index;
-    ops[op].ratio = RATIO_MIN + ratio*RATIO_RANGE;
+    ops[op].ratio = ratio; // RATIO_MIN + ratio*RATIO_RANGE;
     ops[op].offset = offset;
     ops[op].setEnvelope(env);
   }
@@ -145,63 +145,64 @@ public:
   float getNextSample(){
     return 0.0f;
   }
+
   void addSamples(FloatArray samples){
-    updateFrequency(note);
+    updateFrequency();
     switch(algo){
     case 0:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo1();
+	samples[i] += gain*algo1();
       break;
     case 1:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo2();
+	samples[i] += gain*algo2();
       break;
     case 2:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo3();
+	samples[i] += gain*algo3();
       break;
     case 3:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo4();
+	samples[i] += gain*algo4();
       break;
     case 4:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo5();
+	samples[i] += gain*algo5();
       break;
     case 5:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo6();
+	samples[i] += gain*algo6();
       break;
     case 6:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo7();
+	samples[i] += gain*algo7();
       break;
     case 7:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo8();
+	samples[i] += gain*algo8();
       break;
     case 8:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo9();
+	samples[i] += gain*algo9();
       break;
     case 9:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo10();
+	samples[i] += gain*algo10();
       break;
     case 10:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo11();
+	samples[i] += gain*algo11();
       break;
     case 11:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo12();
+	samples[i] += gain*algo12();
       break;
     case 12:
       for(int i=0; i<samples.getSize(); ++i)
-	samples[i] += algo13();
+	samples[i] += gain*algo13();
       break;
     }
-    samples.multiply(gain);
+    // samples.multiply(gain);
   }
 
   float algo1(){
@@ -328,20 +329,19 @@ public:
     out = ops[1].getNextSample(out);
     return out;
   }
-  void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
+  void noteOn(uint8_t n, uint8_t velocity, uint16_t samples){
     pb = 0;
-    updateFrequency(note);
+    note = n;
     gain = velocity*velocity/16129.0f + 0.2;
-    // setFrequency(freq);
-    gate(true, samples);    
-    // debugMessage("note on", note, velocity);
+    gain *= 0.75/MIDI_VOICES;
+    gate(true, samples);
+    // debugMessage("note on", (float)note, (float)velocity, gain);
   }
   void noteOff(uint8_t note, uint16_t samples){
     gate(false, samples);
-    // debugMessage("note off", note);
+    // debugMessage("note off", (float)note, gain);
   }
-  void updateFrequency(uint8_t n){
-    note = n;
+  void updateFrequency(){
     float freq = 440.0f*exp2f((note-69 + pb*2)/12.0);    
     setFrequency(freq); // update frequency in case ratio or offset has changed
   }
@@ -365,21 +365,20 @@ public:
 class FourOpVoiceAllocator { // : public MidiVoiceAllocator {
 public:
   FourOpVoice* voice[MIDI_VOICES];
-
+  uint8_t lastVoice = 0;
+  FourOpVoice* getMostRecentVoice(){
+    return voice[lastVoice];
+  }
   void getSamples(FloatArray samples){
     samples.clear();
     for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->addSamples(samples);
       // voice[i]->getSamples(samples);
-    samples.multiply(1.0/MIDI_VOICES);
+    // samples.multiply(1.0/MIDI_VOICES);
   }
   void setParameters(uint8_t op, float index, float ratio, float offset, float env){
     for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->setParameters(op, index, ratio, offset, env);
-  }
-  void setFrequency(float freq){
-    for(int i=0; i<MIDI_VOICES; ++i)
-      voice[i]->setFrequency(freq);
   }
   void setAlgorithm(uint8_t algo){
     algo = max(0, min(12, algo));
@@ -395,7 +394,7 @@ public:
     uint8_t ch = msg.getChannel();
     if(msg.isNoteOn()){
       if(ch < MIDI_VOICES)
-	voice[ch]->noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
+	voice[ch]->noteOn(msg.getNote(), msg.getVelocity(), samples);
     }else if(msg.isNoteOff()){
       if(ch < MIDI_VOICES)
 	voice[ch]->noteOff(msg.getNote(), samples);
@@ -431,7 +430,7 @@ public:
   void processMidi(MidiMessage& msg){    
     uint16_t samples = 0;
     if(msg.isNoteOn()){
-      noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
+      noteOn(msg.getNote(), msg.getVelocity(), samples);
     }else if(msg.isNoteOff()){
       noteOff(msg.getNote(), samples);
     }else if(msg.isPitchBend()){
@@ -448,27 +447,27 @@ public:
     }
   }
 	     
-  void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
-    most_recent_voice = ch;
+  void take(uint8_t ch, uint8_t note, uint8_t velocity, uint16_t samples){
     notes[ch] = note;
     allocation[ch] = TAKEN;
     voice[ch]->noteOn(note, velocity, samples);
     // voice[ch]->setGain(velocity/(4095.0f*(MIDI_VOICES/2)));
     // voice[ch]->setGate(true, samples);
+    lastVoice = ch;
   }
 
   void release(uint8_t ch, uint16_t samples){
     uint8_t note = notes[ch];
-    // notes[ch] = EMPTY;
+    notes[ch] = EMPTY;
     allocation[ch] = ++allocated;
     // voice[ch]->setGate(false, samples);
     voice[ch]->noteOff(note, samples);
   }
 
-  void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
+  void noteOn(uint8_t note, uint8_t velocity, uint16_t samples){
     uint16_t minval = allocation[0];
     uint8_t minidx = 0;
-    // take oldest free voice, to allow voices to ring out
+    // pick oldest free voice, to allow voices to ring out
     for(int i=1; i<MIDI_VOICES; ++i){
       if(notes[i] == note){
 	minidx = i;
@@ -479,9 +478,9 @@ public:
 	minval = allocation[i];
       }
     }
-    // take oldest voice
+    // take least used voice
     take(minidx, note, velocity, samples);
-    debugMessage("idx/note/vel", minidx, note, velocity);
+    // debugMessage("idx/note/vel", minidx, note, velocity);
   }
 
   void noteOff(uint8_t note, uint16_t samples){
@@ -552,25 +551,37 @@ public:
     setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT);
 
     registerParameter(PARAMETER_BA, "Algorithm");
+    setParameterValue(PARAMETER_AB, 0.5);
+    
     lp = StereoBiquadFilter::create(2);
     lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
-
-    debugMessage("hello");
   }
   ~PolyOpPatch(){
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-  //   if(bid >= MIDI_NOTE_BUTTON){
-  //     uint8_t note = bid - MIDI_NOTE_BUTTON;
-  //     if(value)
-  // 	algo.noteOn(note, value, samples);
-  //     else
-  // 	algo.noteOff(samples);
-    debugMessage("button", bid, value, samples);
-    if(bid == PUSHBUTTON && value == 0){
-    //     algo.gate(value, samples);
+    if(bid == BUTTON_A){
+      if(value)
+	allocator->noteOn(60, 80, samples);
+      else
+	allocator->noteOff(60, samples);
+    }else if(bid == BUTTON_B){
+      if(value)
+	allocator->noteOn(65, 80, samples);
+      else
+	allocator->noteOff(65, samples);
+    }else if(bid == BUTTON_C){
+      if(value)
+	allocator->noteOn(67, 80, samples);
+      else
+	allocator->noteOff(67, samples);
+    }else if(bid == BUTTON_D){
+      if(value)
+	allocator->noteOn(72, 80, samples);
+      else
+	allocator->noteOff(72, samples);
+    }    
+    if(bid == PUSHBUTTON && value == 0)
       allocator->allNotesOff(samples);
-    }
   }
   void processMidi(MidiMessage& msg){
     // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
@@ -582,36 +593,36 @@ public:
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     allocator->setAlgorithm(getParameterValue(PARAMETER_BA)*13);
-    float index = 0.5;
-    float ratio = 2.0;
+    float index;
+    float ratio;
     float offset = 0.0;
-    float env = 0.6;
+    float env;
     // ratio = getParameterValue(PARAMETER_A);
     // ratio = pow(2, semitones/12)
-    ratio = exp2f(int(getParameterValue(PARAMETER_A)*36-12)/12.0);
+    ratio = exp2f(int(getParameterValue(PARAMETER_A)*36-24)/12.0);
     index = getParameterValue(PARAMETER_B);
     env = getParameterValue(PARAMETER_AA);
-    allocator->setParameters(0, index, ratio, offset, env);
-    ratio = exp2f(int(getParameterValue(PARAMETER_C)*36-12)/12.0);
+    allocator->setParameters(0, index*index, ratio, offset, env);
+    ratio = exp2f(int(getParameterValue(PARAMETER_C)*36-24)/12.0);
     index = getParameterValue(PARAMETER_D);
     env = getParameterValue(PARAMETER_AC);
-    allocator->setParameters(1, index, ratio, offset, env);
-    ratio = exp2f(int(getParameterValue(PARAMETER_E)*36-12)/12.0);
+    allocator->setParameters(1, index*index, ratio, offset, env);
+    ratio = exp2f(int(getParameterValue(PARAMETER_E)*36-24)/12.0);
     index = getParameterValue(PARAMETER_F);
     env = getParameterValue(PARAMETER_AE);
-    allocator->setParameters(2, index, ratio, offset, env);
-    ratio = exp2f(int(getParameterValue(PARAMETER_G)*36-12)/12.0);
+    allocator->setParameters(2, index*index, ratio, offset, env);
+    ratio = exp2f(int(getParameterValue(PARAMETER_G)*36-24)/12.0);
     index = getParameterValue(PARAMETER_H);
     env = getParameterValue(PARAMETER_AG);
-    allocator->setParameters(3, index, ratio, offset, env);
+    allocator->setParameters(3, index*index, ratio, offset, env);
     allocator->getSamples(left);
     right.copyFrom(left);
     lp->process(left);
 
-    setParameterValue(PARAMETER_AB, allocator->voice[most_recent_voice]->ops[0].env.getLevel());
-    setParameterValue(PARAMETER_AD, allocator->voice[most_recent_voice]->ops[1].env.getLevel());
-    setParameterValue(PARAMETER_AF, allocator->voice[most_recent_voice]->ops[2].env.getLevel());
-    setParameterValue(PARAMETER_AH, allocator->voice[most_recent_voice]->ops[3].env.getLevel());
+    setParameterValue(PARAMETER_AB, allocator->getMostRecentVoice()->ops[0].env.getLevel());
+    setParameterValue(PARAMETER_AD, allocator->getMostRecentVoice()->ops[1].env.getLevel());
+    setParameterValue(PARAMETER_AF, allocator->getMostRecentVoice()->ops[2].env.getLevel());
+    setParameterValue(PARAMETER_AH, allocator->getMostRecentVoice()->ops[3].env.getLevel());
   }
 };
 
