@@ -12,7 +12,7 @@
 // semitones = 12*log(ratio)/log(2)
 // ratio = pow(2, semitones/12)
 				       
-#define MIDI_VOICES 3
+#define MIDI_VOICES 2
 // #define MIDI_CHANNEL_ALLOCATION
 
 class MidiVoice {
@@ -89,12 +89,12 @@ public:
   }
 };
 
-  const float RATIO_DEFAULT = 0.25;
+  const float RATIO_DEFAULT = 0.125;
   const float RATIO_MIN = 0.5;
   const float RATIO_RANGE = 7.5;
   const float OFFSET_DEFAULT = 0.0;
   const float INDEX_DEFAULT = 0.5;
-  const float ENVELOPE_DEFAULT = 0.3;
+  const float ENVELOPE_DEFAULT = 0.2;
 
 class FourOpVoice : public Oscillator, MidiVoice {
 public:
@@ -511,10 +511,10 @@ public:
 class PolyOpPatch : public Patch {
 private:  
   FourOpVoiceAllocator* allocator;
-  // VoltsPerOctave hz;
   BiquadFilter* lp;
+  SineOscillator lfo;
 public:
-  PolyOpPatch() {
+  PolyOpPatch() : lfo(getSampleRate()) {
     allocator = FourOpVoiceAllocator::create(getSampleRate());
 
     // algo.setSampleRate(getSampleRate());
@@ -532,7 +532,7 @@ public:
     registerParameter(PARAMETER_AD, "Op2:Env>");
     setParameterValue(PARAMETER_C, RATIO_DEFAULT*2);
     setParameterValue(PARAMETER_D, INDEX_DEFAULT);
-    setParameterValue(PARAMETER_AC, ENVELOPE_DEFAULT);
+    setParameterValue(PARAMETER_AC, ENVELOPE_DEFAULT*2);
 
     registerParameter(PARAMETER_E, "Op3:Semis");
     registerParameter(PARAMETER_F, "Op3:Amount");
@@ -540,7 +540,7 @@ public:
     registerParameter(PARAMETER_AF, "Op3:Env>");
     setParameterValue(PARAMETER_E, RATIO_DEFAULT*4);
     setParameterValue(PARAMETER_F, INDEX_DEFAULT);
-    setParameterValue(PARAMETER_AE, ENVELOPE_DEFAULT);
+    setParameterValue(PARAMETER_AE, ENVELOPE_DEFAULT*3);
 
     registerParameter(PARAMETER_G, "Op4:Semis");
     registerParameter(PARAMETER_H, "Op4:Amount");
@@ -548,11 +548,16 @@ public:
     registerParameter(PARAMETER_AH, "Op4:Env>");
     setParameterValue(PARAMETER_G, RATIO_DEFAULT*8);
     setParameterValue(PARAMETER_H, INDEX_DEFAULT);
-    setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT);
+    setParameterValue(PARAMETER_AG, ENVELOPE_DEFAULT*4);
 
     registerParameter(PARAMETER_BA, "Algorithm");
-    setParameterValue(PARAMETER_AB, 0.5);
-    
+    setParameterValue(PARAMETER_BA, 0.5);
+
+    registerParameter(PARAMETER_BB, "LFO");
+    setParameterValue(PARAMETER_BB, 0.5);
+    registerParameter(PARAMETER_BC, "LFO Sine>");
+    registerParameter(PARAMETER_BD, "LFO Ramp>");
+
     lp = StereoBiquadFilter::create(2);
     lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
   }
@@ -623,6 +628,11 @@ public:
     setParameterValue(PARAMETER_AD, allocator->getMostRecentVoice()->ops[1].env.getLevel());
     setParameterValue(PARAMETER_AF, allocator->getMostRecentVoice()->ops[2].env.getLevel());
     setParameterValue(PARAMETER_AH, allocator->getMostRecentVoice()->ops[3].env.getLevel());
+
+    // LFO
+    lfo.setFrequency(getParameterValue(PARAMETER_BB)*getParameterValue(PARAMETER_BB)*500);
+    setParameterValue(PARAMETER_BC, lfo.getNextSample()*.25+0.5);
+    setParameterValue(PARAMETER_BD, lfo.getPhase()/(4*M_PI));
   }
 };
 
