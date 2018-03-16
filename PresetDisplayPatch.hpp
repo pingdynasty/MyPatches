@@ -8,6 +8,9 @@
 
 #define GREY 0xAAAA
 
+#define MINS_PER_PRESET 60
+#define MINS_IDLE_TIME 5
+
 // extern "C" {
 //   void doMidiSend(uint8_t port, uint8_t d0, uint8_t d1, uint8_t d2);
 // }
@@ -25,7 +28,7 @@ private:
   const int OWL_B_CH = 2;
   const int OWL_C_CH = 3;
   const int OWL_D_CH = 4;
-  int counter;
+  uint32_t counter, idle;
   int preset0, preset1;
   int octave0, octave1;
   int debounceDelay = 0;
@@ -37,8 +40,12 @@ private:
   uint16_t bg = BLACK;
   uint16_t fg = GREY; // WHITE;
   SmoothFloat tune1, tune2;
+  const uint32_t presetChangeInterval;
+  const uint32_t maxIdleInterval;
 public:
-  PresetDisplayPatch(){
+  PresetDisplayPatch() :
+    presetChangeInterval(MINS_PER_PRESET*60*getSampleRate()/getBlockSize()),
+    maxIdleInterval(MINS_IDLE_TIME*60*getSampleRate()/getBlockSize()) {
     reset();
     registerParameter(PARAMETER_A, "Preset 1");
     registerParameter(PARAMETER_B, "Preset 2");
@@ -88,7 +95,7 @@ public:
 #endif
   }
   void reset(){
-    counter = 0;
+    counter = idle = 0;
     preset0 = preset1 = 1;
     setPreset(0, preset0);
     setPreset(1, preset1);
@@ -124,68 +131,52 @@ public:
     screen.print(x, y, presetnames[preset-1]);
   }
   void processScreen(ScreenBuffer& screen){
-    // screen.fill(bg);
-    draw(screen, x, y, preset0);
-    draw(screen, x+hspace, y+vspace, preset1);
+    if(idle >= maxIdleInterval){
+      screen.clear();
+    }else{
+      draw(screen, x, y, preset0);
+      draw(screen, x+hspace, y+vspace, preset1);
+    }
   }
 
   void processAudio(AudioBuffer& samples){
-#if 0
-    static bool sw1_en = false;
-    static bool sw2_en = false;
-    if(sw1()){
-      if(!sw1_en){
-	midiSendCC(OWL_A_CH, PATCH_BUTTON, 127);
-	sw1_en = true;
-	bg = BLUE;
-      }
-    }else{
-      if(sw1_en){
-	midiSendCC(OWL_A_CH, PATCH_BUTTON, 127);
-	sw1_en = false;
-	bg = BLACK;
-      }
-    }
-    if(sw2()){
-      if(!sw2_en){
-	midiSendCC(OWL_C_CH, PATCH_BUTTON, 127);
-	sw2_en = true;
-	bg = BLUE;
-      }
-    }else{
-      if(sw2_en){
-	midiSendCC(OWL_C_CH, PATCH_BUTTON, 127);
-	sw2_en = false;
-	bg = BLACK;
-      }
-    }
-#endif
+    idle++;
     int preset = max(1, min(MANUAL_PRESET, round(getParameterValue(PARAMETER_A)*MANUAL_PRESET)));
     if(preset0 != preset){
       preset0 = preset;
       setPreset(0, preset0);
-      counter = 0;
+      idle = 0;
     }
     preset = max(1, min(MANUAL_PRESET, round(getParameterValue(PARAMETER_B)*MANUAL_PRESET)));
     if(preset1 != preset){
       preset1 = preset;
       setPreset(1, preset1);
-      counter = 0;
+      idle = 0;
     }
 
     int octave = max(0, min(4, round(getParameterValue(PARAMETER_C)*5)));
     if(octave != octave0){
       octave0 = octave;
       setOctave(0, octave0);
-      counter = 0;
+      idle = 0;
     }
     octave = max(0, min(4, round(getParameterValue(PARAMETER_D)*5)));
     if(octave != octave1){
       octave1 = octave;
       setOctave(1, octave1);
+      idle = 0;
+    }    
+    if(++counter == presetChangeInterval){
+      if(++preset0 >= MAX_PRESET)
+	preset0 = 0;
+      setPreset(0, preset0);
+      setParameterValue(PARAMETER_A, float(preset0)/MANUAL_PRESET);
+      if(++preset1 >= MAX_PRESET)
+	preset1 = 0;
+      setPreset(1, preset1);
+      setParameterValue(PARAMETER_B, float(preset1)/MANUAL_PRESET);
       counter = 0;
     }
-  
     // if(++counter == SEND_RATE){
     //   if(preset0 < MANUAL_PRESET)
     // 	setPreset(0, preset0);
