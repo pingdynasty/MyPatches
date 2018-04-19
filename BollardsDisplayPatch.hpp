@@ -15,7 +15,7 @@ const char presetnames[][8] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
 
 #define PARAMETER_TICKS 63
 
-class BDPatch : public Patch {
+class BollardsDisplayPatch : public Patch {
 private:
   const int SEND_RATE = 1357;
   const int OWL_A_CH = 1;
@@ -38,7 +38,7 @@ private:
   const uint32_t presetChangeInterval;
   const uint32_t maxIdleInterval;
 public:
-  BDPatch() :
+  BollardsDisplayPatch() :
     presetChangeInterval(MINS_PER_PRESET*60*getSampleRate()/getBlockSize()),
     maxIdleInterval(MINS_IDLE_TIME*60*getSampleRate()/getBlockSize()) {
     registerParameter(PARAMETER_A, "Preset");
