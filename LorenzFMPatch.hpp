@@ -5,6 +5,8 @@
 #include "CircularBuffer.hpp"
 #include "SineOscillator.h"
 #include "BiquadFilter.h"
+#include "Sequence.h"
+#include "Envelope.h"
 
 /*
  * The Lorenz attractor is a set of chaotic solutions of the Lorenz system.
@@ -17,9 +19,15 @@ public:
   const float a = 10.0;
   const float b = 8.0/3.0;
   const float c = 28.0;
-  SmoothFloat freq;
+  float frequency;
+
+  float amplitude = 0.8;
+  // SmoothFloat gain;
   SmoothFloat index;
   StereoBiquadFilter* lowpass;
+  Sequence<uint16_t> seq;
+  AdsrEnvelope env;
+  FloatArray envelope;
 
   size_t memory = 512;
   float P[3];
@@ -34,12 +42,16 @@ public:
   SineOscillator lfo2;
 
   LorenzFMPatch(): xosc(getSampleRate()), yosc(getSampleRate()),
-		   lfo2(getSampleRate()/getBlockSize())
+		   lfo2(getSampleRate()/getBlockSize()),
+		   env(getSampleRate())
   {
     registerParameter(PARAMETER_A, "Rate");
     setParameterValue(PARAMETER_A, 0.1);
+    registerParameter(PARAMETER_B, "Envelope");
+    setParameterValue(PARAMETER_B, 0.5);
     registerParameter(PARAMETER_AA, "Depth");
     setParameterValue(PARAMETER_AA, 0.1);
+    registerParameter(PARAMETER_AB, "");
 
     registerParameter(PARAMETER_C, "Rotate X");
     registerParameter(PARAMETER_D, "Rotate Y");
@@ -64,6 +76,14 @@ public:
     setParameterValue(PARAMETER_G, 0.2);
     setParameterValue(PARAMETER_H, 0.1);
 
+    registerParameter(PARAMETER_BA, "Steps");
+    registerParameter(PARAMETER_BB, "Fills");
+    registerParameter(PARAMETER_BC, "Divs");
+    registerParameter(PARAMETER_BD, "");
+    setParameterValue(PARAMETER_BA, 0.0);
+    setParameterValue(PARAMETER_BB, 0.0);
+    setParameterValue(PARAMETER_BC, 0.5);
+
     xpos = CircularBuffer::create(MAX_MEMORY_SIZE);
     ypos = CircularBuffer::create(MAX_MEMORY_SIZE);
 
@@ -73,6 +93,11 @@ public:
     lowpass = StereoBiquadFilter::create(1);
     lowpass->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
 
+    env.setSustain(1.0);
+    env.setDecay(0.0);
+    env.setRelease(0.0);
+    envelope = FloatArray::create(getBlockSize());
+
     reset();
   }
   ~LorenzFMPatch(){
@@ -80,6 +105,7 @@ public:
     CircularBuffer::destroy(ypos);
     FloatArray::destroy(xbuf);
     FloatArray::destroy(ybuf);
+    FloatArray::destroy(envelope);
     StereoBiquadFilter::destroy(lowpass);
   }
 
@@ -125,13 +151,10 @@ public:
     if(isButtonPressed(PUSHBUTTON))
       reset();
 
+    frequency = getParameterValue(PARAMETER_G)*1705+55;
+
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-
-    freq = getParameterValue(PARAMETER_G)*1000+20;
-    xosc.setFrequency(freq);
-    yosc.setFrequency(freq);
-    processAttractor(xbuf, ybuf);
 
     setParameterValue(PARAMETER_AG, xbuf[0]*12.5 + .5);
     setParameterValue(PARAMETER_AH, ybuf[0]*12.5 + .5);
@@ -142,12 +165,58 @@ public:
     xosc.getSamples(left, xbuf);
     yosc.getSamples(right, ybuf);    
 
-    
+    int steps = getParameterValue(PARAMETER_BA)*16;
+    int fills = getParameterValue(PARAMETER_BB)*steps+1;
+    int divs = getParameterValue(PARAMETER_BC)*12+1;
+    seq.calculate(steps, fills);
+
+    // set envelope shape
+    float df = getParameterValue(PARAMETER_B)*4;
+    int di = (int)df;
+    float attack, release;
+    switch(di){
+      // a/d
+    case 0: // l/s
+      attack = 1.0-df;
+      release = 0.0;
+      break;
+    case 1: // s/s
+      attack = 0.0;
+      release = df-1;
+      break;
+    case 2: // s/l
+      attack = df-2;
+      release = 1.0;
+      break;
+    case 3: // l/l
+      attack = 1.0;
+      release = 1.0;
+      break;
+    }
+    env.setAttack(attack);
+    env.setRelease(release);    
     static float lfo1 = 0;
     if(lfo1 > 1.0){
       lfo1 = 0;
+      bool on = seq.next();
+      int pos = seq.getPosition()+1;
+      if(on){
+	xosc.setFrequency(frequency*pos/divs);
+	yosc.setFrequency(frequency*pos/divs);
+	env.trigger(true);
+      }else{
+	env.trigger(false);
+      }
     }
-    float tempo = getParameterValue(PARAMETER_E)+0.01;
+    // vca
+    env.getEnvelope(envelope);
+    envelope.multiply(amplitude);
+    left.multiply(envelope);
+    right.multiply(envelope);
+
+    processAttractor(xbuf, ybuf);
+
+    float tempo = getParameterValue(PARAMETER_E)*8;
     lfo1 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AE, lfo1);
     tempo = getParameterValue(PARAMETER_F)*2;
@@ -199,7 +268,7 @@ public:
 
 #ifdef OWL_MAGUS
   void processScreen(ScreenBuffer& screen){
-    screen.clear();
+    // screen.clear();
     int w = screen.getWidth();
     int h = screen.getHeight();
     for(int i=0; i<memory; ++i){
