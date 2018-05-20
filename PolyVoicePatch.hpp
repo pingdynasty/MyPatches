@@ -8,6 +8,8 @@
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 
+// The per-note messages sent over each channel are limited to Note On, Note Off, Channel Pressure (for finger pressure), Pitch Bend (for x-axis movement) and CC74 (for Y-axis movement).
+  
 class SynthVoice {
 private:
   PolyBlepOscillator osc;
@@ -176,6 +178,7 @@ public:
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
+      debugMessage("note/velocity", bid - MIDI_NOTE_BUTTON, value);
       uint8_t note = bid - MIDI_NOTE_BUTTON;
       if(value) // note on
 	voices.noteOn(note, value, samples);
