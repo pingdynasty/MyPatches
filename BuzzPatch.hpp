@@ -21,6 +21,8 @@ public:
     float shape1 = getParameterValue(PARAMETER_B)*1.8;
     float freq2 = getParameterValue(PARAMETER_C)*(250-108)+108;
     float shape2 = getParameterValue(PARAMETER_D)*1.8;
+    osc1.setFrequency(freq1);
+    osc2.setFrequency(freq2);
     if(shape1 > 1.0){
       osc1.setShape(1.0);
       osc1.setPulseWidth(shape1/2.0);
