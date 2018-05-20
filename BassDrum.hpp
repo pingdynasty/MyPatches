@@ -4,7 +4,8 @@
 #include "Envelope.h"
 #include "BiquadFilter.h"
 #include "NoiseOscillator.h"
-#include "Oscillators.hpp"
+#include "ChirpOscillator.h"
+#include "SineOscillator.h"
 #include "Drum.hpp"
 
 class ExponentialDecayEnvelope : public Envelope {
@@ -31,6 +32,12 @@ public:
     float sample = value;
     value *= incr;
     return sample;
+  }
+  static ExponentialDecayEnvelope* create(float sr){
+    return new ExponentialDecayEnvelope(sr);
+  }
+  static void destroy(ExponentialDecayEnvelope* env){
+    delete env;
   }
 };
   

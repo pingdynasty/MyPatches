@@ -8,8 +8,10 @@
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 
-// The per-note messages sent over each channel are limited to Note On, Note Off, Channel Pressure (for finger pressure), Pitch Bend (for x-axis movement) and CC74 (for Y-axis movement).
-  
+#define MIDI_VOICES 6
+
+int8_t basenote = -69;
+
 class SynthVoice {
 private:
   PolyBlepOscillator osc;
@@ -82,8 +84,11 @@ private:
   void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
     notes[ch] = note;
     allocation[ch] = TAKEN;
-    voice[ch]->setGain(velocity/(4095.0f*(VOICES/2)));
+    float gain = velocity*velocity/16129.0f + 0.1;
+    gain *= 1.0f/VOICES;
+    voice[ch]->setGain(gain);
     voice[ch]->setGate(true, samples);
+    // debugMessage("gain", gain);
   }
 
   void release(uint8_t ch, uint16_t samples){
@@ -116,7 +121,7 @@ public:
 
   void allNotesOn(){
     for(int i=0; i<VOICES; ++i){
-      voice[i]->setGain(0.6/VOICES);
+      voice[i]->setGain(0.5/VOICES);
       voice[i]->setGate(true, 0);
     }
   }
@@ -137,6 +142,7 @@ public:
     }
     // take oldest voice
     take(minidx, note, velocity, samples);
+    // debugMessage("idx/note/vel", minidx, note, velocity);
   }
 
   void noteOff(uint8_t note, uint16_t samples){
@@ -147,7 +153,7 @@ public:
 
   void setParameters(float shape, float fc, float q, float attack, float release, float pb){
     for(int i=0; i<VOICES; ++i){
-      float freq = 440.0f*exp2f((notes[i]-69 + pb*2)/12.0);
+      float freq = 440.0f*exp2f((notes[i]+basenote + pb*8)/12.0);
       voice[i]->setFrequency(freq);
       voice[i]->setWaveshape(shape);
       voice[i]->setFilter(fc, q);
@@ -164,40 +170,94 @@ public:
   }
 };
 
-class PolyVoicePatch : public Patch {
+class PolySubPatch : public Patch {
 private:
-  Voices<8> voices;
+  Voices<MIDI_VOICES> voices;
+  BiquadFilter* hp;
 public:
-  PolyVoicePatch() : voices(getSampleRate(), getBlockSize()) {
-    registerParameter(PARAMETER_A, "Waveshape");
-    registerParameter(PARAMETER_B, "Fc");
+  PolySubPatch() : voices(getSampleRate(), getBlockSize()) {
+    registerParameter(PARAMETER_A, "Pitch");
+    registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
+    registerParameter(PARAMETER_E, "Waveshape");
+    setParameterValue(PARAMETER_A, 0.5);
+    setParameterValue(PARAMETER_B, 0.8);
+    setParameterValue(PARAMETER_C, 0.2);
+    setParameterValue(PARAMETER_D, 0.4);
+    setParameterValue(PARAMETER_E, 0.5);
+    hp = BiquadFilter::create(2);
+    hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
   }
-  ~PolyVoicePatch(){
+  ~PolySubPatch(){
+    BiquadFilter::destroy(hp);
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
-      debugMessage("note/velocity", bid - MIDI_NOTE_BUTTON, value);
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value) // note on
-	voices.noteOn(note, value, samples);
-      else // note off
-	voices.noteOff(note, samples);
+      // uint8_t note = bid - MIDI_NOTE_BUTTON;
+      // if(value) // note on
+      // 	voices.noteOn(note, value>>5, samples);
+      // else // note off
+      // 	voices.noteOff(note, samples);
     }else if(bid == PUSHBUTTON){
       if(value)
 	voices.allNotesOn();
       else
 	voices.allNotesOff();
+    }else if(bid == BUTTON_B){
+      if(value)
+      	voices.noteOn(48, 80, samples);
+      else
+      	voices.noteOff(48, samples);
+    }else if(bid == BUTTON_C){
+      if(value)
+      	voices.noteOn(53, 80, samples);
+      else
+      	voices.noteOff(53, samples);
+    }else if(bid == BUTTON_D){
+      if(value)
+      	voices.noteOn(60, 80, samples);
+      else
+      	voices.noteOff(60, samples);
+    }    
+    // debugMessage("button/value/samples", bid, value, samples);
+  }
+  SmoothFloat pitchbend;
+  float pb;
+  void processMidi(MidiMessage& msg){
+    // debugMessage("port/status/d1", msg.data[0], msg.data[1], msg.data[2]);
+    // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
+    // debugMessage("status/note/vel", msg.getStatus(), msg.getNote(), msg.getVelocity());
+    // if(msg.getPort() != 1) // prevent double triggering on TouchKeys / Impulse
+    //   return;
+    uint16_t samples = 0;
+    if(msg.isNoteOn()){
+      voices.noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
+      // debugMessage("note on", msg.getPort(), msg.getNote(), msg.getVelocity());
+    }else if(msg.isNoteOff()){
+      // debugMessage("note off", msg.getPort(), msg.getNote(), msg.getVelocity());
+      voices.noteOff(msg.getNote(), samples);
+    }else 
+      if(msg.isPitchBend()){
+      // debugMessage("pb", msg.getPort(), msg.getChannel(), msg.getPitchBend());
+      pb = msg.getPitchBend()/8192.0f;
     }
   }
+  void setBasenote(float note){
+    int i = (int)(note+0.5);
+    if(abs(note-i) < 0.8)
+      basenote = note;
+  }
+    
   void processAudio(AudioBuffer &buffer) {
-    float shape = getParameterValue(PARAMETER_A)*2;
+    setBasenote(getParameterValue(PARAMETER_A)*24 - 81);
     float cutoff = getParameterValue(PARAMETER_B)*0.48 + 0.01;
     float q = getParameterValue(PARAMETER_C)*3+0.75;
     float df = getParameterValue(PARAMETER_D)*4;
     cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
-    float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
+    float shape = getParameterValue(PARAMETER_E)*2;
+    // float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
+    pitchbend = pb;
     int di = (int)df;
     float attack, release;
     switch(di){
@@ -223,6 +283,7 @@ public:
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices.setParameters(shape, cutoff, q, attack, release, pitchbend);
     voices.getSamples(left);
+    hp->process(left);
     right.copyFrom(left);
   }
 };

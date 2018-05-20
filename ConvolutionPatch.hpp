@@ -3,12 +3,15 @@
 
 #include "StompBox.h"
 #include "FastFourierTransform.h"
-#include "impulse-response.h"
+#include "Resource.h"
 // ./wav2float MyPatches/ir/EMT\ 244\ \(A.\ Bernhard\)/0\,4s\ Low\*2\ \ High_2.wav > MyPatches/impulse-response.h
+
+#define IR_RESOURCE "impulse1"
+#define REPURPOSE
 
 class ConvolutionPatch : public Patch {
 private:
-  static const int segments = 10;
+  static const int segments = 11;
   int current;
   int segsize;
   int blocksize;
@@ -23,17 +26,27 @@ public:
   ConvolutionPatch() : current(0), blocksize(getBlockSize()), segsize(2*getBlockSize()) {
     // ASSERT(sizeof(ir)/sizeof(float) >= segments*blocksize, "Impulse response array too small");
     input = FloatArray::create(segsize);
-    // coutbuf = ComplexFloatArray::create(segsize);
-    // cmulbuf = ComplexFloatArray::create(segsize);
-    // overlap = FloatArray::create(blocksize);
+#ifndef REPURPOSE
+    coutbuf = ComplexFloatArray::create(segsize);
+    cmulbuf = ComplexFloatArray::create(segsize);
+    overlap = FloatArray::create(blocksize);
+#endif
+
     overlap.clear();
     fft.init(segsize);
 
+    Resource resource = Resource::getResource(IR_RESOURCE);
+    ASSERT(resource, "Missing resource " IR_RESOURCE);
+
+    // FloatArray impulse(resource.getData()+2, resource.getSize()-2);
+    FloatArray impulse((float*)resource.getData()+2, resource.getSize()/sizeof(float)+2);
+    debugMessage("ir size/min/max", resource.getSize(), impulse.getMaxValue(), impulse.getMinValue());
+    
     // normalise IR level
-    FloatArray impulse(ir[0], segments*blocksize);
+    // FloatArray impulse(ir[0], segments*blocksize);
     float scale = 1.0f/max(impulse.getMaxValue(), -impulse.getMinValue());
-    impulse.multiply(scale);
-    debugMessage("normalised", scale);
+    // impulse.multiply(scale);
+    // debugMessage("normalised", scale);
 
     // do forward fft into irbuf
     for(int i=0; i<segments; ++i){
@@ -49,11 +62,13 @@ public:
     }
     registerParameter(PARAMETER_D, "Wet/Dry");
 
+#ifdef REPURPOSE
     // repurpose impulse response memory
     cmulbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse, segsize);
     coutbuf = ComplexFloatArray((ComplexFloat*)(float*)impulse.subArray(blocksize*4, blocksize*4), segsize);
     // input = FloatArray((float*)impulse.subArray(blocksize*8, blocksize*2), segsize);
     overlap = FloatArray((float*)impulse.subArray(blocksize*8, blocksize), blocksize);
+#endif
   }
 
   void processAudio(AudioBuffer &buffer) {

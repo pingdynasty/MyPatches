@@ -10,39 +10,43 @@
  */
 class AuditoryDistortionPatch : public Patch {
 private:
-  static const int TONES = 10;
+  static const int TONES = 11;
   float scale[TONES];
   SineOscillator sine[TONES];
   VoltsPerOctave hz;
 public:
   AuditoryDistortionPatch() {
     registerParameter(PARAMETER_A, "Pitch");
-    registerParameter(PARAMETER_B, "Tones");
-    registerParameter(PARAMETER_C, "Spread");
+    registerParameter(PARAMETER_B, "Fundamental");
+    registerParameter(PARAMETER_C, "Tones");
     registerParameter(PARAMETER_D, "Amplitude");
-    registerParameter(PARAMETER_E, "Portamento");
     for(int i=0; i<TONES; i++){
       sine[i].setSampleRate(getSampleRate());
-      scale[i] = 15+i; // start from 15th harmonic
+      scale[i] = 14+i; // start from 15th harmonic
     }
   }
   ~AuditoryDistortionPatch(){
   }
   void processAudio(AudioBuffer& buf){
-    float freq = getParameterValue(PARAMETER_A)*8.0-4.0;
-    // float fraction = getParameterValue(PARAMETER_B)*(TONES-1)+1.0;
-    // float spread = getParameterValue(PARAMETER_C)*2.0+1.0;
+    float freq = getParameterValue(PARAMETER_A)*6.0-3.0;
+    float fundamental = getParameterValue(PARAMETER_B)*2;
+    float fraction = getParameterValue(PARAMETER_B)*(TONES-1)+1;
+    int tones = (int)fraction;
+    fraction -= tones;
+    // int tones = (int)(getParameterValue(PARAMETER_C)*TONES+1);
     float amp = getParameterValue(PARAMETER_D)*4.0/TONES;
-    // float portamento = getParameterValue(PARAMETER_E)*0.19+0.8;
-    // int tones = (int)fraction;
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
     hz.setTune(freq);
-    float fundamental = hz.getFrequency(left[0]);
-    left.clear();
-    for(int i=0; i<TONES; ++i){
-      sine[i].setFrequency(fundamental*scale[i]);
+    float f0 = hz.getFrequency(left[0]);
+    sine[0].setFrequency(f0);
+    sine[0].getSamples(left);
+    left.multiply(fundamental);
+    for(int i=1; i<=tones; ++i){
+      sine[i].setFrequency(f0*scale[i]);
       sine[i].getSamples(right);
+      if(i == tones)
+	right.multiply(fraction);
       left.add(right);
     }
     left.multiply(amp);
