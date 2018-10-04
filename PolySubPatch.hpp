@@ -8,7 +8,7 @@
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 
-#define MIDI_VOICES 6
+#define MIDI_VOICES 4
 
 int8_t basenote = -69;
 
@@ -283,6 +283,7 @@ public:
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices.setParameters(shape, cutoff, q, attack, release, pitchbend);
     voices.getSamples(left);
+    left.multiply(0.6);
     hp->process(left);
     right.copyFrom(left);
   }
