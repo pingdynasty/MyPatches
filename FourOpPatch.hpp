@@ -7,7 +7,6 @@
 #include "BiquadFilter.h"
 #include "Control.h"
 #include "SineOscillator.h"
-#include "Oscillators.hpp"
 
 class Operator : public Oscillator {
 private:
