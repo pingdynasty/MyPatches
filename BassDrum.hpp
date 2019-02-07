@@ -7,6 +7,7 @@
 #include "ChirpOscillator.h"
 #include "SineOscillator.h"
 #include "Drum.hpp"
+#include "Oscillators.hpp"
 
 class ExponentialDecayEnvelope : public Envelope {
 private:
