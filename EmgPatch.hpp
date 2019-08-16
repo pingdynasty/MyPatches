@@ -68,8 +68,9 @@ public:
     left.clip();
     right.clip();
     MidiMessage msg;
-    // msg = MidiMessage::cc(1, PATCH_PARAMETER_F, left[0]*128); // Control Change message
-    msg = MidiMessage::pb(1, right[0]*8192); // Pitch Bend message
+    msg = MidiMessage::pb(1, left.getMean()*8192); // Pitch Bend filtered EMG 
+    sendMidi(msg);
+    msg = MidiMessage::cc(1, 1, right.getMean()*128); // Control Change envelope
     sendMidi(msg);
   }
 };
