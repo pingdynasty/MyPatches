@@ -24,26 +24,31 @@ public:
 
 class EmgSignalProcessor {
   const float sr;
-  BiquadFilter* hp;
+  BiquadFilter* hpf;
   BiquadFilter* notch;
+  BiquadFilter* lpf;
   // EmgEnvelope env;
 public:
-  EmgSignalProcessor(float sr): sr(sr){
-    hp = BiquadFilter::create(5);
+  EmgSignalProcessor(float sr, float notch_fc, float lp_fc): sr(sr){
+    hpf = BiquadFilter::create(5);
     notch = BiquadFilter::create(5);
+    lpf = BiquadFilter::create(5);
     // initial filter settings
-    hp->setHighPass(10.0f/(sr/2), FilterStage::BUTTERWORTH_Q);
-    notch->setNotch(50.0f/(sr/2), 8);
+    hpf->setHighPass(10.0f/(sr/2), FilterStage::BUTTERWORTH_Q);
+    notch->setNotch(notch_fc/(sr/2), 8);
+    lpf->setLowPass(lp_fc/(sr/2), FilterStage::BUTTERWORTH_Q);
   }
   ~EmgSignalProcessor(){
-    BiquadFilter::destroy(hp);
+    BiquadFilter::destroy(hpf);
     BiquadFilter::destroy(notch);
+    BiquadFilter::destroy(lpf);
   }
   void processRaw(FloatArray samples, float gain, float hpfc, float notchq){
-    hp->setHighPass(hpfc/(sr/2), FilterStage::BUTTERWORTH_Q);
+    hpf->setHighPass(hpfc/(sr/2), FilterStage::BUTTERWORTH_Q);
     notch->setNotch(50.0f/(sr/2), notchq);
-    hp->process(samples);
+    hpf->process(samples);
     notch->process(samples);
+    lpf->process(samples);
     samples.multiply(gain);
     samples.clip();
   }
@@ -57,17 +62,18 @@ private:
   EmgSignalProcessor** processor;
 public:
   EmgPatch() {
-    processor = new EmgSignalProcessor*[4];
+    debugMessage("SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
+    processor = new EmgSignalProcessor*[getNumberOfChannels()];
     for(int ch=0; ch<getNumberOfChannels(); ++ch)
-      processor[ch] = new EmgSignalProcessor(getSampleRate());
+      processor[ch] = new EmgSignalProcessor(getSampleRate(), 50, getSampleRate()/getBlockSize());
     registerParameter(PARAMETER_A, "Gain");
     registerParameter(PARAMETER_B, "HP Fc");
     registerParameter(PARAMETER_C, "Notch Q");
-    registerParameter(PARAMETER_D, "Env Alpha");
+    // registerParameter(PARAMETER_D, "Env Alpha");
     // initialise parameter settings
-    setParameterValue(PARAMETER_A, 0.5);
-    setParameterValue(PARAMETER_B, 0.5);
-    setParameterValue(PARAMETER_C, 0.5);
+    setParameterValue(PARAMETER_A, 0.25);
+    setParameterValue(PARAMETER_B, 0.25);
+    setParameterValue(PARAMETER_C, 0.25);
     setParameterValue(PARAMETER_D, 0);
   }
   ~EmgPatch() {
@@ -92,7 +98,6 @@ public:
       // msg = MidiMessage::cc(1, 1, samples.getMean()*128); // Control Change envelope
       // sendMidi(msg);
     }
-    debugMessage("sr/bs/ch", (int)getSampleRate(), getBlockSize(), buffer.getChannels());
   }
 };
 
