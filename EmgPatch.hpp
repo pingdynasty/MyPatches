@@ -4,6 +4,10 @@
 #include "Patch.h"
 #include "BiquadFilter.h"
 
+// #define SEND_XYZ_DATA
+// #define SEND_ENV_DATA
+
+#ifdef SEND_ENV_DATA
 class EmgEnvelope {
   float ysquared = 0.0f;
 public:
@@ -21,13 +25,16 @@ public:
   }
   // void process(float alpha, FloatArray input, FloatArray output){
 };
+#endif
 
 class EmgSignalProcessor {
   const float sr;
   BiquadFilter* hpf;
   BiquadFilter* notch;
   BiquadFilter* lpf;
-  // EmgEnvelope env;
+#ifdef SEND_ENV_DATA
+  EmgEnvelope env;
+#endif
 public:
   EmgSignalProcessor(float sr, float notch_fc, float lp_fc): sr(sr){
     hpf = BiquadFilter::create(5);
@@ -59,17 +66,21 @@ public:
 
 class EmgPatch : public Patch {
 private:
-  EmgSignalProcessor** processor;
+  EmgSignalProcessor** processor = NULL;
+  int channels = 0;
 public:
   EmgPatch() {
-    debugMessage("SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
-    processor = new EmgSignalProcessor*[getNumberOfChannels()];
-    for(int ch=0; ch<getNumberOfChannels(); ++ch)
+    debugMessage("EMG v8 SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
+    channels = min(4, getNumberOfChannels());
+    processor = new EmgSignalProcessor*[channels];
+    for(int ch=0; ch<channels; ++ch)
       processor[ch] = new EmgSignalProcessor(getSampleRate(), 50, getSampleRate()/getBlockSize());
     registerParameter(PARAMETER_A, "Gain");
     registerParameter(PARAMETER_B, "HP Fc");
     registerParameter(PARAMETER_C, "Notch Q");
-    // registerParameter(PARAMETER_D, "Env Alpha");
+#ifdef SEND_ENV_DATA
+    registerParameter(PARAMETER_D, "Env Alpha");
+#endif
     // initialise parameter settings
     setParameterValue(PARAMETER_A, 0.25);
     setParameterValue(PARAMETER_B, 0.25);
@@ -77,9 +88,8 @@ public:
     setParameterValue(PARAMETER_D, 0);
   }
   ~EmgPatch() {
-    for(int ch=0; ch<getNumberOfChannels(); ++ch){
+    for(int ch=0; ch<channels; ++ch)
       delete processor[ch];
-    }
     delete[] processor;
   }
 
@@ -88,16 +98,34 @@ public:
     float fc = getParameterValue(PARAMETER_B)*10+4;
     float q = getParameterValue(PARAMETER_C)*20+0.707;
     float alpha = getParameterValue(PARAMETER_D)*0.7+0.299;
-    for(int ch=0; ch<buffer.getChannels(); ++ch){
-      FloatArray samples = buffer.getSamples(ch);
-      processor[ch]->processRaw(samples, gain, fc, q);
-      MidiMessage msg;
-      msg = MidiMessage::pb(1+ch, samples.getMean()*8192); // Pitch Bend filtered EMG 
-      sendMidi(msg);
-      // processor[ch]->processEnv(samples);
-      // msg = MidiMessage::cc(1, 1, samples.getMean()*128); // Control Change envelope
-      // sendMidi(msg);
+#ifdef SEND_XYZ_DATA
+    static bool flip = false;
+    if(flip && channels<buffer.getChannels()){
+      for(int ch=channels; ch<buffer.getChannels(); ++ch){
+    	// accelerometer data (beyond channel 4)
+    	FloatArray samples = buffer.getSamples(ch);
+    	MidiMessage msg;
+    	msg = MidiMessage::pb(1+ch, samples.getMean()*8192); // Pitch Bend accelerometer data
+    	sendMidi(msg);      
+      }
+    }else{
+#endif
+      for(int ch=0; ch<channels; ++ch){
+	FloatArray samples = buffer.getSamples(ch);
+	processor[ch]->processRaw(samples, gain, fc, q);
+	MidiMessage msg;
+	msg = MidiMessage::pb(1+ch, samples.getMean()*8192); // Pitch Bend filtered EMG data
+	sendMidi(msg);
+#ifdef SEND_ENV_DATA
+	processor[ch]->processEnv(samples, alpha);
+	msg = MidiMessage::cc(1+ch, 1, samples.getMean()*128); // Control Change 1 envelope data
+	sendMidi(msg);
+#endif
+      }
+#ifdef SEND_XYZ_DATA
     }
+    flip = !flip;
+#endif
   }
 };
 
