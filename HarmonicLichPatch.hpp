@@ -18,13 +18,15 @@ private:
   FloatArray mix;
   FloatArray ramp;
   VoltsPerOctave hz;
+  float gainadjust = 0.0f;
 public:
   HarmonicLichPatch(){
-    registerParameter(PARAMETER_A, "Fine Tune");
-    registerParameter(PARAMETER_B, "Semitone");
+    registerParameter(PARAMETER_A, "Semitone");
+    registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
     registerParameter(PARAMETER_D, "Peak");
-    registerParameter(PARAMETER_E, "FM");
+    registerParameter(PARAMETER_E, "FM Amount");
+    registerParameter(PARAMETER_F, "Duck>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.5);
     setParameterValue(PARAMETER_C, 0.0);
@@ -34,7 +36,7 @@ public:
       osc[i] = SineOscillator::create(getSampleRate());
       registerParameter(PatchParameterId(PARAMETER_AA+i), names[i]);
       setParameterValue(PatchParameterId(PARAMETER_AA+i), 0.25);
-      levels[i] = 0.5;
+      levels[i] = 1;
     }
     mix = FloatArray::create(getBlockSize());
     ramp = FloatArray::create(getBlockSize());
@@ -62,29 +64,24 @@ public:
   }
 
   void processAudio(AudioBuffer& buf){
-    float freq = getParameterValue(PARAMETER_A)/6.0f;
-    freq += round(getParameterValue(PARAMETER_B)*32-24)/12;
+    float freq = getParameterValue(PARAMETER_B)/6;
+    freq += round(getParameterValue(PARAMETER_A)*32-24)/12;
     float centre = getParameterValue(PARAMETER_C)*(TONES-1);
     float a, r;
     float d = getParameterValue(PARAMETER_D);
-    if(d < 0.25){
-      /* --.-- */
-      a = 0.0f;
-      r = d*4;
-      /* --.\\ */
-    }else if(d < 0.50){
-      a = (d-0.25)*4;
-      r = 1.0f;
-      /* //.\\ */
-    }else if(d < 0.75){
-      a = 1.0f;
-      r = 1.0f - (d-0.50)*4;
-      /* //.-- */
-    }else{
-      a = 1.0f - (d-0.75)*4;
-      r = 0.0f;
-      /* --.-- */
-    }
+    if(d < 0.25){       /* //.\\ */
+      a = 1-d*4;
+      r = 1;
+    }else if(d < 0.50){ /* --.\\ */
+      a = 0;
+      r = 1-(d-0.25)*4;
+    }else if(d < 0.75){ /* --.-- */
+      a = (d-0.50)*4;
+      r = 0;
+    }else{              /* //.-- */      
+      a = 1;
+      r = (d-0.75)*4;      
+    }                   /* //.\\ */
     float fm = getParameterValue(PARAMETER_E)*0.2;
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
@@ -93,49 +90,30 @@ public:
     // float fundamental = freq;
     float fundamental = hz.getFrequency(left[0]);
     right.multiply(fm);
-    float gainadjust = 0;
+    float newgainadjust = 0;
     left.clear();
     for(int i=0; i<TONES; i++){
       float newlevel = getParameterValue(PatchParameterId(PARAMETER_AA+i));
-      // gainadjust += (newlevel+levels[i])/2;
       float distance = abs(centre - i);
       float duck = i < centre ? a*distance : r*distance;
-      newlevel = max(0.0f, min(1.0f, newlevel*(1-duck)));
+      newlevel = max(0, min(1, newlevel*(1-duck)));
       ramp.ramp(levels[i], newlevel);
       levels[i] = newlevel;
-      gainadjust += newlevel;
+      newgainadjust += newlevel;
       osc[i]->setFrequency(fundamental*(i+1));
       osc[i]->getSamples(mix, right);
       mix.multiply(ramp);
       left.add(mix);
     }
-    if(gainadjust > 1.0f)
-      left.multiply(1.0f/gainadjust);
-    setParameterValue(PARAMETER_F, gainadjust/TONES);
-    // left.multiply(1.0f/TONES);
+    newgainadjust = newgainadjust > 1 ? 1/newgainadjust : 1;
+    ramp.ramp(gainadjust, newgainadjust);
+    left.multiply(ramp);
+    gainadjust = newgainadjust;
+    setParameterValue(PARAMETER_F, gainadjust);
     for(int i=0; i<buf.getSize(); i++)
       left[i] = tanh(left[i]);
-    //   left[i] = nonlinear(left[i]);
-
-    /*
-      angle := 0 (flat) to 1
-      distance := 0 to TONES
-      reduction := angle*distance
-      0 angle: no reduction, 0 distance, no reduction
-      multiplier = 1-reduction
-     */
     
     right.copyFrom(left);
-  }
-
-  float nonlinear(float x){ // tanh approx
-    // tanh approx
-    if (x<-3)
-        return -1;
-    else if (x>3)
-      return 1;
-    else
-      return x * ( 27 + x*x ) / ( 27 + 9*x*x );
   }
 
 };
