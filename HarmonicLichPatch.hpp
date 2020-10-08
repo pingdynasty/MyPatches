@@ -4,7 +4,6 @@
 #include "VoltsPerOctave.h"
 #include "SmoothValue.h"
 #include "SineOscillator.h"
-#include "PolyBlepOscillator.h"
 
 // Up to 16 harmonics supported
 #define TONES 9
@@ -20,13 +19,13 @@ private:
   VoltsPerOctave hz;
   float gainadjust = 0.0f;
 public:
-  HarmonicLichPatch(){
+  HarmonicLichPatch() : hz(-0.0022, -10.75){
     registerParameter(PARAMETER_A, "Semitone");
     registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
     registerParameter(PARAMETER_D, "Peak");
-    registerParameter(PARAMETER_E, "FM Amount");
-    registerParameter(PARAMETER_F, "Duck>");
+    // registerParameter(PARAMETER_E, "FM Amount");
+    // registerParameter(PARAMETER_F, "Duck>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.5);
     setParameterValue(PARAMETER_C, 0.0);
@@ -64,8 +63,8 @@ public:
   }
 
   void processAudio(AudioBuffer& buf){
-    float freq = getParameterValue(PARAMETER_B)/6;
-    freq += round(getParameterValue(PARAMETER_A)*32-24)/12;
+    float freq = round(getParameterValue(PARAMETER_A)*32-24)/12;
+    // freq += getParameterValue(PARAMETER_B)/6;
     float centre = getParameterValue(PARAMETER_C)*(TONES-1);
     float a, r;
     float d = getParameterValue(PARAMETER_D);
@@ -82,14 +81,12 @@ public:
       a = 1;
       r = (d-0.75)*4;      
     }                   /* //.\\ */
-    float fm = getParameterValue(PARAMETER_E)*0.2;
+    // float fm = getParameterValue(PARAMETER_E)*0.2;
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
     hz.setTune(freq);
-    // freq = hz.getFrequency(0);
-    // float fundamental = freq;
     float fundamental = hz.getFrequency(left[0]);
-    right.multiply(fm);
+    // right.multiply(fm);
     float newgainadjust = 0;
     left.clear();
     for(int i=0; i<TONES; i++){
@@ -101,7 +98,8 @@ public:
       levels[i] = newlevel;
       newgainadjust += newlevel;
       osc[i]->setFrequency(fundamental*(i+1));
-      osc[i]->getSamples(mix, right);
+      // osc[i]->getSamples(mix, right);
+      osc[i]->getSamples(mix);
       mix.multiply(ramp);
       left.add(mix);
     }
@@ -109,10 +107,9 @@ public:
     ramp.ramp(gainadjust, newgainadjust);
     left.multiply(ramp);
     gainadjust = newgainadjust;
-    setParameterValue(PARAMETER_F, gainadjust);
-    for(int i=0; i<buf.getSize(); i++)
-      left[i] = tanh(left[i]);
-    
+    // setParameterValue(PARAMETER_F, gainadjust);
+    // for(int i=0; i<buf.getSize(); i++)
+    //   left[i] = tanh(left[i]);    
     right.copyFrom(left);
   }
 
