@@ -18,6 +18,7 @@ private:
   FloatArray ramp;
   VoltsPerOctave hz;
   float gainadjust = 0.0f;
+  StiffFloat semitone;
 public:
   HarmonicLichPatch() : hz(-0.0022, -10.75){
     registerParameter(PARAMETER_A, "Semitone");
@@ -39,6 +40,7 @@ public:
     }
     mix = FloatArray::create(getBlockSize());
     ramp = FloatArray::create(getBlockSize());
+    semitone.delta = 0.5;
   }
 
   ~HarmonicLichPatch(){
@@ -61,10 +63,20 @@ public:
       break;
     }
   }
+  void processMidi(MidiMessage msg){
+    if(msg.isControlChange()){
+      // debugMessage("cc", msg.getPort(), msg.getControllerNumber(), msg.getControllerValue());
+      uint8_t id = msg.getControllerNumber() - PATCH_PARAMETER_AA;
+      if(id < TONES)
+	setParameterValue(PatchParameterId(PARAMETER_AA+id), msg.getControllerValue()/127.0f);
+      else if(msg.getControllerNumber() == PATCH_BUTTON)
+	buttonChanged(BUTTON_A, msg.getControllerValue(), 0);
+    }
+  }
 
   void processAudio(AudioBuffer& buf){
-    float freq = round(getParameterValue(PARAMETER_A)*32-24)/12;
-    // freq += getParameterValue(PARAMETER_B)/6;
+    semitone = getParameterValue(PARAMETER_A)*32-24;
+    float freq = round(semitone)/12 + getParameterValue(PARAMETER_B)/6;
     float centre = getParameterValue(PARAMETER_C)*(TONES-1);
     float a, r;
     float d = getParameterValue(PARAMETER_D);
