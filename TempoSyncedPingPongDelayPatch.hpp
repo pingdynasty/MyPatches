@@ -16,6 +16,11 @@ static const float ratios[RATIOS_COUNT] = { 1.0/4,
 					    2.0,
 					    3.0, 
 					    4.0 };
+#define P_A PARAMETER_A
+#define P_B PARAMETER_B
+#define P_C PARAMETER_C
+#define P_D PARAMETER_D
+#define P_E PARAMETER_E
 
 class TempoSyncedPingPongDelayPatch : public Patch {
 private:
@@ -29,11 +34,11 @@ private:
 public:
   TempoSyncedPingPongDelayPatch() : 
     delayL(0), delayR(0), tempo(getSampleRate()*60/120) {
-    registerParameter(PARAMETER_A, "Tempo");
-    registerParameter(PARAMETER_B, "Feedback");
-    registerParameter(PARAMETER_C, "Ratio");
-    registerParameter(PARAMETER_D, "Dry/Wet");
-    registerParameter(PARAMETER_E, "Drop");
+    registerParameter(P_A, "Tempo");
+    registerParameter(P_B, "Feedback");
+    registerParameter(P_C, "Ratio");
+    registerParameter(P_D, "Dry/Wet");
+    registerParameter(P_E, "Drop");
     delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
     delayBufferR = CircularBuffer::create(TRIGGER_LIMIT);
     highpass = StereoBiquadFilter::create(1);
@@ -53,12 +58,12 @@ public:
     return time;
   }
   void processAudio(AudioBuffer& buffer){
-    int speed = getParameterValue(PARAMETER_A)*4096;
-    float feedback = getParameterValue(PARAMETER_B);
-    float drop = 1.0-getParameterValue(PARAMETER_E);
+    int speed = getParameterValue(P_A)*4096;
+    float feedback = getParameterValue(P_B);
+    float drop = 1.0-getParameterValue(P_E);
     if(drop < 0.01)
       feedback = 1.0;
-    int ratio = (int)(getParameterValue(PARAMETER_C) * RATIOS_COUNT);
+    int ratio = (int)(getParameterValue(P_C) * RATIOS_COUNT);
     int size = buffer.getSize();
     tempo.trigger(isButtonPressed(PUSHBUTTON));
     tempo.clock(size);
@@ -66,7 +71,7 @@ public:
     float time = delayTime(ratio);
     int newDelayL = time*(delayBufferL->getSize()-1);
     int newDelayR = time*(delayBufferR->getSize()-1);
-    float wet = getParameterValue(PARAMETER_D);
+    float wet = getParameterValue(P_D);
     float dry = 1.0-wet;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
@@ -83,6 +88,10 @@ public:
       right[n] = rdly*wet + right[n]*dry;
     }
     lowpass->process(buffer);
+    for(int i=0; i<buffer.getSize(); i++){
+      left[i] = tanh(left[i]);    
+      right[i] = tanh(right[i]);
+    }
     delayL = newDelayL;
     delayR = newDelayR;
   }
