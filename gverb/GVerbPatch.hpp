@@ -56,9 +56,9 @@ public:
     GVerb::gverb_init(&verb, getSampleRate(), GVerb::MAX_SIZE, size, 7.0f, 0.5f, 15.0f, 0.5f, 0.5f, 0.5f);
   }      
   void processAudio(AudioBuffer &buffer) {
-    size = getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE;
+    size = getParameterValue(PARAMETER_A)*GVerb::MAX_SIZE+2;
     float time = getParameterValue(PARAMETER_B)*30.0f+0.1;
-    float damp = getParameterValue(PARAMETER_C);
+    float damp = getParameterValue(PARAMETER_C)*0.9;
     float wet = getParameterValue(PARAMETER_D);
     // float early = getParameterValue(PARAMETER_E);
     GVerb::gverb_set_roomsize(&verb, size);
