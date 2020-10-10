@@ -14,6 +14,7 @@ class HarmonicLichPatch : public Patch {
 private:
   Oscillator* osc[TONES];
   float levels[TONES];
+  bool mutes[TONES];
   FloatArray mix;
   FloatArray ramp;
   VoltsPerOctave hz;
@@ -37,6 +38,7 @@ public:
       registerParameter(PatchParameterId(PARAMETER_AA+i), names[i]);
       setParameterValue(PatchParameterId(PARAMETER_AA+i), 0.25);
       levels[i] = 1;
+      mutes[i] = false;
     }
     mix = FloatArray::create(getBlockSize());
     ramp = FloatArray::create(getBlockSize());
@@ -51,15 +53,14 @@ public:
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    float level = value ? 0.0 : 1.0;
     switch(bid){
     case BUTTON_A:
       for(int i=0; i<TONES; i+= 2)
-	setParameterValue(PatchParameterId(PARAMETER_AA+i), level);
+	mutes[i] = value; // !mutes[i];
       break;
     case BUTTON_B:
       for(int i=1; i<TONES; i+= 2)
-	setParameterValue(PatchParameterId(PARAMETER_AA+i), level);
+	mutes[i] = value; // !mutes[i];
       break;
     }
   }
@@ -75,7 +76,7 @@ public:
   }
 
   void processAudio(AudioBuffer& buf){
-    semitone = getParameterValue(PARAMETER_A)*32-24;
+    semitone = getParameterValue(PARAMETER_A)*56-56;
     float freq = round(semitone)/12 + getParameterValue(PARAMETER_B)/6;
     float centre = getParameterValue(PARAMETER_C)*(TONES-1);
     float a, r;
@@ -113,7 +114,8 @@ public:
       // osc[i]->getSamples(mix, right);
       osc[i]->getSamples(mix);
       mix.multiply(ramp);
-      left.add(mix);
+      if(!mutes[i])
+	left.add(mix);
     }
     newgainadjust = newgainadjust > 1 ? 1/newgainadjust : 1;
     ramp.ramp(gainadjust, newgainadjust);
