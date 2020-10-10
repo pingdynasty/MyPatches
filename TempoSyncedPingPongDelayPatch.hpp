@@ -120,7 +120,7 @@ public:
     setParameterValue(PARAMETER_F, value);
     value = lfo->getPhase()/(2*M_PI);
     setParameterValue(PARAMETER_G, value);
-    setButton(BUTTON_E, value < 0.5);
+    setButton(PUSHBUTTON, value < 0.5);
   }
 };
 
