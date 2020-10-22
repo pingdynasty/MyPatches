@@ -20,8 +20,10 @@ private:
   VoltsPerOctave hz;
   float gainadjust = 0.0f;
   StiffFloat semitone;
+  int centernote = 0;
+  const float NYQUIST;
 public:
-  HarmonicLichPatch() : hz(-0.0022, -10.75){
+  HarmonicLichPatch() : hz(-0.0022, -10.75), NYQUIST(getSampleRate()/2) {
     registerParameter(PARAMETER_A, "Semitone");
     registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
@@ -30,8 +32,8 @@ public:
     // registerParameter(PARAMETER_F, "Duck>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.5);
-    setParameterValue(PARAMETER_C, 0.0);
-    setParameterValue(PARAMETER_D, 0.25);
+    setParameterValue(PARAMETER_C, 0.5);
+    setParameterValue(PARAMETER_D, 0.5);
     setParameterValue(PARAMETER_E, 0.5);
     for(int i=0; i<TONES; i++){
       osc[i] = SineOscillator::create(getSampleRate());
@@ -72,27 +74,32 @@ public:
 	setParameterValue(PatchParameterId(PARAMETER_AA+id), msg.getControllerValue()/127.0f);
       else if(msg.getControllerNumber() == PATCH_BUTTON)
 	buttonChanged(BUTTON_A, msg.getControllerValue(), 0);
+    }else if(msg.isNoteOn()){
+      centernote = msg.getNote()-60;
     }
   }
 
   void processAudio(AudioBuffer& buf){
     semitone = getParameterValue(PARAMETER_A)*56-56;
-    float freq = round(semitone)/12 + getParameterValue(PARAMETER_B)/6;
+    float freq = round(semitone+centernote)/12 + getParameterValue(PARAMETER_B)/6;
     float centre = getParameterValue(PARAMETER_C)*(TONES-1);
     float a, r;
     float d = getParameterValue(PARAMETER_D);
-    if(d < 0.25){       /* //.\\ */
-      a = 1-d*4;
+    if(d < 0.20){       /* //.\\ */
+      a = 1-d*5;
       r = 1;
-    }else if(d < 0.50){ /* --.\\ */
+    }else if(d < 0.45){ /* --.\\ */
       a = 0;
-      r = 1-(d-0.25)*4;
-    }else if(d < 0.75){ /* --.-- */
-      a = (d-0.50)*4;
+      r = 1-(d-0.20)*4;
+    }else if(d < 0.55){ /* --.-- */
+      a = 0;
+      r = 0;
+    }else if(d < 0.80){ /* --.-- */
+      a = (d-0.55)*4;
       r = 0;
     }else{              /* //.-- */      
       a = 1;
-      r = (d-0.75)*4;      
+      r = (d-0.80)*5;      
     }                   /* //.\\ */
     // float fm = getParameterValue(PARAMETER_E)*0.2;
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
@@ -110,16 +117,19 @@ public:
       ramp.ramp(levels[i], newlevel);
       levels[i] = newlevel;
       newgainadjust += newlevel;
-      osc[i]->setFrequency(fundamental*(i+1));
-      // osc[i]->getSamples(mix, right);
-      osc[i]->getSamples(mix);
-      mix.multiply(ramp);
-      if(!mutes[i])
+      freq = fundamental*(i+1);
+      if(freq > 10 && freq < NYQUIST && !mutes[i]){
+	osc[i]->setFrequency(freq);
+	// osc[i]->getSamples(mix, right);
+	osc[i]->getSamples(mix);
+	mix.multiply(ramp);
 	left.add(mix);
+      }
     }
     newgainadjust = newgainadjust > 1 ? 1/newgainadjust : 1;
     ramp.ramp(gainadjust, newgainadjust);
     left.multiply(ramp);
+    left.multiply(0.0625);
     gainadjust = newgainadjust;
     // setParameterValue(PARAMETER_F, gainadjust);
     // for(int i=0; i<buf.getSize(); i++)
