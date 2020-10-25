@@ -168,7 +168,7 @@ public:
     delayBufferR = CircularBuffer::create(BUFFER_LIMIT);    
 
     static const float delta = 0.05;
-    roomSizeSeconds = getFloatParameter("Size", 0.15, 0.6, 0.4, 0.0, delta);
+    roomSizeSeconds = getFloatParameter("Size", 0.01, 0.16, 0.1, 0.0, delta);
     reverbTimeSeconds = getFloatParameter("Decay", 1, 10, 5, 0.0, delta);
     cutoffFrequency = getFloatParameter("Damp", 16000, 1000, 8000, 0.0, delta); // reversed range 16k to 1k
     dryWet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5, 0.95, delta);
@@ -243,7 +243,11 @@ public:
     node7.set(beta, fDelaySamples, fCutoffCoef);
   }
 
-  void silky(FloatArray left_input, FloatArray right_input) {
+  void processAudio(AudioBuffer &buffer){
+    FloatArray left_input = buffer.getSamples(0);
+    FloatArray right_input = buffer.getSamples(1);
+    reverbSetParam(getSampleRate(), dryWet*100, reverbTimeSeconds, roomSizeSeconds, cutoffFrequency, predelaySeconds);
+
     size_t len = left_input.getSize();
 
     delayBufferL->write(left_input); // button: toggle left/right
@@ -399,13 +403,6 @@ public:
     node5.process();
     node6.process();
     node7.process();
-  }
-
-  void processAudio(AudioBuffer &buffer){
-    reverbSetParam(getSampleRate(), dryWet*100, reverbTimeSeconds, roomSizeSeconds, cutoffFrequency, predelaySeconds);
-    FloatArray bufL = buffer.getSamples(0);
-    FloatArray bufR = buffer.getSamples(1);
-    silky(bufL, bufR);
   }
     
 private:
