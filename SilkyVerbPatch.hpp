@@ -49,14 +49,12 @@ DESCRIPTION:
 */
 
 #define PRIME_NUMBER_TABLE_SIZE 7600
-#define CHUNK_SIZE    32                          // must be power of 2
-#define CHUNK_SIZE_RATIO        ((float) 64.f/CHUNK_SIZE)   // ratio between original (64) and actual chunk size
 #define BIG_DELAY_BUFFER_SIZE 65536                       // must be power of 2
 
 #define MAX_REVERB_TIME   480000                      // 10 seconds at 48000 Hz
 #define MIN_REVERB_TIME   441
 #define MAX_ROOM_SIZE   7552
-#define MIN_ROOM_SIZE   (4*CHUNK_SIZE)
+#define MIN_ROOM_SIZE   (4*32)
 #define MAX_CUTOFF    0.4975
 #define MIN_CUTOFF    0.1134
 
@@ -137,6 +135,7 @@ public:
   }
   ~Node(){
     FloatArray::destroy(result);
+    CrossFadeBuffer::destroy(buffer);
   }
   float* getResult(){
     return result.getData();
@@ -205,16 +204,23 @@ public:
     preR = FloatArray::create(getBlockSize());
 
     static const float delta = 0.05;
-    roomSizeSeconds = getFloatParameter("Size", 0.01, 0.16, 0.1, 0.0, delta);
+    roomSizeSeconds = getFloatParameter("Size", .00266, 0.15733, 0.1, 0.00, delta);
     reverbTimeSeconds = getFloatParameter("Decay", 1, 10, 5, 0.0, delta);
-    cutoffFrequency = getFloatParameter("Damp", 16000, 1000, 8000, 0.0, delta); // reversed range 16k to 1k
+    cutoffFrequency = getFloatParameter("Brightness", 5280, 24000, 18000, 0.0, delta);
     dryWet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5, 0.95, delta);
-    predelaySeconds = getFloatParameter("Predelay", 0, 0.16, 0.05, 0.0, delta);
+    predelaySeconds = getFloatParameter("Predelay", .00266, 0.15733, 0.05, 0.0, delta);
  
     left_reverb_state = 0.0;
     right_reverb_state = 0.0;
  
     BuildPrimeTable(primeNumberTable);
+  }
+
+  ~SilkyVerbPatch(){
+    CrossFadeBuffer::destroy(delayBufferL);
+    CrossFadeBuffer::destroy(delayBufferR);
+    FloatArray::destroy(preL);
+    FloatArray::destroy(preR);
   }
 
   void reverbSetParam(float fSampleRate, float fPercentWet, float fReverbTime, float fRoomSize, float fCutOffAbsorbsion, float fPreDelay){
@@ -251,7 +257,8 @@ public:
     float fCutoffCoef  = expf(-6.28318530717959*fCutOff);
  
     dry_coef = 1.0 - wetCoef; 
-    wetCoef *= SQRT8 * (1.0 - expf(-13.8155105579643*fRoomSizeSamples/fReverbTimeSamples));   // additional attenuation for small room and long reverb time  <--  expf(-13.8155105579643) = 10^(-60dB/10dB)
+    wetCoef *= SQRT8 * (1.0 - expf(-13.8155105579643*fRoomSizeSamples/fReverbTimeSamples));
+    // additional attenuation for small room and long reverb time  <--  expf(-13.8155105579643) = 10^(-60dB/10dB)
     //  toss in whatever fudge factor you need here to make the reverb louder
     wet_coef0 = wetCoef;
     wet_coef1 = -fCutoffCoef*wetCoef;
