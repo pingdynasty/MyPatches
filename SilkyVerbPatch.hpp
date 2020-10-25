@@ -103,7 +103,7 @@ private:
   CircularBuffer* buffer;
 public:
   Node(size_t bufsize):
-    a1(-1), b0(-ONE_OVER_SQRT8), y1(0) {
+    a1(0), b0(-ONE_OVER_SQRT8), y1(0) {
     result = FloatArray::create(bufsize);
     buffer = CircularBuffer::create(BUFFER_LIMIT);
   }
@@ -117,15 +117,15 @@ public:
     buffer->write(sample);
   }
   float filter(float x){
-    y1 = y1 + b0*x + a1*y1; // y[n-1] + b0*x[n] + a1*y[n-1]
-    return y1; // todo: remove -1 from a1 
+    y1 = b0*x + a1*y1; // b0*x[n] + a1*y[n-1]
+    return y1;
   }
   void set(float beta, float fDelaySamples, float fCutoffCoef){
     float prime_value = FindNearestPrime(primeNumberTable, (int)fDelaySamples);
     // we subtract 1 CHUNK of delay, because this signal feeds back, causing an extra CHUNK delay
     delay_samples = prime_value - result.getSize();
-    a1 = prime_value*fCutoffCoef - 1.0;
-    b0 = ONE_OVER_SQRT8*expf(beta*prime_value)*a1;
+    a1 = prime_value*fCutoffCoef;
+    b0 = ONE_OVER_SQRT8*expf(beta*prime_value)*(a1-1);
   }
   void process(){
     for(size_t i=0; i<result.getSize(); ++i)
