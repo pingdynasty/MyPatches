@@ -128,12 +128,12 @@ private:
   size_t delay_samples;
   float b0, a1, y1;
   FloatArray result;
-  CircularBuffer* buffer;
+  CrossFadeBuffer* buffer;
 public:
   Node(size_t bufsize):
     a1(0), b0(-ONE_OVER_SQRT8), y1(0) {
     result = FloatArray::create(bufsize);
-    buffer = CircularBuffer::create(BUFFER_LIMIT);
+    buffer = CrossFadeBuffer::create(BUFFER_LIMIT);
   }
   ~Node(){
     FloatArray::destroy(result);
@@ -156,8 +156,9 @@ public:
     b0 = ONE_OVER_SQRT8*expf(beta*prime_value)*(a1-1);
   }
   void process(){
+    buffer->fade(delay_samples, result);
     for(size_t i=0; i<result.getSize(); ++i)
-      result[i] = filter(buffer->read(-i+delay_samples));
+      result[i] = filter(result[i]);
   }
 };
 
@@ -182,6 +183,12 @@ class SilkyVerbPatch : public Patch {
   Node node5;
   Node node6;
   Node node7;
+
+  FloatParameter roomSizeSeconds;
+  FloatParameter reverbTimeSeconds;
+  FloatParameter cutoffFrequency;
+  FloatParameter dryWet;
+  FloatParameter predelaySeconds;
 
 public:
   SilkyVerbPatch() : node0(getBlockSize()),
@@ -433,13 +440,6 @@ public:
     node6.process();
     node7.process();
   }
-    
-private:
-  FloatParameter cutoffFrequency;
-  FloatParameter roomSizeSeconds;
-  FloatParameter reverbTimeSeconds;
-  FloatParameter dryWet;
-  FloatParameter predelaySeconds;
 };
 
 #endif // __SilkyVerbPatch_hpp__
