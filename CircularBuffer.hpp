@@ -50,7 +50,7 @@ public:
   }
 
   void read(int readIndex, float* destination, size_t len){
-    float* ptr = &buffer[writeIndex];
+    float* ptr = &buffer[(writeIndex + ~(readIndex+len)) & (buffer.getSize()-1)]; // start 'len' samples back
     float* end = &buffer[buffer.getSize()];
     int cnt = len;
     while(ptr < end && cnt--)
