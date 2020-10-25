@@ -2,6 +2,7 @@
 #define __SilkyVerbPatch_hpp__
 
 #include "Patch.h"
+#include "BiquadFilter.h"
 #include "CircularBuffer.hpp"
 
 /**
@@ -162,7 +163,7 @@ public:
 };
 
 class SilkyVerbPatch : public Patch {
-  // StereoBiquadFilter* highpass;
+  StereoBiquadFilter* highpass;
   CrossFadeBuffer* delayBufferL;
   CrossFadeBuffer* delayBufferR;
   FloatArray preL, preR;
@@ -202,6 +203,8 @@ public:
     delayBufferR = CrossFadeBuffer::create(BUFFER_LIMIT);
     preL = FloatArray::create(getBlockSize());
     preR = FloatArray::create(getBlockSize());
+    highpass = StereoBiquadFilter::create(1);
+    highpass->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q); // dc filter
 
     static const float delta = 0.05;
     roomSizeSeconds = getFloatParameter("Size", .00266, 0.15733, 0.1, 0.00, delta);
@@ -221,6 +224,7 @@ public:
     CrossFadeBuffer::destroy(delayBufferR);
     FloatArray::destroy(preL);
     FloatArray::destroy(preR);
+    StereoBiquadFilter::destroy(highpass);
   }
 
   void reverbSetParam(float fSampleRate, float fPercentWet, float fReverbTime, float fRoomSize, float fCutOffAbsorbsion, float fPreDelay){
@@ -288,6 +292,7 @@ public:
   }
     
   void processAudio(AudioBuffer &buffer){
+    highpass->process(buffer);
     FloatArray left_input = buffer.getSamples(0);
     FloatArray right_input = buffer.getSamples(1);
     reverbSetParam(getSampleRate(), dryWet*100, reverbTimeSeconds, roomSizeSeconds, cutoffFrequency, predelaySeconds);
