@@ -13,16 +13,27 @@ public:
   CircularBuffer(FloatArray buf) : buffer(buf), writeIndex(0) {
   }
 
-  void write(FloatArray samples){
-    for(int i=0; i<samples.getSize(); ++i)
-      write(samples[i]);
+  void write(FloatArray source){
+    write(source.getData(), source.getSize());
+  }
+  
+  void write(float* source, size_t len){
+    float* ptr = &buffer[writeIndex];
+    float* end = &buffer[buffer.getSize()];
+    int cnt = len;
+    writeIndex = (writeIndex + cnt) & (buffer.getSize()-1);
+    while(ptr < end && cnt--)
+      *ptr++ = *source++;
+    ptr = &buffer[0];
+    while(cnt-- > 0)
+      *ptr++ = *source++;
   }
 
   /** 
    * write to the tail of the circular buffer 
    */
   inline void write(float value){
-    if(++writeIndex == buffer.getSize())
+    if(++writeIndex == getSize())
       writeIndex = 0;
     buffer[writeIndex] = value;
   }
@@ -32,6 +43,21 @@ public:
    */
   inline float read(int index){
     return buffer[(writeIndex + (~index)) & (buffer.getSize()-1)];
+  }
+
+  void read(int readIndex, FloatArray destination){
+    read(readIndex, destination.getData(), destination.getSize());
+  }
+
+  void read(int readIndex, float* destination, size_t len){
+    float* ptr = &buffer[writeIndex];
+    float* end = &buffer[buffer.getSize()];
+    int cnt = len;
+    while(ptr < end && cnt--)
+      *destination++ = *ptr++;
+    ptr = &buffer[0];
+    while(cnt-- > 0)
+      *destination++ = *ptr++;
   }
 
   /**
@@ -64,6 +90,14 @@ public:
     float high = read(idx+1);
     float frac = index - idx;
     return low*frac + high*(1.0-frac);
+  }
+
+  void setAll(float value){
+    buffer.setAll(value);
+  }
+
+  void clear(){
+    setAll(0);
   }
 
   FloatArray getSamples(){
