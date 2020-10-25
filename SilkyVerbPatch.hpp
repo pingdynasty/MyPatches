@@ -137,8 +137,8 @@ class SilkyVerbPatch : public Patch {
   // StereoBiquadFilter* highpass;
   CircularBuffer* delayBufferL;
   CircularBuffer* delayBufferR;
+  FloatArray preL, preR;
   float fPreDelaySamples;
-  int predelayL, predelayR;
 
   float   dry_coef;
   float   wet_coef0;
@@ -165,7 +165,9 @@ public:
 		     node6(getBlockSize()),
 		     node7(getBlockSize()) {
     delayBufferL = CircularBuffer::create(BUFFER_LIMIT);
-    delayBufferR = CircularBuffer::create(BUFFER_LIMIT);    
+    delayBufferR = CircularBuffer::create(BUFFER_LIMIT);
+    preL = FloatArray::create(getBlockSize());
+    preR = FloatArray::create(getBlockSize());
 
     static const float delta = 0.05;
     roomSizeSeconds = getFloatParameter("Size", 0.01, 0.16, 0.1, 0.0, delta);
@@ -250,11 +252,10 @@ public:
 
     size_t len = left_input.getSize();
 
-    delayBufferL->write(left_input); // button: toggle left/right
+    delayBufferL->write(left_input); // button: toggle left/right    
     delayBufferR->write(right_input);
- 
-    predelayL = (int)fPreDelaySamples - len;
-    predelayR = (int)fPreDelaySamples - len;
+    delayBufferL->read(fPreDelaySamples, preL);
+    delayBufferR->read(fPreDelaySamples, preR);
     
     float* x0 = node0.getResult(); // lpf output
     float* x1 = node1.getResult();
@@ -266,7 +267,7 @@ public:
     float* x7 = node7.getResult();
 
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferL->read(-i+predelayL); // left_predelay.output[i];
+      float acc = preL[i];
       acc += x0[i];
       acc += x1[i];
       acc += x2[i];
@@ -279,7 +280,7 @@ public:
     }
 
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferR->read(-i+predelayR); // right_predelay.output[i];
+      float acc = preR[i];
       acc += x0[i];
       acc += x1[i];
       acc -= x2[i];
@@ -292,7 +293,7 @@ public:
     }
  
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferR->read(-i+predelayR);
+      float acc = preR[i];
       acc += x0[i];
       acc += x1[i];
       acc -= x2[i];
@@ -305,7 +306,7 @@ public:
     }
 
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferL->read(-i+predelayL);
+      float acc = preL[i];
       acc += x0[i];
       acc -= x1[i];
       acc += x2[i];
@@ -318,7 +319,7 @@ public:
     }
  
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferR->read(-i+predelayR);
+      float acc = preR[i];
       acc += x0[i];
       acc -= x1[i];
       acc += x2[i];
@@ -331,7 +332,7 @@ public:
     }
 
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferL->read(-i+predelayL);
+      float acc = preL[i];
       acc += x0[i];
       acc -= x1[i];
       acc -= x2[i];
@@ -344,7 +345,7 @@ public:
     }
 
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferL->read(-i+predelayL);
+      float acc = preL[i];
       acc += x0[i];
       acc -= x1[i];
       acc -= x2[i];
@@ -357,7 +358,7 @@ public:
     }
  
     for(size_t i=0; i<len; i++){
-      float acc = delayBufferR->read(-i+predelayR);
+      float acc = preR[i];
       acc += x0[i];
       acc += x1[i];
       acc += x2[i];
