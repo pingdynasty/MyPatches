@@ -95,6 +95,34 @@ void BuildPrimeTable(uint16_t* prime_number_table){
   }
 }
 
+class CrossFadeBuffer : public CircularBuffer {
+private:
+  int readIndex = 0;
+public:
+  CrossFadeBuffer(){}
+  CrossFadeBuffer(FloatArray buf) : CircularBuffer(buf){}
+
+  void fade(int readIndex, FloatArray destination){
+    fade(readIndex, destination.getData(), destination.getSize());
+  }
+  void fade(int newReadIndex, float* destination, size_t len){
+    for(size_t i=0; i<len; i++){
+      float x1 = i/(float)len;
+      float x0 = 1.0-x1;
+      *destination++ = read(readIndex+len-i)*x0 + read(newReadIndex+len-i)*x1;
+    }
+    readIndex = newReadIndex;
+  }
+
+  static CrossFadeBuffer* create(int samples){
+    return new CrossFadeBuffer(FloatArray::create(samples));
+  }
+
+  static void destroy(CrossFadeBuffer* buf){
+    CircularBuffer::destroy(buf);
+  }
+};
+
 class Node {
 private:
   size_t delay_samples;
@@ -135,8 +163,8 @@ public:
 
 class SilkyVerbPatch : public Patch {
   // StereoBiquadFilter* highpass;
-  CircularBuffer* delayBufferL;
-  CircularBuffer* delayBufferR;
+  CrossFadeBuffer* delayBufferL;
+  CrossFadeBuffer* delayBufferR;
   FloatArray preL, preR;
   float fPreDelaySamples;
 
@@ -164,8 +192,8 @@ public:
 		     node5(getBlockSize()),
 		     node6(getBlockSize()),
 		     node7(getBlockSize()) {
-    delayBufferL = CircularBuffer::create(BUFFER_LIMIT);
-    delayBufferR = CircularBuffer::create(BUFFER_LIMIT);
+    delayBufferL = CrossFadeBuffer::create(BUFFER_LIMIT);
+    delayBufferR = CrossFadeBuffer::create(BUFFER_LIMIT);
     preL = FloatArray::create(getBlockSize());
     preR = FloatArray::create(getBlockSize());
 
@@ -244,7 +272,7 @@ public:
     fDelaySamples *= ALPHA; 
     node7.set(beta, fDelaySamples, fCutoffCoef);
   }
-
+    
   void processAudio(AudioBuffer &buffer){
     FloatArray left_input = buffer.getSamples(0);
     FloatArray right_input = buffer.getSamples(1);
@@ -254,8 +282,8 @@ public:
 
     delayBufferL->write(left_input); // button: toggle left/right    
     delayBufferR->write(right_input);
-    delayBufferL->read(fPreDelaySamples, preL);
-    delayBufferR->read(fPreDelaySamples, preR);
+    delayBufferL->fade(fPreDelaySamples, preL);
+    delayBufferR->fade(fPreDelaySamples, preR);
     
     float* x0 = node0.getResult(); // lpf output
     float* x1 = node1.getResult();
