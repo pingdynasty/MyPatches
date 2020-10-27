@@ -13,6 +13,10 @@ public:
   CircularBuffer(FloatArray buf) : buffer(buf), writeIndex(0) {
   }
 
+  unsigned int getWriteIndex(){
+    return writeIndex;
+  }
+  
   void write(FloatArray source){
     write(source.getData(), source.getSize());
   }
@@ -42,7 +46,8 @@ public:
    * read the value @param index steps back from the head of the circular buffer
    */
   inline float read(int index){
-    return buffer[(writeIndex + (~index)) & (buffer.getSize()-1)];
+    return buffer[(writeIndex-index) % buffer.getSize()];
+    // return buffer[(writeIndex + (~index)) & (buffer.getSize()-1)];
   }
 
   void read(int readIndex, FloatArray destination){

@@ -17,6 +17,9 @@ public:
   void trigger(bool on){
     trigger(on, 0);
   }
+  bool isOn(){
+    return ison;
+  }
   void trigger(bool on, int delay){
     // if(trig < TAP_THRESHOLD)
     //   return;
@@ -38,6 +41,9 @@ public:
   }
   float getPeriod(){
     return float(limit)/TRIGGER_LIMIT;
+  }
+  float getFrequency(){
+    return TRIGGER_LIMIT/float(limit);
   }
   void clock(){
     if(trig < TRIGGER_LIMIT)

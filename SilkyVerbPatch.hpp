@@ -51,12 +51,12 @@ DESCRIPTION:
 */
 
 
-#define MAX_REVERB_TIME   480000                      // 10 seconds at 48000 Hz
-#define MIN_REVERB_TIME   441
-#define MAX_ROOM_SIZE   7552
-#define MIN_ROOM_SIZE   (4*32)
-#define MAX_CUTOFF    0.4975
-#define MIN_CUTOFF    0.1134
+#define MAX_REVERB_TIME   10
+#define MIN_REVERB_TIME   0.1
+#define MAX_ROOM_SIZE     7552
+#define MIN_ROOM_SIZE     192
+#define MAX_CUTOFF        0.4975
+#define MIN_CUTOFF        0.1134
 
 #define SQRT8     2.82842712474619 // sqrtf(8)
 #define ONE_OVER_SQRT8   0.353553390593274 //  1/sqrtf(8)
@@ -70,7 +70,7 @@ uint32_t  primeNumberTable[PRIME_NUMBER_TABLE_SIZE];
 // the 7600th prime is 77351
 
 #define BUFFER_LIMIT 8192
-#define MAX_PREDELAY_SIZE 16384
+#define MAX_PREDELAY_SIZE 32768
 #define MIN_PREDELAY_SIZE 64
 #define TRIGGER_LIMIT 65536
 
@@ -166,11 +166,12 @@ public:
 
 class SilkyVerbPatch : public Patch {
   TapTempo<TRIGGER_LIMIT> tempo;
+  int tempocounter;
   StereoDcFilter dc;
   CrossFadeBuffer* delayBufferL;
   CrossFadeBuffer* delayBufferR;
   FloatArray preL, preR;
-  SmoothFloat fPreDelaySamples;
+  float fPreDelaySamples;
 
   float   dry_coef;
   float   wet_coef0;
@@ -187,10 +188,10 @@ class SilkyVerbPatch : public Patch {
   Node node6;
   Node node7;
 
-  FloatParameter roomSizeSeconds;
-  FloatParameter reverbTimeSeconds;
-  FloatParameter cutoffFrequency;
-  FloatParameter dryWet;
+  FloatParameter size;
+  FloatParameter time;
+  FloatParameter cutoff;
+  FloatParameter wet;
 
 public:
   SilkyVerbPatch() : tempo(getSampleRate()*60/120),
@@ -202,17 +203,18 @@ public:
 		     node5(getBlockSize()),
 		     node6(getBlockSize()),
 		     node7(getBlockSize()) {
-    delayBufferL = CrossFadeBuffer::create(BUFFER_LIMIT);
-    delayBufferR = CrossFadeBuffer::create(BUFFER_LIMIT);
+    delayBufferL = CrossFadeBuffer::create(MAX_PREDELAY_SIZE);
+    delayBufferR = CrossFadeBuffer::create(MAX_PREDELAY_SIZE);
     preL = FloatArray::create(getBlockSize());
     preR = FloatArray::create(getBlockSize());
 
     static const float delta = 0.05;
-    roomSizeSeconds = getFloatParameter("Size", .00266, 0.15733, 0.1, 0.00, delta);
-    reverbTimeSeconds = getFloatParameter("Time", 1, 10, 5, 0.0, delta);
-    cutoffFrequency = getFloatParameter("Brightness", 5280, 24000, 18000, 0.0, delta);
-    dryWet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5, 0.95, delta);
- 
+    size = getFloatParameter("Size", MIN_ROOM_SIZE, MAX_ROOM_SIZE);
+    time = getFloatParameter("Time", MIN_REVERB_TIME, MAX_REVERB_TIME);
+    cutoff = getFloatParameter("Brightness", MIN_CUTOFF, MAX_CUTOFF);
+    wet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5);
+    registerParameter(PARAMETER_E, "Pre-delay");
+    
     left_reverb_state = 0.0;
     right_reverb_state = 0.0;
  
@@ -240,6 +242,8 @@ public:
     switch(bid){
     case BUTTON_A:
       tempo.trigger(set, samples);
+      setButton(PUSHBUTTON, value);
+      tempocounter = 0;
       break;
     }
   }
@@ -252,53 +256,30 @@ public:
     tempo.setSpeed(getParameterValue(PARAMETER_E)*4096);
     dc.process(buffer); // remove DC offset
 
-    // set parameters
-    float fSampleRate = getSampleRate();
-    float fPercentWet = dryWet*100;
-    float fReverbTime = reverbTimeSeconds;
-    float fRoomSize = roomSizeSeconds;
-    float fCutOffAbsorbsion = cutoffFrequency;
-    float wetCoef = fPercentWet/100.0;
-    if (wetCoef > 1.0)
-      wetCoef = 1.0;
-    if (wetCoef < 0.0)
-      wetCoef = 0.0;
+    bool duck = isButtonPressed(BUTTON_B);
  
-    float fReverbTimeSamples = fReverbTime*fSampleRate;  // fReverbTime (expressed in seconds if fSampleRate is Hz) is the RT60 for the room
-    if (fReverbTimeSamples > MAX_REVERB_TIME)
-      fReverbTimeSamples = MAX_REVERB_TIME;
-    if (fReverbTimeSamples < MIN_REVERB_TIME)
-      fReverbTimeSamples = MIN_REVERB_TIME;
+    float fCutoffCoef  = expf(-6.28318530717959*cutoff);
+    float fRoomSizeSamples = size;
+    float fReverbTimeSamples = time*getSampleRate();
     
-    float fRoomSizeSamples = fRoomSize*fSampleRate;   // fRoomSize is expressed in seconds = (room length)/(speed of sound)
-    if (fRoomSizeSamples > MAX_ROOM_SIZE)
-      fRoomSizeSamples = MAX_ROOM_SIZE;
-    if (fRoomSizeSamples < MIN_ROOM_SIZE)
-      fRoomSizeSamples = MIN_ROOM_SIZE;
- 
-    float fCutOff = fCutOffAbsorbsion/fSampleRate;
-    if (fCutOff > MAX_CUTOFF)
-      fCutOff = MAX_CUTOFF;
-    if (fCutOff < MIN_CUTOFF)
-      fCutOff = MIN_CUTOFF;
-    if(isButtonPressed(BUTTON_B))
-      fCutOff = 0.05;
- 
-    float fCutoffCoef  = expf(-6.28318530717959*fCutOff);
- 
-    dry_coef = 1.0 - wetCoef; 
-    wetCoef *= SQRT8 * (1.0 - expf(-13.8155105579643*fRoomSizeSamples/fReverbTimeSamples));
-    // additional attenuation for small room and long reverb time  <--  expf(-13.8155105579643) = 10^(-60dB/10dB)
-    //  toss in whatever fudge factor you need here to make the reverb louder
-    wet_coef0 = wetCoef;
-    wet_coef1 = -fCutoffCoef*wetCoef;
- 
-    fCutoffCoef /=  (float)FindNearestPrime(primeNumberTable, fRoomSizeSamples);
+    dry_coef = 1.0 - wet;
+    if(wet > 0){
+      float dryWet = wet * SQRT8 * (1.0 - expf(-13.8155105579643*fRoomSizeSamples/fReverbTimeSamples));
+      // additional attenuation for small room and long reverb time  <--  expf(-13.8155105579643) = 10^(-60dB/10dB)
+      //  toss in whatever fudge factor you need here to make the reverb louder
+      wet_coef0 = dryWet;
+      wet_coef1 = -fCutoffCoef*dryWet;
+    }else{
+      wet_coef0 = 0;
+      wet_coef1 = 0;
+    }
+    
+    fCutoffCoef /= (float)FindNearestPrime(primeNumberTable, fRoomSizeSamples);
  
     float fDelaySamples = fRoomSizeSamples;
 
     // 6.90775527898214 = logf(10^(60dB/20dB))  <-- fReverbTime is RT60
-    float	beta = -6.90775527898214/fReverbTimeSamples;
+    float beta = -6.90775527898214/fReverbTimeSamples;
   
     node0.set(beta, fDelaySamples, fCutoffCoef);
     fDelaySamples *= ALPHA;
@@ -321,8 +302,16 @@ public:
     delayBufferR->write(right_input);
     delayBufferL->fade(fPreDelaySamples, preL);
     delayBufferR->fade(fPreDelaySamples, preR);
+
+    tempocounter += len;
+    if(tempocounter >= fPreDelaySamples){
+      tempocounter -= fPreDelaySamples;
+      setButton(PUSHBUTTON, 4095);
+    }else if(tempocounter > fPreDelaySamples/4){
+      setButton(PUSHBUTTON, 0);
+    }
     
-    float* x0 = node0.getResult(); // lpf output
+    float* x0 = node0.getResult(); // lpf output from previous block
     float* x1 = node1.getResult();
     float* x2 = node2.getResult();
     float* x3 = node3.getResult();
@@ -438,28 +427,34 @@ public:
     float* input = left_input;
     float* output = left_input;
     float reverb_output_state = left_reverb_state;
-    for (int i=len; i>0; i--){
-      float reverb_output = *(x0++) + *(x2++) + *(x4++) + *(x6++);
+    float rms = 0;
+    for (int i=0; i<len; ++i){
       float output_acc = dry_coef * (*input++);
+      float reverb_output = duck ? preL[i] : (*(x0++) + *(x2++) + *(x4++) + *(x6++));
       output_acc += wet_coef0 * reverb_output;
       output_acc += wet_coef1 * reverb_output_state;
       *output++ = output_acc;
       reverb_output_state = reverb_output;
+      rms += reverb_output*reverb_output;
     }
     left_reverb_state = reverb_output_state; 
+    setParameterValue(PARAMETER_F, sqrtf(rms/len));
  
     input = right_input;
     output = right_input;
     reverb_output_state = right_reverb_state;
-    for (int i=len; i>0; i--){
-      float reverb_output = *(x1++) + *(x3++) + *(x5++) + *(x7++);
+    rms = 0;
+    for (int i=0; i<len; ++i){
+      float reverb_output = duck ? preR[i] : (*(x1++) + *(x3++) + *(x5++) + *(x7++));
       float output_acc = dry_coef * (*input++);
       output_acc += wet_coef0 * reverb_output;
       output_acc += wet_coef1 * reverb_output_state;
       *output++ = output_acc;
       reverb_output_state = reverb_output;
+      rms += reverb_output*reverb_output;
     }
     right_reverb_state = reverb_output_state;
+    setParameterValue(PARAMETER_G, sqrtf(rms/len));
 
     node0.process();
     node1.process();
