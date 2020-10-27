@@ -2,8 +2,9 @@
 #define __SilkyVerbPatch_hpp__
 
 #include "Patch.h"
-#include "BiquadFilter.h"
+#include "DcFilter.hpp"
 #include "CircularBuffer.hpp"
+#include "TapTempo.hpp"
 
 /**
  
@@ -49,8 +50,6 @@ DESCRIPTION:
     AES Convention: 90 (February 1991)   Preprint Number:3030
 */
 
-#define PRIME_NUMBER_TABLE_SIZE 7600
-#define BIG_DELAY_BUFFER_SIZE 65536                       // must be power of 2
 
 #define MAX_REVERB_TIME   480000                      // 10 seconds at 48000 Hz
 #define MIN_REVERB_TIME   441
@@ -66,32 +65,36 @@ DESCRIPTION:
 //       the longest delay is coupled to the room size.
 //       the delay lines then decrease exponentially in length.
 
-  uint16_t  primeNumberTable[PRIME_NUMBER_TABLE_SIZE];
+#define PRIME_NUMBER_TABLE_SIZE 7600
+uint32_t  primeNumberTable[PRIME_NUMBER_TABLE_SIZE];
 // the 7600th prime is 77351
 
-#define BUFFER_LIMIT (65536/8)
+#define BUFFER_LIMIT 8192
+#define MAX_PREDELAY_SIZE 16384
+#define MIN_PREDELAY_SIZE 64
+#define TRIGGER_LIMIT 65536
 
-int FindNearestPrime(uint16_t* prime_number_table, int number)
+void BuildPrimeTable(uint32_t* prime_number_table){
+  uint16_t max_stride = (uint16_t)sqrtf(PRIME_NUMBER_TABLE_SIZE);
+  for(size_t i=0; i<PRIME_NUMBER_TABLE_SIZE; i++)
+    prime_number_table[i] = 1;         // initial value of all entries is 1 
+  prime_number_table[0] = 0;          // now we zero out any entry that is not prime
+  prime_number_table[1] = 0;
+  uint16_t stride = 2;             // start with stride set to the smallest prime
+  while (stride <= max_stride){
+    for(size_t i=2*stride; i<PRIME_NUMBER_TABLE_SIZE; i+=stride) // start at the 2nd multiple of this prime, NOT the prime number itself!!!
+      prime_number_table[i] = 0;        // zero out table entries for all multiples of this prime number
+    stride++;
+    while (prime_number_table[stride] == 0)      // go to next non-zero entry which is the next prime
+      stride++;
+  }
+}
+
+uint32_t FindNearestPrime(uint32_t* prime_number_table, uint16_t number)
 {
   while (prime_number_table[number] == 0)
     number--;
   return number;
-}
-
-void BuildPrimeTable(uint16_t* prime_number_table){
-  int max_stride = (int)sqrtf((float)PRIME_NUMBER_TABLE_SIZE); 
-  for(int i=0; i<PRIME_NUMBER_TABLE_SIZE; i++)
-    prime_number_table[i] = 1;         // initial value of all entries is 1 
-  prime_number_table[0] = 0;          // now we zero out any entry that is not prime
-  prime_number_table[1] = 0;
-  int stride = 2;             // start with stride set to the smallest prime
-  while (stride <= max_stride){
-      for(int i=2*stride; i<PRIME_NUMBER_TABLE_SIZE; i+=stride) // start at the 2nd multiple of this prime, NOT the prime number itself!!!
-	prime_number_table[i] = 0;        // zero out table entries for all multiples of this prime number
-      stride++;
-      while (prime_number_table[stride] == 0)      // go to next non-zero entry which is the next prime
-	stride++;
-  }
 }
 
 class CrossFadeBuffer : public CircularBuffer {
@@ -112,7 +115,6 @@ public:
     }
     readIndex = newReadIndex;
   }
-
   static CrossFadeBuffer* create(int samples){
     return new CrossFadeBuffer(FloatArray::create(samples));
   }
@@ -163,11 +165,12 @@ public:
 };
 
 class SilkyVerbPatch : public Patch {
-  StereoBiquadFilter* highpass;
+  TapTempo<TRIGGER_LIMIT> tempo;
+  StereoDcFilter dc;
   CrossFadeBuffer* delayBufferL;
   CrossFadeBuffer* delayBufferR;
   FloatArray preL, preR;
-  float fPreDelaySamples;
+  SmoothFloat fPreDelaySamples;
 
   float   dry_coef;
   float   wet_coef0;
@@ -188,10 +191,10 @@ class SilkyVerbPatch : public Patch {
   FloatParameter reverbTimeSeconds;
   FloatParameter cutoffFrequency;
   FloatParameter dryWet;
-  FloatParameter predelaySeconds;
 
 public:
-  SilkyVerbPatch() : node0(getBlockSize()),
+  SilkyVerbPatch() : tempo(getSampleRate()*60/120),
+		     node0(getBlockSize()),
 		     node1(getBlockSize()),
 		     node2(getBlockSize()),
 		     node3(getBlockSize()),
@@ -203,15 +206,12 @@ public:
     delayBufferR = CrossFadeBuffer::create(BUFFER_LIMIT);
     preL = FloatArray::create(getBlockSize());
     preR = FloatArray::create(getBlockSize());
-    highpass = StereoBiquadFilter::create(1);
-    highpass->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q); // dc filter
 
     static const float delta = 0.05;
     roomSizeSeconds = getFloatParameter("Size", .00266, 0.15733, 0.1, 0.00, delta);
-    reverbTimeSeconds = getFloatParameter("Decay", 1, 10, 5, 0.0, delta);
+    reverbTimeSeconds = getFloatParameter("Time", 1, 10, 5, 0.0, delta);
     cutoffFrequency = getFloatParameter("Brightness", 5280, 24000, 18000, 0.0, delta);
     dryWet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5, 0.95, delta);
-    predelaySeconds = getFloatParameter("Predelay", .00266, 0.15733, 0.05, 0.0, delta);
  
     left_reverb_state = 0.0;
     right_reverb_state = 0.0;
@@ -224,10 +224,40 @@ public:
     CrossFadeBuffer::destroy(delayBufferR);
     FloatArray::destroy(preL);
     FloatArray::destroy(preR);
-    StereoBiquadFilter::destroy(highpass);
   }
 
-  void reverbSetParam(float fSampleRate, float fPercentWet, float fReverbTime, float fRoomSize, float fCutOffAbsorbsion, float fPreDelay){
+  int delaySamples(){
+    int time = tempo.getPeriod()*TRIGGER_LIMIT;
+    while(time > MAX_PREDELAY_SIZE)
+      time >>= 1;
+    while(time < MIN_PREDELAY_SIZE)
+      time <<= 1;
+    return time;
+  }
+
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+    bool set = value != 0;
+    switch(bid){
+    case BUTTON_A:
+      tempo.trigger(set, samples);
+      break;
+    }
+  }
+    
+  void processAudio(AudioBuffer &buffer){
+    FloatArray left_input = buffer.getSamples(0);
+    FloatArray right_input = buffer.getSamples(1);
+    size_t len = buffer.getSize();
+    tempo.clock(len);
+    tempo.setSpeed(getParameterValue(PARAMETER_E)*4096);
+    dc.process(buffer); // remove DC offset
+
+    // set parameters
+    float fSampleRate = getSampleRate();
+    float fPercentWet = dryWet*100;
+    float fReverbTime = reverbTimeSeconds;
+    float fRoomSize = roomSizeSeconds;
+    float fCutOffAbsorbsion = cutoffFrequency;
     float wetCoef = fPercentWet/100.0;
     if (wetCoef > 1.0)
       wetCoef = 1.0;
@@ -251,12 +281,8 @@ public:
       fCutOff = MAX_CUTOFF;
     if (fCutOff < MIN_CUTOFF)
       fCutOff = MIN_CUTOFF;
-    
-    fPreDelaySamples = fPreDelay*fSampleRate;   // fPreDelay is expressed in seconds if fSampleRate is Hz
-    if (fPreDelaySamples > MAX_ROOM_SIZE)
-      fPreDelaySamples = MAX_ROOM_SIZE;
-    if (fPreDelaySamples < 0.0)
-      fPreDelaySamples = 0.0;
+    if(isButtonPressed(BUTTON_B))
+      fCutOff = 0.05;
  
     float fCutoffCoef  = expf(-6.28318530717959*fCutOff);
  
@@ -267,7 +293,7 @@ public:
     wet_coef0 = wetCoef;
     wet_coef1 = -fCutoffCoef*wetCoef;
  
-    fCutoffCoef /=  (float)FindNearestPrime(primeNumberTable, (int)fRoomSizeSamples);
+    fCutoffCoef /=  (float)FindNearestPrime(primeNumberTable, fRoomSizeSamples);
  
     float fDelaySamples = fRoomSizeSamples;
 
@@ -289,17 +315,9 @@ public:
     node6.set(beta, fDelaySamples, fCutoffCoef);
     fDelaySamples *= ALPHA; 
     node7.set(beta, fDelaySamples, fCutoffCoef);
-  }
-    
-  void processAudio(AudioBuffer &buffer){
-    highpass->process(buffer);
-    FloatArray left_input = buffer.getSamples(0);
-    FloatArray right_input = buffer.getSamples(1);
-    reverbSetParam(getSampleRate(), dryWet*100, reverbTimeSeconds, roomSizeSeconds, cutoffFrequency, predelaySeconds);
 
-    size_t len = left_input.getSize();
-
-    delayBufferL->write(left_input); // button: toggle left/right    
+    fPreDelaySamples = delaySamples();
+    delayBufferL->write(left_input);
     delayBufferR->write(right_input);
     delayBufferL->fade(fPreDelaySamples, preL);
     delayBufferR->fade(fPreDelaySamples, preR);
