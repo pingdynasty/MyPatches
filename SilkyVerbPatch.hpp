@@ -50,13 +50,14 @@ DESCRIPTION:
     AES Convention: 90 (February 1991)   Preprint Number:3030
 */
 
-
-#define MAX_REVERB_TIME   10
-#define MIN_REVERB_TIME   0.1
+#define MAX_REVERB_TIME   20
+#define MIN_REVERB_TIME   0.8
 #define MAX_ROOM_SIZE     7552
 #define MIN_ROOM_SIZE     192
 #define MAX_CUTOFF        0.4975
 #define MIN_CUTOFF        0.1134
+#define MAX_PREDELAY_SIZE 32768
+#define MIN_PREDELAY_SIZE 0
 
 #define SQRT8     2.82842712474619 // sqrtf(8)
 #define ONE_OVER_SQRT8   0.353553390593274 //  1/sqrtf(8)
@@ -70,8 +71,6 @@ uint32_t  primeNumberTable[PRIME_NUMBER_TABLE_SIZE];
 // the 7600th prime is 77351
 
 #define BUFFER_LIMIT 8192
-#define MAX_PREDELAY_SIZE 32768
-#define MIN_PREDELAY_SIZE 64
 #define TRIGGER_LIMIT 65536
 
 void BuildPrimeTable(uint32_t* prime_number_table){
@@ -229,7 +228,7 @@ public:
   }
 
   int delaySamples(){
-    int time = tempo.getPeriod()*TRIGGER_LIMIT;
+    uint32_t time = tempo.getPeriod()*TRIGGER_LIMIT;
     while(time > MAX_PREDELAY_SIZE)
       time >>= 1;
     while(time < MIN_PREDELAY_SIZE)
@@ -245,6 +244,10 @@ public:
       setButton(PUSHBUTTON, value);
       tempocounter = 0;
       break;
+    case BUTTON_B:
+      if(set)
+	tempo.setLimit(0); // set pre-delay to zero
+      break;
     }
   }
     
@@ -256,8 +259,6 @@ public:
     tempo.setSpeed(getParameterValue(PARAMETER_E)*4096);
     dc.process(buffer); // remove DC offset
 
-    bool duck = isButtonPressed(BUTTON_B);
- 
     float fCutoffCoef  = expf(-6.28318530717959*cutoff);
     float fRoomSizeSamples = size;
     float fReverbTimeSamples = time*getSampleRate();
@@ -304,7 +305,7 @@ public:
     delayBufferR->fade(fPreDelaySamples, preR);
 
     tempocounter += len;
-    if(tempocounter >= fPreDelaySamples){
+    if(fPreDelaySamples && tempocounter >= fPreDelaySamples){
       tempocounter -= fPreDelaySamples;
       setButton(PUSHBUTTON, 4095);
     }else if(tempocounter > fPreDelaySamples/4){
@@ -430,7 +431,7 @@ public:
     float rms = 0;
     for (int i=0; i<len; ++i){
       float output_acc = dry_coef * (*input++);
-      float reverb_output = duck ? preL[i] : (*(x0++) + *(x2++) + *(x4++) + *(x6++));
+      float reverb_output = *(x0++) + *(x2++) + *(x4++) + *(x6++);
       output_acc += wet_coef0 * reverb_output;
       output_acc += wet_coef1 * reverb_output_state;
       *output++ = output_acc;
@@ -445,7 +446,7 @@ public:
     reverb_output_state = right_reverb_state;
     rms = 0;
     for (int i=0; i<len; ++i){
-      float reverb_output = duck ? preR[i] : (*(x1++) + *(x3++) + *(x5++) + *(x7++));
+      float reverb_output = *(x1++) + *(x3++) + *(x5++) + *(x7++);
       float output_acc = dry_coef * (*input++);
       output_acc += wet_coef0 * reverb_output;
       output_acc += wet_coef1 * reverb_output_state;
