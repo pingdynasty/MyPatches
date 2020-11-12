@@ -38,6 +38,8 @@ public:
     registerParameter(PARAMETER_E, "FM Amount");
     setParameterValue(PARAMETER_E, 0.0);
 #endif
+    registerParameter(PARAMETER_F, "Overflow>");
+    registerParameter(PARAMETER_G, "Intensity>");
     for(int i=0; i<TONES; i++){
       osc[i] = SineOscillator::create(getSampleRate());
       registerParameter(PatchParameterId(PARAMETER_AA+i), names[i]);
@@ -61,17 +63,16 @@ public:
     switch(bid){
     case BUTTON_A:
       for(int i=0; i<TONES; i+= 2)
-	mutes[i] = value; // !mutes[i];
+	mutes[i] = value;
       break;
     case BUTTON_B:
       for(int i=1; i<TONES; i+= 2)
-	mutes[i] = value; // !mutes[i];
+	mutes[i] = value;
       break;
     }
   }
   void processMidi(MidiMessage msg){
     if(msg.isControlChange()){
-      // debugMessage("cc", msg.getPort(), msg.getControllerNumber(), msg.getControllerValue());
       uint8_t id = msg.getControllerNumber() - PATCH_PARAMETER_AA;
       if(id < TONES)
 	setParameterValue(PatchParameterId(PARAMETER_AA+id), msg.getControllerValue()/127.0f);
@@ -135,8 +136,10 @@ public:
     newgainadjust = newgainadjust > 1 ? 1/newgainadjust : 1;
     ramp.ramp(gainadjust, newgainadjust);
     left.multiply(ramp);
-    left.multiply(0.0625);
+    left.multiply(0.5);
     gainadjust = newgainadjust;
+    setParameterValue(PARAMETER_F, gainadjust);
+    setParameterValue(PARAMETER_G, 1-gainadjust);
     right.copyFrom(left);
   }
 
