@@ -1,5 +1,40 @@
-#include "StompBox.h"
+/**
+ 
+AUTHOR:
+    (c) 2020 Martin Klang
+    martin@rebeltech.org
 
+ 
+LICENSE:
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+ 
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+ 
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ 
+DESCRIPTION:
+    Harmonic Lich is a CV and MIDI controlled harmonic oscillator.
+    Eight sine wave oscillators are tuned to the harmonic series, and the 
+    level of each can be controlled by parameters AA to AH (or MIDI).
+    With parameters A and B you control the root note played and detune it.
+    The left audio input gives 1v/oct input CV control of the frequency.
+    Parameter C will change the harmonic center, and D controls how high 
+    and low frequencies are attenuated. 
+    Buttons A and B mute the odd and even harmonics respectively.
+    MIDI Note messages control the root note.
+    Output parameters F and G reflect the total signal level within the 
+    oscillator at any time.
+*/
+
+#include "Patch.h"
 #include "Envelope.h"
 #include "VoltsPerOctave.h"
 #include "SmoothValue.h"
@@ -25,7 +60,7 @@ private:
   int centernote = 0;
   const float NYQUIST;
 public:
-  HarmonicLichPatch() : hz(-0.0022, -10.75), NYQUIST(getSampleRate()/2) {
+  HarmonicLichPatch() : hz(true), NYQUIST(getSampleRate()/2) {
     registerParameter(PARAMETER_A, "Semitone");
     registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
