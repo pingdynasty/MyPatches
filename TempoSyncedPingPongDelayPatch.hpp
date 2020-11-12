@@ -1,7 +1,44 @@
 #ifndef __TempoSyncedPingPongDelayPatch_hpp__
 #define __TempoSyncedPingPongDelayPatch_hpp__
 
-#include "StompBox.h"
+/**
+ 
+AUTHOR:
+    (c) 2020 Martin Klang
+    martin@rebeltech.org
+ 
+LICENSE:
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+ 
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+ 
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ 
+DESCRIPTION:
+    Ping pong delay with tap tempo and adjustable ratio. The delay time is 
+    the product of the current tempo and ratio. Delay times up to 2.73 seconds, 
+    or about 20 BPM at 1/1.
+
+    Tap button to set the tempo. Adjust with Tempo knob. Ratio sets a musical 
+    divisor or multiplier, from 1/4 to 4. The left channel delay time is twice 
+    as long as the right channel.
+    Button A is used for tap tempo. Button B enables 'loop' mode.
+    The trigger output clocks out the current tempo, while output 
+    parameters F and G outputs a sine and ramp LFO respectively, both 
+    synchronised to the current tempo.
+
+*/
+
+#include "Patch.h"
+#include "DcFilter.hpp"
 #include "BiquadFilter.h"
 #include "CircularBuffer.hpp"
 #include "TapTempo.hpp"
@@ -26,10 +63,12 @@ private:
   CircularBuffer* delayBufferR;
   int delayL, delayR;
   TapTempo<TRIGGER_LIMIT> tempo;
-  StereoBiquadFilter* highpass;
+  StereoDcFilter dc;
   StereoBiquadFilter* lowpass;
   SineOscillator* lfo;
-  SmoothFloat lfoFreq;
+  SmoothFloat time;
+  SmoothFloat drop;
+  SmoothFloat feedback;
 public:
   TempoSyncedPingPongDelayPatch() : 
     delayL(0), delayR(0), tempo(getSampleRate()*60/120) {
@@ -37,22 +76,18 @@ public:
     registerParameter(PARAMETER_B, "Feedback");
     registerParameter(PARAMETER_C, "Ratio");
     registerParameter(PARAMETER_D, "Dry/Wet");
-    registerParameter(PARAMETER_E, "Drop");
     registerParameter(PARAMETER_F, "LFO Sine>");
     registerParameter(PARAMETER_G, "LFO Ramp>");
     delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
-    delayBufferR = CircularBuffer::create(TRIGGER_LIMIT);
-    highpass = StereoBiquadFilter::create(1);
-    highpass->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q); // dc filter
+    delayBufferR = CircularBuffer::create(TRIGGER_LIMIT*2);
     lowpass = StereoBiquadFilter::create(1);
-    lowpass->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    lowpass->setLowPass(18000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
     lfo = SineOscillator::create(getSampleRate()/getBlockSize());    
   }
 
   ~TempoSyncedPingPongDelayPatch(){
     CircularBuffer::destroy(delayBufferL);
     CircularBuffer::destroy(delayBufferR);
-    StereoBiquadFilter::destroy(highpass);
     StereoBiquadFilter::destroy(lowpass);
     SineOscillator::destroy((SineOscillator*)lfo);
   }
@@ -69,32 +104,30 @@ public:
     case BUTTON_A:
       tempo.trigger(set, samples);
       break;
-    case BUTTON_B:
-      setParameterValue(PARAMETER_E, value);
-      if(set)
-      	lfo->reset();
-      break;
     }
   }
   
   void processAudio(AudioBuffer& buffer){
     int speed = getParameterValue(PARAMETER_A)*4096;
-    float feedback = getParameterValue(PARAMETER_B);
-    float drop = 1.0-getParameterValue(PARAMETER_E);
-    if(drop < 0.01)
+    if(isButtonPressed(BUTTON_B)){
       feedback = 1.0;
+      drop = 0.0;
+    }else{
+      feedback = getParameterValue(PARAMETER_B);
+      drop = 1.0;
+    }
     int ratio = (int)(getParameterValue(PARAMETER_C) * RATIOS_COUNT);
     int size = buffer.getSize();
     tempo.clock(size);
     tempo.setSpeed(speed);
-    float time = delayTime(ratio);
+    time = delayTime(ratio);
     int newDelayL = time*(delayBufferL->getSize()-1);
     int newDelayR = time*(delayBufferR->getSize()-1);
     float wet = getParameterValue(PARAMETER_D);
     float dry = 1.0-wet;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    highpass->process(buffer);
+    dc.process(buffer); // remove DC offset
     for(int n=0; n<size; n++){
       float x1 = n/(float)size;
       float x0 = 1.0-x1;
@@ -114,7 +147,7 @@ public:
     delayL = newDelayL;
     delayR = newDelayR;
     // Tempo synced LFO
-    lfoFreq = getSampleRate()/(time*TRIGGER_LIMIT);
+    float lfoFreq = getSampleRate()/(time*TRIGGER_LIMIT);
     lfo->setFrequency(lfoFreq);
     float value = lfo->getNextSample()*0.5+0.5;
     setParameterValue(PARAMETER_F, value);
