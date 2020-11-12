@@ -47,6 +47,7 @@ DESCRIPTION:
 
 // #define ROOT_NOTE 69 // A4
 #define ROOT_NOTE 33 // A1
+#define ROOT_NOTE_OFFSET (ROOT_NOTE-69)
 
 class MonoVoiceAllocator {
     float& freq;
@@ -216,7 +217,7 @@ public:
     // CV to MIDI
     out.freq = voltsIn.getFrequency(left.getMean());
     if(out.velocity == 0)
-      out.note = voltsIn.hertzToNote(out.freq);
+      out.note = voltsIn.hertzToNote(out.freq) + ROOT_NOTE_OFFSET;
     int pb = right.getMean()*8192;
     if(pb != out.pitchbend){
       sendMidi(MidiMessage::pb(out.channel, pb));
@@ -234,7 +235,7 @@ public:
     }
 
     // MIDI to CV
-    in.freq = voltsOut.noteToHertz(in.note);
+    in.freq = voltsOut.noteToHertz(in.note - ROOT_NOTE_OFFSET);
     float value = voltsOut.getSample(in.freq);
     left.ramp(saveLeft, value);
     saveLeft = value;
