@@ -5,10 +5,12 @@
 #include "SmoothValue.h"
 #include "SineOscillator.h"
 
-// Up to 16 harmonics supported
+#define USE_FM
 #define TONES 8
+// Up to 16 harmonics supported
 static const char* names[] = { "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8",
 			       "H9", "H10", "H11", "H12", "H13", "H14", "H15", "H16" };
+
 
 class HarmonicLichPatch : public Patch {
 private:
@@ -28,17 +30,18 @@ public:
     registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
     registerParameter(PARAMETER_D, "Peak");
-    // registerParameter(PARAMETER_E, "FM Amount");
-    // registerParameter(PARAMETER_F, "Duck>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.5);
     setParameterValue(PARAMETER_C, 0.5);
     setParameterValue(PARAMETER_D, 0.5);
-    setParameterValue(PARAMETER_E, 0.5);
+#ifdef USE_FM
+    registerParameter(PARAMETER_E, "FM Amount");
+    setParameterValue(PARAMETER_E, 0.0);
+#endif
     for(int i=0; i<TONES; i++){
       osc[i] = SineOscillator::create(getSampleRate());
       registerParameter(PatchParameterId(PARAMETER_AA+i), names[i]);
-      setParameterValue(PatchParameterId(PARAMETER_AA+i), 0.25);
+      setParameterValue(PatchParameterId(PARAMETER_AA+i), 0.50);
       levels[i] = 1;
       mutes[i] = false;
     }
@@ -101,27 +104,30 @@ public:
       a = 1;
       r = (d-0.80)*5;      
     }                   /* //.\\ */
-    // float fm = getParameterValue(PARAMETER_E)*0.2;
+    float fm = getParameterValue(PARAMETER_E)*0.2;
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
     hz.setTune(freq);
     float fundamental = hz.getFrequency(left[0]);
-    // right.multiply(fm);
+    right.multiply(fm);
     float newgainadjust = 0;
     left.clear();
     for(int i=0; i<TONES; i++){
       float newlevel = getParameterValue(PatchParameterId(PARAMETER_AA+i));
       float distance = abs(centre - i);
       float duck = i < centre ? a*distance : r*distance;
-      newlevel = max(0, min(1, newlevel*(1-duck)));
+      newlevel = mutes[i] ? 0 : max(0, min(1, newlevel*(1-duck)));
       ramp.ramp(levels[i], newlevel);
       levels[i] = newlevel;
       newgainadjust += newlevel;
       freq = fundamental*(i+1);
-      if(freq > 10 && freq < NYQUIST && !mutes[i]){
+      if(freq > 10 && freq < NYQUIST){
 	osc[i]->setFrequency(freq);
-	// osc[i]->getSamples(mix, right);
+#ifdef USE_FM
+	osc[i]->getSamples(mix, right);
+#else
 	osc[i]->getSamples(mix);
+#endif
 	mix.multiply(ramp);
 	left.add(mix);
       }
@@ -131,9 +137,6 @@ public:
     left.multiply(ramp);
     left.multiply(0.0625);
     gainadjust = newgainadjust;
-    // setParameterValue(PARAMETER_F, gainadjust);
-    // for(int i=0; i<buf.getSize(); i++)
-    //   left[i] = tanh(left[i]);    
     right.copyFrom(left);
   }
 
