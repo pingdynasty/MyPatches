@@ -11,8 +11,8 @@ private:
   VoltsPerOctave hz;
   SmoothFloat lavg;
   SmoothFloat ravg;
-  bool button1;
-  bool button2;
+  bool button1 = false;
+  bool button2 = false;
 public:
   CalibrationPatch() {
   }
