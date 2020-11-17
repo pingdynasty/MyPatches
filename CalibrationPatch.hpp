@@ -11,6 +11,8 @@ private:
   VoltsPerOctave hz;
   SmoothFloat lavg;
   SmoothFloat ravg;
+  bool button1;
+  bool button2;
 public:
   CalibrationPatch() {
   }
@@ -33,6 +35,17 @@ public:
       setButton(PUSHBUTTON, 4095);
     }else if(msg.isNoteOff()){
       setButton(PUSHBUTTON, 0);
+    }else if(msg.isControlChange()){
+      switch(msg.getControllerNumber()){
+      case 27:
+	setButton(BUTTON_A, msg.getControllerValue());
+	button1 = msg.getControllerValue();
+	break;
+      case 28:
+	setButton(BUTTON_B, msg.getControllerValue());
+	button2 = msg.getControllerValue();
+	break;
+      }
     }
   }
   
@@ -45,10 +58,10 @@ public:
     setParameterValue(PARAMETER_F, getParameterValue(PARAMETER_A));
     setParameterValue(PARAMETER_G, getParameterValue(PARAMETER_B));
     
-    if(isButtonPressed(BUTTON_A)){
+    if(isButtonPressed(BUTTON_A) || button1){
       left.setAll(0.5);
       debugMessage("500", lavg*1000, hz.sampleToVolts(lavg));
-    }else if(isButtonPressed(BUTTON_B)){
+    }else if(isButtonPressed(BUTTON_B) || button2){
       left.setAll(-0.5);
       debugMessage("-500", lavg*1000, hz.sampleToVolts(lavg));
     }else{
