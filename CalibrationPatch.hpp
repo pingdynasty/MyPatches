@@ -54,16 +54,18 @@ public:
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     lavg = left.getMean();
     ravg = right.getMean();
-      
+ 
     setParameterValue(PARAMETER_F, getParameterValue(PARAMETER_A));
     setParameterValue(PARAMETER_G, getParameterValue(PARAMETER_B));
-    
+ 
     if(isButtonPressed(BUTTON_A) || button1){
       left.setAll(0.5);
-      debugMessage("500", lavg*1000, hz.sampleToVolts(lavg));
+      // debugMessage("500", lavg*1000, hz.sampleToVolts(lavg));
+      debugMessage("High", lavg*1000);
     }else if(isButtonPressed(BUTTON_B) || button2){
       left.setAll(-0.5);
-      debugMessage("-500", lavg*1000, hz.sampleToVolts(lavg));
+      // debugMessage("-500", lavg*1000, hz.sampleToVolts(lavg));
+      debugMessage("Low", lavg*1000);
     }else{
     // buffer.getSamples(0).setAll(getParameterValue(PARAMETER_C)*2-1);
     // buffer.getSamples(1).setAll(getParameterValue(PARAMETER_D)*2-1);
