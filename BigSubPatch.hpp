@@ -7,6 +7,8 @@
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
+#include "SineOscillator.h"
+#include "Phasor.h"
 
 #define MIDI_VOICES 8
 #define PITCHBEND_RANGE 8
@@ -188,24 +190,40 @@ class BigSubPatch : public Patch {
 private:
   Voices<MIDI_VOICES> voices;
   BiquadFilter* hp;
+  Phasor lfo1;
+  SineOscillator lfo2;
 public:
-  BigSubPatch() : voices(getSampleRate(), getBlockSize()) {
+  BigSubPatch()
+    : voices(getSampleRate(), getBlockSize()),
+      lfo1(getSampleRate()/getBlockSize()),
+      lfo2(getSampleRate()/getBlockSize())  {
+    // osc
     registerParameter(PARAMETER_A, "Pitch");
-    registerParameter(PARAMETER_B, "Waveshape");
+    registerParameter(PARAMETER_B, "Waveshape");    
+    setParameterValue(PARAMETER_A, 0.5);
+    setParameterValue(PARAMETER_B, 0.0);
+    // filter
     registerParameter(PARAMETER_C, "Cutoff");
     registerParameter(PARAMETER_D, "Resonance");
+    setParameterValue(PARAMETER_C, 0.8);
+    setParameterValue(PARAMETER_D, 0.0);
+    // envelope
     registerParameter(PARAMETER_AA, "Attack");
     registerParameter(PARAMETER_AB, "Decay");
     registerParameter(PARAMETER_AC, "Sustain");
     registerParameter(PARAMETER_AD, "Release");
-    setParameterValue(PARAMETER_A, 0.5);
-    setParameterValue(PARAMETER_B, 0.0);
-    setParameterValue(PARAMETER_C, 0.8);
-    setParameterValue(PARAMETER_D, 0.0);
     setParameterValue(PARAMETER_AA, 0.05);
     setParameterValue(PARAMETER_AB, 0.1);
     setParameterValue(PARAMETER_AC, 0.8);
     setParameterValue(PARAMETER_AD, 0.2);
+    // lfo
+    registerParameter(PARAMETER_E, "LFO1");
+    registerParameter(PARAMETER_F, "LFO1>");
+    registerParameter(PARAMETER_G, "LFO2");
+    registerParameter(PARAMETER_H, "LFO2>");
+    setParameterValue(PARAMETER_E, 0.5);
+    setParameterValue(PARAMETER_G, 0.5);
+
     hp = BiquadFilter::create(2);
     hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
   }
@@ -269,11 +287,10 @@ public:
     setBasenote(getParameterValue(PARAMETER_A)*24 - 81);
     float cf = getParameterValue(PARAMETER_C)*0.48 + 0.01;
     float q = getParameterValue(PARAMETER_D)*3+0.75;
-    cf += mod*0.25; // getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
+    cf += mod*0.25;
     cf = max(0.001, min(0.499, cf));
     cutoff = cf;
     float shape = getParameterValue(PARAMETER_B)*2;
-    // float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
     pitchbend = pb;
     float attack = getParameterValue(PARAMETER_AA);
     float decay = getParameterValue(PARAMETER_AB);
@@ -287,7 +304,15 @@ public:
     left.tanh();
     hp->process(left);
     right.copyFrom(left);
-  }
+
+    // lfo
+    float rate = getParameterValue(PARAMETER_E)*2;
+    lfo1.setFrequency(rate);
+    setParameterValue(PARAMETER_F, lfo1.getNextSample()*0.5+0.5);
+    rate = getParameterValue(PARAMETER_G)*2;
+    lfo2.setFrequency(rate);
+    setParameterValue(PARAMETER_H, lfo2.getNextSample()*0.5+0.5);
+}
 };
 
 #endif   // __BigSubPatch_hpp__
