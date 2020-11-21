@@ -1,5 +1,6 @@
 
 #define MAX_WIDTH 128
+template<ScreenDriver driver, typename Colour>
 class AudioDisplay {
 public:
     enum TriggerMode {
@@ -43,7 +44,7 @@ public:
     if(writepos >= width)
       writepos = 0;
   }
-  void draw(ScreenBuffer& screen, Colour c){
+  void draw(ScreenBuffer<driver, Colour>& screen, Colour c){
     height = screen.getHeight()>>2;
     width = screen.getWidth();
     int y = buffer[0];

@@ -1,15 +1,15 @@
 #ifndef __KickBoxPatch_hpp__
 #define __KickBoxPatch_hpp__
 
-#include "StompBox.h"
+#include "MonochromeScreenPatch.h"
 #include "VoltsPerOctave.h"
 #include "Cymbal.hpp"
 #include "BassDrum.hpp"
 #include "Sequence.h"
 #include "SynthVoice.hpp"
-#include "AudioDisplay.hpp"
+#include "MonochromeAudioDisplay.hpp"
 
-class KickBoxPatch : public Patch {
+class KickBoxPatch : public MonochromeScreenPatch {
 private:
   SynthVoice* voice;
   CymbalVoice* hat;
@@ -226,9 +226,9 @@ public:
 
   }
 
-    AudioDisplay display;
+  MonochromeAudioDisplay display;
 
-  void processScreen(ScreenBuffer& screen){
+  void processScreen(MonochromeScreenBuffer& screen){
     display.draw(screen, WHITE);
    }
 };
