@@ -9,9 +9,10 @@ when full, copy to display buffer with current pos and divs x and y
 on changing pos or divs copy from pixel buffer to display buffer. 
 */
 
-#include "AudioDisplay.hpp"
+#include "MonochromeScreenPatch.h"
+#include "MonochromeAudioDisplay.hpp"
 
-class ScopePatch : public Patch {
+class ScopePatch : public MonochromeScreenPatch {
 private:
   Colour bg = BLACK;
   Colour fg = WHITE;
@@ -21,7 +22,7 @@ private:
   float triggerLevel;
   float gain;
   float offset;
-  AudioDisplay display;
+  MonochromeAudioDisplay display;
 public:
   ScopePatch(){
     registerParameter(PARAMETER_A, "X Scale");
@@ -36,27 +37,28 @@ public:
   }
   void reset(){
     divisions = 2;
-    triggerLevel = 0.012345;
-    gain = 1.2345678;
+    triggerLevel = 0.000;
+    gain = 2.0;
     offset = 0.0;
     display.reset();
   }
 
-  void processScreen(ScreenBuffer& screen){
+  void processScreen(MonochromeScreenBuffer& screen){
     // int y = screen.getHeight()-9;
     int y = 8; // screen.getHeight()-17;
-    screen.setTextColour(fg);
     screen.setTextSize(1);
+    screen.setTextColour(fg);
+    screen.setTextWrap(true);
     // screen.fill(bg);
     // screen.setCursor(0, 8);
     // screen.print("Scope");
-    screen.setCursor(0, y);
+    screen.setCursor(1, y);
     screen.print(divisions);
-    screen.setCursor(32, y);
+    screen.setCursor(24, y);
     screen.print(triggerLevel);
-    screen.setCursor(64, y);
+    screen.setCursor(52, y);
     screen.print(gain);
-    screen.setCursor(96, y);
+    screen.setCursor(80, y);
     screen.print(offset);
     display.draw(screen, trace1);
    }
@@ -67,7 +69,9 @@ public:
     gain = getParameterValue(PARAMETER_C)*4;
     offset = getParameterValue(PARAMETER_D)*2-1;
     FloatArray left = samples.getSamples(LEFT_CHANNEL);
-    float* right = samples.getSamples(1);
+    FloatArray right = samples.getSamples(RIGHT_CHANNEL);
     display.update(left, divisions, triggerLevel, gain, offset);
+    // left.clear();
+    // right.clear();
   }
 };
