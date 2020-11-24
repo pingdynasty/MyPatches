@@ -1,7 +1,7 @@
 #ifndef __LorenzFMPatch_hpp__
 #define __LorenzFMPatch_hpp__
 
-#include "Patch.h"
+#include "MonochromeScreenPatch.h"
 #include "CircularBuffer.hpp"
 #include "SineOscillator.h"
 #include "BiquadFilter.h"
@@ -12,7 +12,7 @@
  * The Lorenz attractor is a set of chaotic solutions of the Lorenz system.
  * http://en.wikipedia.org/wiki/Lorenz_system
  */
-class LorenzFMPatch : public Patch {
+class LorenzFMPatch : public MonochromeScreenPatch {
 public:
   float x, y, z;
   float dt;
@@ -216,7 +216,7 @@ public:
 
     processAttractor(xbuf, ybuf);
 
-    float tempo = getParameterValue(PARAMETER_E)*8;
+    float tempo = getParameterValue(PARAMETER_E)*4;
     lfo1 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AE, lfo1);
     tempo = getParameterValue(PARAMETER_F)*2;
@@ -266,8 +266,7 @@ public:
     }
   }
 
-#ifdef OWL_MAGUS
-  void processScreen(ScreenBuffer& screen){
+  void processScreen(MonochromeScreenBuffer& screen){
     // screen.clear();
     int w = screen.getWidth();
     int h = screen.getHeight();
@@ -277,7 +276,6 @@ public:
       screen.setPixel(x, y, WHITE);
     }
   }
-#endif
 };
 
 #endif // __LorenzFMPatch_hpp__
