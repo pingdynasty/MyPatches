@@ -11,6 +11,8 @@
 AUTHOR:
     (c) 1994-2012  Robert Bristow-Johnson
     rbj@audioimagination.com
+    (c) 2020       Martin Klang
+    martin@rebeltech.org
 
  
 LICENSE:
@@ -48,9 +50,13 @@ DESCRIPTION:
     Author: Jot, Jean-Marc
     Affiliation: Antoine Chaigne, Enst, departement SIGNAL, Paris, France
     AES Convention: 90 (February 1991)   Preprint Number:3030
+
+UPDATES:
+    2020 Martin Klang: Refactored. Cross-fade delay positions for smooth size changes. 
+                       Tap tempo pre-delay.
 */
 
-#define MAX_REVERB_TIME   20
+#define MAX_REVERB_TIME   12
 #define MIN_REVERB_TIME   0.8
 #define MAX_ROOM_SIZE     7552
 #define MIN_ROOM_SIZE     192
@@ -59,9 +65,9 @@ DESCRIPTION:
 #define MAX_PREDELAY_SIZE 32768
 #define MIN_PREDELAY_SIZE 0
 
-#define SQRT8     2.82842712474619 // sqrtf(8)
-#define ONE_OVER_SQRT8   0.353553390593274 //  1/sqrtf(8)
-#define ALPHA     0.943722057435498 //  powf(3/2, -1/(8-1))
+#define SQRT8             2.82842712474619  // sqrtf(8)
+#define ONE_OVER_SQRT8    0.353553390593274 //  1/sqrtf(8)
+#define ALPHA             0.943722057435498 //  powf(3/2, -1/(8-1))
 //       of the 8 delay lines, the longest is 3/2 times longer than the shortest.
 //       the longest delay is coupled to the room size.
 //       the delay lines then decrease exponentially in length.
@@ -213,6 +219,8 @@ public:
     cutoff = getFloatParameter("Brightness", MIN_CUTOFF, MAX_CUTOFF);
     wet = getFloatParameter("Dry/Wet", 0, 1.0, 0.5);
     registerParameter(PARAMETER_E, "Pre-delay");
+    registerParameter(PARAMETER_F, "LFO Sine>");
+    registerParameter(PARAMETER_G, "LFO Ramp>");
     
     left_reverb_state = 0.0;
     right_reverb_state = 0.0;
@@ -265,9 +273,9 @@ public:
     
     dry_coef = 1.0 - wet;
     if(wet > 0){
-      float dryWet = wet * SQRT8 * (1.0 - expf(-13.8155105579643*fRoomSizeSamples/fReverbTimeSamples));
+      float dryWet = wet * SQRT8 * (1.0 - expf(-10*fRoomSizeSamples/(fReverbTimeSamples*0.125)));
       // additional attenuation for small room and long reverb time  <--  expf(-13.8155105579643) = 10^(-60dB/10dB)
-      //  toss in whatever fudge factor you need here to make the reverb louder
+      // gain compensation: toss in whatever fudge factor you need here to make the reverb louder
       wet_coef0 = dryWet;
       wet_coef1 = -fCutoffCoef*dryWet;
     }else{
