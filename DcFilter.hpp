@@ -9,7 +9,7 @@ private:
   float x1, y1;
 public:
   // differentiator with leaky integrator 
-  DcFilter(float lambda = 0.995): lambda(lambda){}
+  DcFilter(float lambda = 0.995): lambda(lambda), x1(0), y1(0) {}
 
   /* process a single sample and return the result */
   float process(float x){
