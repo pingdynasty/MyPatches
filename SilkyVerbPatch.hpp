@@ -56,7 +56,7 @@ UPDATES:
                        Tap tempo pre-delay.
 */
 
-#define MAX_REVERB_TIME   12
+#define MAX_REVERB_TIME   16
 #define MIN_REVERB_TIME   0.8
 #define MAX_ROOM_SIZE     7552
 #define MIN_ROOM_SIZE     192
