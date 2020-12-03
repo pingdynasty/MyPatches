@@ -8,11 +8,16 @@
 
 class CalibrationPatch : public Patch {
 private:
-  VoltsPerOctave hz;
   SmoothFloat lavg;
   SmoothFloat ravg;
-  bool button1 = false;
-  bool button2 = false;
+  enum OperationMode {
+		      IDLE,
+		      CALIBRATE_HIGH,
+		      CALIBRATE_LOW,
+		      TEST_HIGH,
+		      TEST_LOW
+  };
+  OperationMode mode;
 public:
   CalibrationPatch() {
   }
@@ -21,9 +26,11 @@ public:
     switch(bid){
     case PUSHBUTTON:
     case BUTTON_A:
+      mode = value ? CALIBRATE_HIGH : IDLE;
       sendMidi(MidiMessage::note(0, 60, value ? 63 : 0));
       break;
     case BUTTON_B:
+      mode = value ? CALIBRATE_LOW : IDLE;
       sendMidi(MidiMessage::note(0, 62, value ? 63 : 0));
       break;
     }
@@ -31,19 +38,24 @@ public:
 
   void processMidi(MidiMessage msg){
     if(msg.isNoteOn()){
-      debugMessage("note on", msg.getNote(), msg.getVelocity());
       setButton(PUSHBUTTON, 4095);
     }else if(msg.isNoteOff()){
       setButton(PUSHBUTTON, 0);
     }else if(msg.isControlChange()){
       switch(msg.getControllerNumber()){
       case 27:
-	setButton(BUTTON_A, msg.getControllerValue());
-	button1 = msg.getControllerValue();
+	mode = msg.getControllerValue() ? CALIBRATE_HIGH : IDLE;
+	setButton(BUTTON_A, msg.getControllerValue() ? 4095 : 0);
 	break;
       case 28:
-	setButton(BUTTON_B, msg.getControllerValue());
-	button2 = msg.getControllerValue();
+	mode = msg.getControllerValue() ? CALIBRATE_LOW : IDLE;
+	setButton(BUTTON_B, msg.getControllerValue() ? 4095 : 0);
+	break;
+      case 29:
+	mode = msg.getControllerValue() ? TEST_HIGH : IDLE;
+	break;
+      case 30:
+	mode = msg.getControllerValue() ? TEST_LOW : IDLE;
 	break;
       }
     }
@@ -57,18 +69,32 @@ public:
  
     setParameterValue(PARAMETER_F, getParameterValue(PARAMETER_A));
     setParameterValue(PARAMETER_G, getParameterValue(PARAMETER_B));
- 
-    if(isButtonPressed(BUTTON_A) || button1){
+
+    switch(mode){
+    case CALIBRATE_HIGH:
       left.setAll(0.5);
-      // debugMessage("500", lavg*1000, hz.sampleToVolts(lavg));
-      debugMessage("High", lavg*1000);
-    }else if(isButtonPressed(BUTTON_B) || button2){
+      debugMessage("Sample High:", lavg*1000);
+      break;
+    case CALIBRATE_LOW:
       left.setAll(-0.5);
-      // debugMessage("-500", lavg*1000, hz.sampleToVolts(lavg));
-      debugMessage("Low", lavg*1000);
-    }else{
-    // buffer.getSamples(0).setAll(getParameterValue(PARAMETER_C)*2-1);
-    // buffer.getSamples(1).setAll(getParameterValue(PARAMETER_D)*2-1);
+      debugMessage("Sample Low:", lavg*1000);
+      break;
+    case TEST_HIGH:
+      {
+	VoltsPerOctave vin(true);
+	VoltsPerOctave vout(false);
+	debugMessage("Test High:", vin.sampleToVolts(lavg));
+	left.setAll(vout.voltsToSample(5));
+      }
+      break;
+    case TEST_LOW:
+      {
+	VoltsPerOctave vin(true);
+	VoltsPerOctave vout(false);
+	debugMessage("Test Low:", vin.sampleToVolts(lavg));
+	left.setAll(vout.voltsToSample(-5));
+      }
+      break;
     }
   }
 };
