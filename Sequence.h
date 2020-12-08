@@ -57,9 +57,9 @@ public:
 
 private:
   T bits;
-  uint8_t length;
-  int8_t offset;
-  volatile uint8_t pos;
+  uint8_t length = 1;
+  int8_t offset = 0;
+  volatile uint8_t pos = 0;
 };
 
 #endif /* _SEQUENCE_H_ */
