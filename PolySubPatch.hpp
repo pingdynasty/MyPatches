@@ -8,7 +8,8 @@
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 
-#define MIDI_VOICES 4
+#define MIDI_VOICES 8
+#define PITCHBEND_RANGE 8  // Roli default pitch bend is +/-48 semitones
 
 int8_t basenote = -69;
 
@@ -82,8 +83,13 @@ private:
 
 private:
   void take(uint8_t ch, uint8_t note, uint16_t velocity, uint16_t samples){
-    notes[ch] = note;
-    allocation[ch] = TAKEN;
+    // if(notes[ch] != note && allocation[ch] == TAKEN){
+    //   // stealing channel
+      release(ch, samples);
+    // }else{
+      notes[ch] = note;
+      allocation[ch] = TAKEN;
+    // }
     float gain = velocity*velocity/16129.0f + 0.1;
     gain *= 1.0f/VOICES;
     voice[ch]->setGain(gain);
@@ -153,7 +159,7 @@ public:
 
   void setParameters(float shape, float fc, float q, float attack, float release, float pb){
     for(int i=0; i<VOICES; ++i){
-      float freq = 440.0f*exp2f((notes[i]+basenote + pb*8)/12.0);
+      float freq = 440.0f*exp2f((notes[i]+basenote + pb*PITCHBEND_RANGE)/12.0);
       voice[i]->setFrequency(freq);
       voice[i]->setWaveshape(shape);
       voice[i]->setFilter(fc, q);
@@ -193,13 +199,7 @@ public:
     BiquadFilter::destroy(hp);
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      // uint8_t note = bid - MIDI_NOTE_BUTTON;
-      // if(value) // note on
-      // 	voices.noteOn(note, value>>5, samples);
-      // else // note off
-      // 	voices.noteOff(note, samples);
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       if(value)
 	voices.allNotesOn();
       else
@@ -223,24 +223,28 @@ public:
     // debugMessage("button/value/samples", bid, value, samples);
   }
   SmoothFloat pitchbend;
-  float pb;
-  void processMidi(MidiMessage& msg){
-    // debugMessage("port/status/d1", msg.data[0], msg.data[1], msg.data[2]);
-    // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
-    // debugMessage("status/note/vel", msg.getStatus(), msg.getNote(), msg.getVelocity());
-    // if(msg.getPort() != 1) // prevent double triggering on TouchKeys / Impulse
-    //   return;
+  SmoothFloat cutoff;
+  float pb = 0.0f;
+  float mod = 0.0f;
+  void processMidi(MidiMessage msg){
     uint16_t samples = 0;
     if(msg.isNoteOn()){
       voices.noteOn(msg.getNote(), (uint16_t)msg.getVelocity(), samples);
-      // debugMessage("note on", msg.getPort(), msg.getNote(), msg.getVelocity());
+      debugMessage("note on", msg.getPort(), msg.getNote(), msg.getVelocity());
     }else if(msg.isNoteOff()){
-      // debugMessage("note off", msg.getPort(), msg.getNote(), msg.getVelocity());
+      debugMessage("note off", msg.getPort(), msg.getNote(), msg.getVelocity());
       voices.noteOff(msg.getNote(), samples);
-    }else 
-      if(msg.isPitchBend()){
+    }else if(msg.isPitchBend()){      
       // debugMessage("pb", msg.getPort(), msg.getChannel(), msg.getPitchBend());
       pb = msg.getPitchBend()/8192.0f;
+    }else if(msg.isControlChange()){
+      // debugMessage("cc", msg.getPort(), msg.getControllerNumber(), msg.getControllerValue());
+      switch(msg.getControllerNumber()){
+      case MIDI_CC_MODULATION:
+      case 74:
+	// or use CC74 (for MPE Y-axis movement)
+	mod = msg.getControllerValue()/127.0f;
+      }
     }
   }
   void setBasenote(float note){
@@ -251,10 +255,12 @@ public:
     
   void processAudio(AudioBuffer &buffer) {
     setBasenote(getParameterValue(PARAMETER_A)*24 - 81);
-    float cutoff = getParameterValue(PARAMETER_B)*0.48 + 0.01;
+    float cf = getParameterValue(PARAMETER_B)*0.48 + 0.01;
     float q = getParameterValue(PARAMETER_C)*3+0.75;
     float df = getParameterValue(PARAMETER_D)*4;
-    cutoff += getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
+    cf += mod*0.25; // getParameterValue(PARAMETER_F)*0.25; // MIDI CC1/Modulation
+    cf = max(0.001, min(0.499, cf));
+    cutoff = cf;
     float shape = getParameterValue(PARAMETER_E)*2;
     // float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
     pitchbend = pb;
@@ -284,6 +290,7 @@ public:
     voices.setParameters(shape, cutoff, q, attack, release, pitchbend);
     voices.getSamples(left);
     left.multiply(0.6);
+    left.tanh();
     hp->process(left);
     right.copyFrom(left);
   }
