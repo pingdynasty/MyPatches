@@ -43,6 +43,7 @@ DESCRIPTION:
 #include "CircularBuffer.hpp"
 #include "TapTempo.hpp"
 #include "SineOscillator.h"
+#include "RampOscillator.h"
 #include "SmoothValue.h"
 
 static const int RATIOS_COUNT = 9;
@@ -56,16 +57,27 @@ static const float ratios[RATIOS_COUNT] = { 1.0/4,
 					    3.0, 
 					    4.0 };
 
+static const uint32_t counters[RATIOS_COUNT] = { 1, 
+						 1, 
+						 1, 
+						 1, 
+						 1, 
+						 3, 
+						 2,
+						 3, 
+						 4 };
+
 class TempoSyncedPingPongDelayPatch : public Patch {
 private:
-  static const int TRIGGER_LIMIT = (1<<16);
+  static const int TRIGGER_LIMIT = (1<<17);
   CircularBuffer* delayBufferL;
   CircularBuffer* delayBufferR;
-  int delayL, delayR;
+  int delayL, delayR, ratio;
   TapTempo<TRIGGER_LIMIT> tempo;
   StereoDcFilter dc;
   StereoBiquadFilter* lowpass;
-  SineOscillator* lfo;
+  RampOscillator* lfo1;
+  SineOscillator* lfo2;
   SmoothFloat time;
   SmoothFloat drop;
   SmoothFloat feedback;
@@ -82,14 +94,16 @@ public:
     delayBufferR = CircularBuffer::create(TRIGGER_LIMIT*2);
     lowpass = StereoBiquadFilter::create(1);
     lowpass->setLowPass(18000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
-    lfo = SineOscillator::create(getSampleRate()/getBlockSize());    
+    lfo1 = RampOscillator::create(getSampleRate()/getBlockSize());    
+    lfo2 = SineOscillator::create(getSampleRate()/getBlockSize());    
   }
 
   ~TempoSyncedPingPongDelayPatch(){
     CircularBuffer::destroy(delayBufferL);
     CircularBuffer::destroy(delayBufferR);
     StereoBiquadFilter::destroy(lowpass);
-    SineOscillator::destroy((SineOscillator*)lfo);
+    RampOscillator::destroy(lfo1);
+    SineOscillator::destroy(lfo2);
   }
 
   float delayTime(int ratio){
@@ -100,9 +114,14 @@ public:
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     bool set = value != 0;
+    static uint32_t counter = 0;
     switch(bid){
     case BUTTON_A:
       tempo.trigger(set, samples);
+      if(set && ++counter >= counters[ratio]){
+	lfo1->reset();
+	counter = 0;
+      }
       break;
     }
   }
@@ -116,7 +135,7 @@ public:
       feedback = getParameterValue(PARAMETER_B);
       drop = 1.0;
     }
-    int ratio = (int)(getParameterValue(PARAMETER_C) * RATIOS_COUNT);
+    ratio = (int)(getParameterValue(PARAMETER_C) * RATIOS_COUNT);
     int size = buffer.getSize();
     tempo.clock(size);
     tempo.setSpeed(speed);
@@ -140,20 +159,17 @@ public:
       right[n] = rdly*wet + right[n]*dry;
     }
     lowpass->process(buffer);
-    for(int i=0; i<buffer.getSize(); i++){
-      left[i] = tanh(left[i]);    
-      right[i] = tanh(right[i]);
-    }
+    left.tanh();
+    right.tanh();
     delayL = newDelayL;
     delayR = newDelayR;
     // Tempo synced LFO
     float lfoFreq = getSampleRate()/(time*TRIGGER_LIMIT);
-    lfo->setFrequency(lfoFreq);
-    float value = lfo->getNextSample()*0.5+0.5;
-    setParameterValue(PARAMETER_F, value);
-    value = lfo->getPhase()/(2*M_PI);
-    setParameterValue(PARAMETER_G, value);
-    setButton(PUSHBUTTON, value < 0.5);
+    lfo1->setFrequency(lfoFreq);
+    lfo2->setFrequency(lfoFreq);
+    setParameterValue(PARAMETER_F, lfo1->getNextSample());
+    setParameterValue(PARAMETER_G, lfo2->getNextSample()*0.5+0.5);
+    setButton(PUSHBUTTON, lfo1->getPhase() < 0.5);
   }
 };
 
