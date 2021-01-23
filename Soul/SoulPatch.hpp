@@ -15,12 +15,12 @@
 
 #undef __FAST_MATH__ /* set by gcc option -ffast-math */
 
-// #include "DiodeClipper.hpp"
-// #define SOULPATCH Diode
+#include "DiodeClipper.hpp"
+#define SOULPATCH Diode
 // #include "SineSynth.hpp"
 // #define SOULPATCH SineSynth
-#include "Reverb.hpp"
-#define SOULPATCH Reverb
+// #include "Reverb.hpp"
+// #define SOULPATCH Reverb
 
 namespace std {void __throw_bad_function_call() { while(1); }; }
 
@@ -40,8 +40,12 @@ public:
     }
   }
   void processAudio(AudioBuffer &buffer){
-    for(int i=0; i<params.size(); ++i)
-      params[i].setValue(PatchParameterId(PARAMETER_A+i));
+    for(int i=0; i<params.size(); ++i){
+      float min = params[i].properties.minValue;
+      float max = params[i].properties.maxValue;
+      float value = getParameterValue(PatchParameterId(PARAMETER_A+i));      
+      params[i].setValue(value * (max-min) + min);
+    }
     for(int i=0; i<ctx.inputChannels.size(); ++i)
       ctx.inputChannels[i] = buffer.getSamples(i);
     for(int i=0; i<ctx.outputChannels.size(); ++i)
