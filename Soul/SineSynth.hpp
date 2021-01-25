@@ -13,10 +13,9 @@
 #include <cstring>
 #include <cassert>
 
-#define SOUL_CPP_ASSERT(x) assert (x)
 
 #ifndef SOUL_CPP_ASSERT
- #define SOUL_CPP_ASSERT(x)
+ #define SOUL_CPP_ASSERT(x) assert (x)
 #endif
 
 //==============================================================================
