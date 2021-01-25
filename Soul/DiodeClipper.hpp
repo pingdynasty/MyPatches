@@ -102,7 +102,8 @@ public:
     void render (RenderContext<FloatType> context)
     {
         uint32_t startFrame = 0;
-
+	// debugMessage("frames", (int)context.numFrames, context.numFrames - startFrame,
+	// 	     context.numFrames - startFrame < maxBlockSize ? context.numFrames - startFrame : maxBlockSize);
         while (startFrame < context.numFrames)
         {
             auto framesRemaining = context.numFrames - startFrame;
