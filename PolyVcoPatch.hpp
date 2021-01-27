@@ -14,11 +14,13 @@ private:
   size_t index = 0;
   size_t lastCrossing = 0;
   bool positive = false;
+  bool done = false;
   static constexpr int POINTS_AVERAGE = 10;
   static constexpr float ZERO_THRESHOLD = 0.025;
-  static constexpr float ZERO_OFFSET = 0.10;
+  static constexpr float ZERO_OFFSET = -1.00;
 // sync out on Magus audio in: -0.22 to 0.03
-  bool done = false;
+// sync out on Noctua audio in: 0 to 1.99
+  static constexpr float SPREAD_THRESHOLD = 6.0;
 public:
   FrequencyCounter(float SR) : SR(SR) {
     counts = FloatArray::create(POINTS_AVERAGE); //number of zcc to be averaged
@@ -46,15 +48,17 @@ public:
     lastCrossing -= len;
   }
   float getFrequency(){
-    float mean = counts.getMean();
+    float mean = counts.subArray(2, counts.getSize()-2).getMean(); // exclude first two measurements
     if(mean > 0.0) // avoid divide by zero
       return SR/mean;
     return FLT_EPSILON;
   }
   float getSpread(){
-    if(!done)
-      return FLT_MAX;
     return counts.getStandardDeviation();
+  }
+  bool complete(){
+    // return done && getSpread() < SPREAD_THRESHOLD;
+    return done;
   }
   void reset(){
     index = 0;
@@ -67,7 +71,6 @@ private:
   FrequencyCounter fc;
   FloatArray table;
   size_t index = 0;
-  static constexpr float SETTLED_THRESHOLD = 5.0;
 public:
   Tuner(size_t len, float SR) : fc(SR) {
     table = FloatArray::create(len);
@@ -78,7 +81,7 @@ public:
   void process(FloatArray input){
     if(index < table.getSize()){
       fc.process(input);
-      if(fc.getSpread() < SETTLED_THRESHOLD){
+      if(fc.complete()){
 	table[index++] = frequencyToNote(fc.getFrequency());
 	// table[index++] = fc.getFrequency();
 	fc.reset();
@@ -87,6 +90,7 @@ public:
   }
   void begin(){
     index = 0;
+    fc.reset();
   }
   bool isTuned(){
     return index == table.getSize();
@@ -146,6 +150,7 @@ class PolyVcoPatch : public Patch {
 public:
   PolyVcoPatch() : fc(getSampleRate()), tuner(TUNING_TABLE_SIZE, getSampleRate()) {
     registerParameter(PARAMETER_A, "Tune");
+    setParameterValue(PARAMETER_A, 0);
     registerParameter(PARAMETER_H, "Tune>");
     // debugMessage("PolyVco SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
   }
@@ -172,33 +177,52 @@ public:
     }
   }
 
+  static constexpr float range1 = -2.00;
+  static constexpr float offset1 = 0.99;
+  static constexpr float range3 = 0.8;
+  static constexpr float offset3 = -0.5;
+  
   void processAudio(AudioBuffer &buffer){
-    FloatArray left = buffer.getSamples(LEFT_CHANNEL);
-    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    if(counter++ < 1000){
-      setParameterValue(PARAMETER_H, 0); // make sure it settles before tuning
+    FloatArray left = buffer.getSamples(0);
+    FloatArray right = buffer.getSamples(2); // channel 3
+    if(isButtonPressed(BUTTON_B)){
+      debugMessage("max/rms/min", left.getMaxValue(), left.getRms(), left.getMinValue());
+      return;
+    }
+    fc.process(left);
+    if(isButtonPressed(BUTTON_C)){
+      float cv = getParameterValue(PARAMETER_A);
+      debugMessage("cv/freq", cv, fc.getFrequency());
+      left.setAll(cv*range1+offset1);
+      right.setAll(cv*range3+offset3);
       return;
     }
     if(tuner.isTuned()){
       if(isButtonPressed(PUSHBUTTON)){
-	int index = getParameterValue(PARAMETER_A)*TUNING_TABLE_SIZE;
-	debugMessage("i/value", (float)index, tuner.getValue(index));
-	setParameterValue(PARAMETER_H, (float)index/TUNING_TABLE_SIZE);
+    	int index = getParameterValue(PARAMETER_A)*TUNING_TABLE_SIZE;
+	float cv = float(index)/TUNING_TABLE_SIZE;
+    	debugMessage("i/value/freq", (float)index, tuner.getValue(index), fc.getFrequency());
+    	setParameterValue(PARAMETER_H, cv);
+	left.setAll(cv*range1+offset1);
+	right.setAll(cv*range3+offset3);
       }else{
-	float note = (int)(getParameterValue(PARAMETER_A)*63) + basenote;
-	float cv = tuner.getNoteCV(note);
-	debugMessage("note/freq/cv", note, tuner.noteToFrequency(note), cv);
-	setParameterValue(PARAMETER_H, cv);
+    	float note = (int)(getParameterValue(PARAMETER_A)*63) + basenote;
+    	float cv = tuner.getNoteCV(note);
+    	debugMessage("note/freq/real", note, tuner.noteToFrequency(note), fc.getFrequency());
+    	setParameterValue(PARAMETER_H, cv);
+	left.setAll(cv*range1+offset1);
+	right.setAll(cv*range3+offset3);
       }
     }else{
       tuner.process(left);
-      fc.process(left);
       float freq = fc.getFrequency();
-      debugMessage("f/sd", freq, fc.getSpread());
-      setParameterValue(PARAMETER_H, tuner.getTuningCV());
+      float cv = tuner.getTuningCV();
+      debugMessage("f/cv/sd", freq, cv, fc.getSpread());
+      setParameterValue(PARAMETER_H, cv);
+      left.setAll(cv*range1+offset1);
+      right.setAll(cv*range3+offset3);
     }
-    // debugMessage("freq/delta/target", freq, delta, target);
-    // debugMessage("target/delta/cv", target, delta, cv);
+    left.clip(-1, 0.99); // SampleBuffer saturate not working
   }
 };
 
