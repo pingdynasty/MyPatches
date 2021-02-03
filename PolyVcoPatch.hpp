@@ -7,6 +7,8 @@
 #include "SmoothValue.h"
 #include "VoltsPerOctave.h"
 
+static constexpr int TUNING_TABLE_SIZE = 1024;
+
 class FrequencyCounter {
 private:
   const float SR;
@@ -15,12 +17,13 @@ private:
   size_t lastCrossing = 0;
   bool positive = false;
   bool done = false;
-  static constexpr int POINTS_AVERAGE = 4;
+  static constexpr int POINTS_AVERAGE = 10;
+  static constexpr int POINTS_DISCARD = 0;
   static constexpr float ZERO_THRESHOLD = 0.025;
   static constexpr float ZERO_OFFSET = -1.00;
 // sync out on Magus audio in: -0.22 to 0.03
 // sync out on Noctua audio in: 0 to 1.99
-  static constexpr float SPREAD_THRESHOLD = 6.0;
+  static constexpr float SPREAD_THRESHOLD = 2.0;
 public:
   FrequencyCounter(float SR) : SR(SR) {
     counts = FloatArray::create(POINTS_AVERAGE); //number of zcc to be averaged
@@ -48,17 +51,20 @@ public:
     lastCrossing -= len;
   }
   float getFrequency(){
-    float mean = counts.subArray(1, counts.getSize()-1).getMean(); // exclude first two measurements
+    // exclude first N measurements
+    FloatArray sub = counts.subArray(POINTS_DISCARD, counts.getSize()-POINTS_DISCARD);
+    float mean = sub.getMean();
     if(mean > 0.0) // avoid divide by zero
       return SR/mean;
     return FLT_EPSILON;
   }
   float getSpread(){
-    return counts.getStandardDeviation();
+    FloatArray sub = counts.subArray(POINTS_DISCARD, counts.getSize()-POINTS_DISCARD);
+    return sub.getStandardDeviation();
   }
   bool complete(){
-    // return done && getSpread() < SPREAD_THRESHOLD;
-    return done;
+    return done && getSpread() < SPREAD_THRESHOLD;
+    // return done;
   }
   void reset(){
     index = 0;
@@ -71,6 +77,7 @@ private:
   FrequencyCounter fc;
   FloatArray table;
   size_t index = 0;
+  uint32_t settle;
 public:
   Tuner(size_t len, float SR) : fc(SR) {
     table = FloatArray::create(len);
@@ -79,19 +86,28 @@ public:
     FloatArray::destroy(table);
   }
   void process(FloatArray input){
-    if(index < table.getSize()){
-      fc.process(input);
-      if(fc.complete()){
-	table[index++] = frequencyToNote(fc.getFrequency());
-	// table[index++] = fc.getFrequency();
-	fc.reset();
+    if(settle){
+      settle--;
+    }else{   
+      if(index < table.getSize()){
+	fc.process(input);
+	if(fc.complete()){
+	  table[index++] = frequencyToNote(fc.getFrequency());
+	  // table[index++] = fc.getFrequency();
+	  fc.reset();
+	  beginSettle();
+	}
       }
     }
   }
   void begin(){
     index = 0;
     fc.reset();
+    beginSettle();
   }
+  void beginSettle(){
+    settle = 2; // settle CV for 2 blocks
+  }    
   bool isTuned(){
     return index == table.getSize();
   }
@@ -118,10 +134,11 @@ public:
       if(high < note){
 	low = high;
       }else{
-	float offset = (note - low)/(high - low);
+	// float offset = (note - low)/(high - low);
+	float offset = (high - note)/(high - low);
 	// debugMessage("l/h/o", low, high, offset);
 	// return float(i)/table.getSize() + offset;
-	return float(i-1+offset)/table.getSize();
+	return float(i-offset)/table.getSize();
 	// return float(i)/table.getSize();
 	// return (i+offset)/table.getSize();
       }
@@ -148,8 +165,6 @@ class PolyVcoPatch : public Patch {
 	TUNE_MODE
   };
   PatchMode mode = INIT_MODE;
-  SmoothFloat freq;
-  static constexpr int TUNING_TABLE_SIZE = 1024;
 public:
   PolyVcoPatch() : fc(getSampleRate()), tuner(TUNING_TABLE_SIZE, getSampleRate()) {
     registerParameter(PARAMETER_A, "CV");
@@ -181,26 +196,25 @@ public:
   }
 
   virtual void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    switch(bid){
-    case PUSHBUTTON:
-    case BUTTON_A:
-      mode = CTRL_MODE;
-      break;
-    case BUTTON_B:
-      mode = INIT_MODE;
-      break;
-    case BUTTON_C:
-      mode = PLAY_MODE;      
-      break;
-    case BUTTON_D:
-      if(value){
-	tuner.begin();
+    if(value){
+      switch(bid){
+      case PUSHBUTTON:
+      case BUTTON_A:
+	mode = CTRL_MODE;
+	break;
+      case BUTTON_B:
+	mode = TUNE_MODE;
+	break;
+      case BUTTON_C:
+	mode = PLAY_MODE;      
+	break;
+      case BUTTON_D:
 	mode = INIT_MODE;
+	break;
       }
-      break;
     }
   }
-
+    
   static constexpr float range1 = -2.00;
   static constexpr float offset1 = 1.00;
   static constexpr float range3 = 1.0;
@@ -209,10 +223,11 @@ public:
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(0);
     FloatArray right = buffer.getSamples(2); // channel 3
-    float cv = 0;
+    float cv;
     fc.process(left);
     switch(mode){
     case INIT_MODE: {
+      tuner.begin();
       mode = TUNE_MODE;
       break;
     }
@@ -237,7 +252,8 @@ public:
     case PLAY_MODE: {
       float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
       cv = tuner.getNoteCV(note);
-      debugMessage("play", note, fc.getFrequency(), tuner.noteToFrequency(note));
+      debugMessage("play", note, cv, tuner.noteToFrequency(note));
+      // debugMessage("play", note, fc.getFrequency(), tuner.noteToFrequency(note));
       break;
     }
     }
