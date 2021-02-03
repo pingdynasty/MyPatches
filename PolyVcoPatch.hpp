@@ -15,7 +15,7 @@ private:
   size_t lastCrossing = 0;
   bool positive = false;
   bool done = false;
-  static constexpr int POINTS_AVERAGE = 10;
+  static constexpr int POINTS_AVERAGE = 4;
   static constexpr float ZERO_THRESHOLD = 0.025;
   static constexpr float ZERO_OFFSET = -1.00;
 // sync out on Magus audio in: -0.22 to 0.03
@@ -48,7 +48,7 @@ public:
     lastCrossing -= len;
   }
   float getFrequency(){
-    float mean = counts.subArray(2, counts.getSize()-2).getMean(); // exclude first two measurements
+    float mean = counts.subArray(1, counts.getSize()-1).getMean(); // exclude first two measurements
     if(mean > 0.0) // avoid divide by zero
       return SR/mean;
     return FLT_EPSILON;
@@ -98,25 +98,27 @@ public:
   float getValue(){
     return getValue(index);
   }
-  float getValue(int index){
+  float getValue(size_t index){
     if(index < table.getSize())
       return table[index];
     return 0.0f;
   }
+  float getFrequencyForCV(float cv){
+    return noteToFrequency(getValue(cv*table.getSize()));
+  }
   float getTuningCV(){
     return float(index) / table.getSize();
   }
-  float getNoteCV(float freq){
-  //   return getFrequencyCV(noteToFrequency(freq));
-  // }
-  // float getFrequencyCV(float freq){
-    float low = 0.0;
-    for(size_t i=0; i<table.getSize(); ++i){
+  float getNoteCV(float note){
+    float low = table[0];
+    if(note < low)
+      return 0;
+    for(size_t i=1; i<table.getSize(); ++i){
       float high = table[i];
-      if(high < freq){
+      if(high < note){
 	low = high;
       }else{
-	float offset = (freq - low)/(high - low);
+	float offset = (note - low)/(high - low);
 	// debugMessage("l/h/o", low, high, offset);
 	// return float(i)/table.getSize() + offset;
 	return float(i-1+offset)/table.getSize();
@@ -124,7 +126,7 @@ public:
 	// return (i+offset)/table.getSize();
       }
     }
-    return 1.0;
+    return 1;
   }
   static float noteToFrequency(float m){
     return 440*exp2f((m-69)/12);
@@ -141,6 +143,7 @@ class PolyVcoPatch : public Patch {
   int basenote = 40;
   enum PatchMode {
 	INIT_MODE,
+	CTRL_MODE,
 	PLAY_MODE,
 	TUNE_MODE
   };
@@ -149,80 +152,98 @@ class PolyVcoPatch : public Patch {
   static constexpr int TUNING_TABLE_SIZE = 1024;
 public:
   PolyVcoPatch() : fc(getSampleRate()), tuner(TUNING_TABLE_SIZE, getSampleRate()) {
-    registerParameter(PARAMETER_A, "Tune");
+    registerParameter(PARAMETER_A, "CV");
     setParameterValue(PARAMETER_A, 0);
+    registerParameter(PARAMETER_B, "Note");
+    setParameterValue(PARAMETER_B, 0);
     registerParameter(PARAMETER_H, "Tune>");
     // debugMessage("PolyVco SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
   }
 
   void processMidi(MidiMessage msg){
     switch (msg.getStatus()) {
-    case 0x80:
-    case 0x90:
+    case NOTE_ON:
+    case NOTE_OFF:
       basenote = msg.getNote();
+      break;
+    case CONTROL_CHANGE:
+      // todo: this should not be necessary
+      switch(msg.getControllerNumber()){
+	case 27: // PATCH_BUTTON_ON
+	buttonChanged((PatchButtonId)msg.getControllerValue(), 127, 0);
+	break;
+      case 28: // PATCH_BUTTON_OFF
+	buttonChanged((PatchButtonId)msg.getControllerValue(), 0, 0);
+	break;
+      }
       break;
     }
   }
 
-  int counter = 0;
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+  virtual void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
     case PUSHBUTTON:
     case BUTTON_A:
+      mode = CTRL_MODE;
+      break;
+    case BUTTON_B:
+      mode = INIT_MODE;
+      break;
+    case BUTTON_C:
+      mode = PLAY_MODE;      
+      break;
+    case BUTTON_D:
       if(value){
-	counter = 0;
 	tuner.begin();
+	mode = INIT_MODE;
       }
       break;
     }
   }
 
   static constexpr float range1 = -2.00;
-  static constexpr float offset1 = 0.99;
-  static constexpr float range3 = 0.8;
-  static constexpr float offset3 = -0.5;
+  static constexpr float offset1 = 1.00;
+  static constexpr float range3 = 1.0;
+  static constexpr float offset3 = 0.0;
   
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(0);
     FloatArray right = buffer.getSamples(2); // channel 3
-    if(isButtonPressed(BUTTON_B)){
-      debugMessage("max/rms/min", left.getMaxValue(), left.getRms(), left.getMinValue());
-      return;
-    }
+    float cv = 0;
     fc.process(left);
-    if(isButtonPressed(BUTTON_C)){
-      float cv = getParameterValue(PARAMETER_A);
-      debugMessage("cv/freq", cv, fc.getFrequency());
-      left.setAll(cv*range1+offset1);
-      right.setAll(cv*range3+offset3);
-      return;
+    switch(mode){
+    case INIT_MODE: {
+      mode = TUNE_MODE;
+      break;
     }
-    if(tuner.isTuned()){
-      if(isButtonPressed(PUSHBUTTON)){
-    	int index = getParameterValue(PARAMETER_A)*TUNING_TABLE_SIZE;
-	float cv = float(index)/TUNING_TABLE_SIZE;
-    	debugMessage("i/value/freq", (float)index, tuner.getValue(index), fc.getFrequency());
-    	setParameterValue(PARAMETER_H, cv);
-	left.setAll(cv*range1+offset1);
-	right.setAll(cv*range3+offset3);
+    case CTRL_MODE: {
+      cv = getParameterValue(PARAMETER_A);
+      debugMessage("ctrl", cv, fc.getFrequency(), tuner.getFrequencyForCV(cv));
+      break;
+    }
+    case TUNE_MODE: {
+      if(tuner.isTuned()){
+	cv = getParameterValue(PARAMETER_A);
+	debugMessage("tuned", cv, fc.getFrequency(), tuner.getFrequencyForCV(cv));
       }else{
-    	float note = (int)(getParameterValue(PARAMETER_A)*63) + basenote;
-    	float cv = tuner.getNoteCV(note);
-    	debugMessage("note/freq/real", note, tuner.noteToFrequency(note), fc.getFrequency());
-    	setParameterValue(PARAMETER_H, cv);
-	left.setAll(cv*range1+offset1);
-	right.setAll(cv*range3+offset3);
+	tuner.process(left);
+	cv = tuner.getTuningCV();
+	debugMessage("tuning", cv, fc.getFrequency(), fc.getSpread());
+	if(tuner.isTuned()) // just finished
+	  mode = PLAY_MODE;
       }
-    }else{
-      tuner.process(left);
-      float freq = fc.getFrequency();
-      float cv = tuner.getTuningCV();
-      debugMessage("f/cv/sd", freq, cv, fc.getSpread());
-      setParameterValue(PARAMETER_H, cv);
-      left.setAll(cv*range1+offset1);
-      right.setAll(cv*range3+offset3);
+      break;
     }
-    left.clip(-1, 0.99); // SampleBuffer saturate not working
+    case PLAY_MODE: {
+      float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
+      cv = tuner.getNoteCV(note);
+      debugMessage("play", note, fc.getFrequency(), tuner.noteToFrequency(note));
+      break;
+    }
+    }
+    setParameterValue(PARAMETER_H, cv);
+    left.setAll(cv*range1+offset1);
+    right.setAll(cv*range3+offset3);
   }
 };
 
