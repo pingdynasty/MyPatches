@@ -2,28 +2,57 @@
 #define __PolyVcoPatch_h__
 
 #include <cfloat>
-#include "Patch.h"
-#include "PitchDetector.h"
-#include "SmoothValue.h"
-#include "VoltsPerOctave.h"
+#include "basicmaths.h"
 
-static constexpr int TUNING_TABLE_SIZE = 1024;
+#undef min
+#undef max
+#undef sinf
+#undef cosf
+#undef expf
+#undef sqrtf
+#undef powf
+#undef logf
+#undef log10f
+
+#include "Patch.h"
+
+static constexpr int TUNING_TABLE_SIZE = 1000;
+static constexpr int CV_SETTLE_BLOCKS = 2;
+
+static constexpr float FREQ_LOW = 19.32;
+static constexpr float FREQ_HIGH = 15600;
+
+static constexpr int POINTS_AVERAGE = 10;
+static constexpr int POINTS_DISCARD = 0;
+// static constexpr float POS_THRESHOLD = 0.1;
+// static constexpr float NEG_THRESHOLD = -0.1;
+static constexpr float POS_THRESHOLD = 1.0;
+static constexpr float NEG_THRESHOLD = 0.9;
+// sync out on Magus audio in: -0.22 to 0.03
+// sync out on Noctua audio in: 0 to 1.99
+static constexpr float SPREAD_THRESHOLD = 0.0;
+
+static constexpr float range1 = -2.00;
+static constexpr float offset1 = 1.00;
+static constexpr float range3 = 0.5;
+static constexpr float offset3 = 0.0;
+
+static float noteToFrequency(float m){
+  return 440*exp2f((m-69)/12);
+}
+static float frequencyToNote(float f){
+  return 12*log2f(f/440.0)+69;
+}
 
 class FrequencyCounter {
 private:
   const float SR;
   FloatArray counts;
   size_t index = 0;
-  size_t lastCrossing = 0;
+  float lastCrossing = 0;
+  float lastSample = 0;
   bool positive = false;
   bool done = false;
-  static constexpr int POINTS_AVERAGE = 10;
-  static constexpr int POINTS_DISCARD = 0;
-  static constexpr float ZERO_THRESHOLD = 0.025;
-  static constexpr float ZERO_OFFSET = -1.00;
-// sync out on Magus audio in: -0.22 to 0.03
-// sync out on Noctua audio in: 0 to 1.99
-  static constexpr float SPREAD_THRESHOLD = 2.0;
 public:
   FrequencyCounter(float SR) : SR(SR) {
     counts = FloatArray::create(POINTS_AVERAGE); //number of zcc to be averaged
@@ -35,18 +64,20 @@ public:
   void process(FloatArray input){
     size_t len = input.getSize();
     for(size_t i=0; i<len; i++){
-      float sample = input[i] + ZERO_OFFSET;
-      if(positive && (sample < -ZERO_THRESHOLD)){
-	counts[index++] = i - lastCrossing;
+      float sample = input[i];
+      if(positive && (sample < NEG_THRESHOLD)){
+	positive = false;
+      }else if(!positive && (sample > POS_THRESHOLD)){
+	positive = true;
+	float offset = (sample - POS_THRESHOLD)/(sample - lastSample); // linear interpolation
+	counts[index++] = i - offset - lastCrossing;
         if(index == counts.getSize()){
 	  index = 0;
 	  done = true;
 	}
-	lastCrossing = i;
-	positive = false;
-      }else if(!positive && (sample > ZERO_THRESHOLD)){
-	positive = true;	
+	lastCrossing = i - offset;
       }
+      lastSample = sample;
     }
     lastCrossing -= len;
   }
@@ -63,8 +94,10 @@ public:
     return sub.getStandardDeviation();
   }
   bool complete(){
-    return done && getSpread() < SPREAD_THRESHOLD;
-    // return done;
+    if(SPREAD_THRESHOLD > 0)
+      return done && getSpread() < SPREAD_THRESHOLD;
+    else
+      return done;
   }
   void reset(){
     index = 0;
@@ -95,7 +128,7 @@ public:
 	  table[index++] = frequencyToNote(fc.getFrequency());
 	  // table[index++] = fc.getFrequency();
 	  fc.reset();
-	  beginSettle();
+	  beginSettle(); // incrementing index will produce a new CV which requires two blocks to settle
 	}
       }
     }
@@ -106,7 +139,7 @@ public:
     beginSettle();
   }
   void beginSettle(){
-    settle = 2; // settle CV for 2 blocks
+    settle = CV_SETTLE_BLOCKS; // settle CV for some blocks
   }    
   bool isTuned(){
     return index == table.getSize();
@@ -117,10 +150,19 @@ public:
   float getValue(size_t index){
     if(index < table.getSize())
       return table[index];
-    return 0.0f;
+    return 127;
+  }
+  float getNoteForCV(float cv){
+    if(cv < 0)
+      return 0;
+    float idx = cv*table.getSize();
+    float fraction = idx-(int)idx;
+    float low = getValue(floor(idx));
+    float high = getValue(ceil(idx));
+    return low+(high-low)*fraction;
   }
   float getFrequencyForCV(float cv){
-    return noteToFrequency(getValue(cv*table.getSize()));
+    return noteToFrequency(getNoteForCV(cv));
   }
   float getTuningCV(){
     return float(index) / table.getSize();
@@ -131,25 +173,19 @@ public:
       return 0;
     for(size_t i=1; i<table.getSize(); ++i){
       float high = table[i];
-      if(high < note){
-	low = high;
-      }else{
-	// float offset = (note - low)/(high - low);
+      if(high > note){
 	float offset = (high - note)/(high - low);
-	// debugMessage("l/h/o", low, high, offset);
-	// return float(i)/table.getSize() + offset;
-	return float(i-offset)/table.getSize();
-	// return float(i)/table.getSize();
-	// return (i+offset)/table.getSize();
+	// debugMessage("lo/hi/note", low, high, note);
+	// debugMessage("lo/hi/offset", low, high, offset);
+	float cv = float(i-offset)/table.getSize();
+	// debugMessage("cv/note/target", cv, getNoteForCV(cv), note);
+	// debugMessage("cv/freq/target", cv, getFrequencyForCV(cv), noteToFrequency(note));
+	return cv;
+      }else{
+	low = high;
       }
     }
     return 1;
-  }
-  static float noteToFrequency(float m){
-    return 440*exp2f((m-69)/12);
-  }
-  static float frequencyToNote(float f){
-    return 12*log2f(f/440.0)+69;
   }
 };
 
@@ -162,7 +198,8 @@ class PolyVcoPatch : public Patch {
 	INIT_MODE,
 	CTRL_MODE,
 	PLAY_MODE,
-	TUNE_MODE
+	TUNE_MODE,
+	LINEAR_MODE
   };
   PatchMode mode = INIT_MODE;
 public:
@@ -209,16 +246,16 @@ public:
 	mode = PLAY_MODE;      
 	break;
       case BUTTON_D:
+	mode = LINEAR_MODE;
+	break;
+      case BUTTON_E:
 	mode = INIT_MODE;
+	break;
+      default:
 	break;
       }
     }
   }
-    
-  static constexpr float range1 = -2.00;
-  static constexpr float offset1 = 1.00;
-  static constexpr float range3 = 1.0;
-  static constexpr float offset3 = 0.0;
   
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(0);
@@ -249,17 +286,25 @@ public:
       }
       break;
     }
-    case PLAY_MODE: {
+    case PLAY_MODE: {      
       float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
       cv = tuner.getNoteCV(note);
-      debugMessage("play", note, cv, tuner.noteToFrequency(note));
-      // debugMessage("play", note, fc.getFrequency(), tuner.noteToFrequency(note));
+      debugMessage("play", note, cv, noteToFrequency(note));
+      // debugMessage("play", note, fc.getFrequency(), noteToFrequency(note));
       break;
     }
+    case LINEAR_MODE: {
+      float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
+      // cv = tuner.getNoteCV(note);
+      float low = frequencyToNote(FREQ_LOW)+0.06;
+      float high = frequencyToNote(FREQ_HIGH)+0.92;
+      cv = (note-low)/(high-low);
+      debugMessage("cv/meas/target", cv, frequencyToNote(fc.getFrequency()), note);
+    }      
     }
-    setParameterValue(PARAMETER_H, cv);
     left.setAll(cv*range1+offset1);
     right.setAll(cv*range3+offset3);
+    setParameterValue(PARAMETER_H, cv);
   }
 };
 
