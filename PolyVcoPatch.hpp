@@ -18,12 +18,13 @@
 #undef exp10f
 
 #include "Patch.h"
+#include "MonoVoiceAllocator.hpp"
 
-static constexpr int TUNING_TABLE_SIZE = 1024;
-static constexpr int CV_SETTLE_BLOCKS = 2;
+static constexpr int TUNING_TABLE_SIZE = 128;
+static constexpr int CV_SETTLE_BLOCKS = 1;
 
-static constexpr int POINTS_AVERAGE = 10;
-static constexpr int POINTS_DISCARD = 2;
+static constexpr int POINTS_AVERAGE = 3;
+static constexpr int POINTS_DISCARD = 0;
 static constexpr float POS_THRESHOLD = 0.1;
 static constexpr float NEG_THRESHOLD = -0.1;
 // static constexpr float POS_THRESHOLD = 1.0;
@@ -37,16 +38,11 @@ static constexpr float offset1 = 1.00;
 
 static constexpr float CH1_MIN = 1; // inverted range
 static constexpr float CH1_MAX = -1;
-static constexpr float CH2_MIN = -0.2;
+static constexpr float CH2_MIN = -0.1;
 static constexpr float CH2_MAX = 0.9;
 
 // static constexpr size_t MAX_PERIOD_SAMPLES = 6000; // 8 Hz
 static constexpr size_t MAX_PERIOD_SAMPLES = 2400; // 20 Hz
-
-// float FREQ_LOW = 104.88;
-// float FREQ_HIGH = 2981.50;
-float FREQ_LOW = 19.38;
-float FREQ_HIGH = 15482;
 
 static float noteToFrequency(float note){
   return 440.0f*exp2f((note-69.0f)/12.0f);
@@ -67,7 +63,7 @@ private:
   bool done = false;
 public:
   FrequencyCounter(float SR) : SR(SR) {
-    counts = FloatArray::create(POINTS_AVERAGE); //number of zcc to be averaged
+    counts = FloatArray::create(POINTS_AVERAGE+POINTS_DISCARD); //number of zcc to be averaged
     reset();
   }
   ~FrequencyCounter() {
@@ -213,10 +209,10 @@ public:
 };
 
 class PolyVcoPatch : public Patch {
+  MonoVoiceAllocator allocator;
   FrequencyCounter fc;
   Tuner tuner;
   SmoothFloat cv;
-  int basenote = 40;
   enum PatchMode {
 	INIT_MODE,
 	CTRL_MODE,
@@ -236,28 +232,29 @@ public:
   }
   
   float getLinearCVForNote(float note){
-    // cv = tuner.getNoteCV(note);
-    // float low = frequencyToNote(FREQ_LOW)+0.06;
-    // float high = frequencyToNote(FREQ_HIGH)+0.92;
+    float FREQ_LOW = 20;
+    float FREQ_HIGH = 20000;
+    if(tuner.isTuned()){
+      FREQ_LOW = tuner.getLowestFrequency();
+      FREQ_HIGH = tuner.getHighestFrequency();
+    }
     float low = frequencyToNote(FREQ_LOW);
     float high = frequencyToNote(FREQ_HIGH);
     return (note-low)/(high-low);
   }
 
   void processMidi(MidiMessage msg){
+    allocator.processMidi(msg);
     switch (msg.getStatus()) {
-    case NOTE_ON:
-      basenote = msg.getNote();
-      break;
     case CONTROL_CHANGE:
       // todo: this should not be necessary
       switch(msg.getControllerNumber()){
-	case 27: // PATCH_BUTTON_ON
-	buttonChanged((PatchButtonId)msg.getControllerValue(), 127, 0);
-	break;
+    	case 27: // PATCH_BUTTON_ON
+    	buttonChanged((PatchButtonId)msg.getControllerValue(), 127, 0);
+    	break;
       case 28: // PATCH_BUTTON_OFF
-	buttonChanged((PatchButtonId)msg.getControllerValue(), 0, 0);
-	break;
+    	buttonChanged((PatchButtonId)msg.getControllerValue(), 0, 0);
+    	break;
       }
       break;
     }
@@ -266,7 +263,7 @@ public:
   virtual void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(value){
       switch(bid){
-      case PUSHBUTTON:
+      // case PUSHBUTTON:
       case BUTTON_A:
 	mode = CTRL_MODE;
 	break;
@@ -295,46 +292,51 @@ public:
     fc.process(left);
     switch(mode){
     case INIT_MODE: {
+      setButton(PUSHBUTTON, false);
       tuner.begin();
       mode = TUNE_MODE;
       break;
     }
     case CTRL_MODE: {
+      setButton(PUSHBUTTON, true);
       cv = getParameterValue(PARAMETER_A);
       debugMessage("ctrl", cv, fc.getFrequency(), tuner.getFrequencyForCV(cv));
       break;
     }
     case TUNE_MODE: {
       if(tuner.isTuned()){
+	setButton(PUSHBUTTON, false);
 	cv = getParameterValue(PARAMETER_A);
 	debugMessage("tuned", cv, fc.getFrequency(), tuner.getFrequencyForCV(cv));
       }else{
+	setButton(PUSHBUTTON, true);
 	tuner.process(left);
 	cv = tuner.getTuningCV();
 	debugMessage("tuning", cv, fc.getFrequency(), fc.getSpread());
 	if(tuner.isTuned()){
 	  // just finished
 	  mode = PLAY_MODE;
-	  FREQ_LOW = tuner.getLowestFrequency();
-	  FREQ_HIGH = tuner.getHighestFrequency();
 	}
       }
       break;
     }
     case PLAY_MODE: {      
-      float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
+      float note = (int)(getParameterValue(PARAMETER_B)*63) + allocator.getNote();
       cv = tuner.getNoteCV(note);
       // debugMessage("play", note, fc.getFrequency(), noteToFrequency(note));
       float measured = frequencyToNote(fc.getFrequency());
       debugMessage("play", note, measured, (measured-note)*100);
+      setButton(PUSHBUTTON, allocator.getGate());
       break;
     }
     case LINEAR_MODE: {
-      float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
+      float note = (int)(getParameterValue(PARAMETER_B)*63) + allocator.getNote();
       cv = getLinearCVForNote(note);
       // debugMessage("lerp", note, fc.getFrequency(), noteToFrequency(note));
       float measured = frequencyToNote(fc.getFrequency());
       debugMessage("lerp", note, measured, (measured-note)*100);
+      setButton(PUSHBUTTON, allocator.getGate());
+      break;
     }
     }
     // left.setAll(cv*range1+offset1);
