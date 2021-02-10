@@ -8,40 +8,52 @@
 #undef max
 #undef sinf
 #undef cosf
-#undef expf
 #undef sqrtf
 #undef powf
 #undef logf
+#undef log2f
 #undef log10f
+#undef expf
+#undef exp2f
+#undef exp10f
 
 #include "Patch.h"
 
-static constexpr int TUNING_TABLE_SIZE = 1000;
+static constexpr int TUNING_TABLE_SIZE = 1024;
 static constexpr int CV_SETTLE_BLOCKS = 2;
 
-static constexpr float FREQ_LOW = 19.32;
-static constexpr float FREQ_HIGH = 15600;
-
 static constexpr int POINTS_AVERAGE = 10;
-static constexpr int POINTS_DISCARD = 0;
-// static constexpr float POS_THRESHOLD = 0.1;
-// static constexpr float NEG_THRESHOLD = -0.1;
-static constexpr float POS_THRESHOLD = 1.0;
-static constexpr float NEG_THRESHOLD = 0.9;
+static constexpr int POINTS_DISCARD = 2;
+static constexpr float POS_THRESHOLD = 0.1;
+static constexpr float NEG_THRESHOLD = -0.1;
+// static constexpr float POS_THRESHOLD = 1.0;
+// static constexpr float NEG_THRESHOLD = 0.9;
 // sync out on Magus audio in: -0.22 to 0.03
 // sync out on Noctua audio in: 0 to 1.99
-static constexpr float SPREAD_THRESHOLD = 0.0;
+static constexpr float SPREAD_THRESHOLD = 0;
 
 static constexpr float range1 = -2.00;
 static constexpr float offset1 = 1.00;
-static constexpr float range3 = 0.5;
-static constexpr float offset3 = 0.0;
 
-static float noteToFrequency(float m){
-  return 440*exp2f((m-69)/12);
+static constexpr float CH1_MIN = 1; // inverted range
+static constexpr float CH1_MAX = -1;
+static constexpr float CH2_MIN = -0.2;
+static constexpr float CH2_MAX = 0.9;
+
+// static constexpr size_t MAX_PERIOD_SAMPLES = 6000; // 8 Hz
+static constexpr size_t MAX_PERIOD_SAMPLES = 2400; // 20 Hz
+
+// float FREQ_LOW = 104.88;
+// float FREQ_HIGH = 2981.50;
+float FREQ_LOW = 19.38;
+float FREQ_HIGH = 15482;
+
+static float noteToFrequency(float note){
+  return 440.0f*exp2f((note-69.0f)/12.0f);
 }
-static float frequencyToNote(float f){
-  return 12*log2f(f/440.0)+69;
+
+static float frequencyToNote(float freq){
+  return 12.0f*log2f(freq/440.0f)+69.0f;
 }
 
 class FrequencyCounter {
@@ -80,6 +92,10 @@ public:
       lastSample = sample;
     }
     lastCrossing -= len;
+    if(-lastCrossing > MAX_PERIOD_SAMPLES){
+      reset(); // set all counts to zero
+      done = true;
+    }      
   }
   float getFrequency(){
     // exclude first N measurements
@@ -100,6 +116,7 @@ public:
       return done;
   }
   void reset(){
+    counts.clear();
     index = 0;
     done = false;
   }
@@ -118,10 +135,16 @@ public:
   ~Tuner(){
     FloatArray::destroy(table);
   }
+  float getLowestFrequency(){
+    return noteToFrequency(table.getMinValue());
+  }
+  float getHighestFrequency(){
+    return noteToFrequency(table.getMaxValue());
+  }
   void process(FloatArray input){
     if(settle){
       settle--;
-    }else{   
+    }else{
       if(index < table.getSize()){
 	fc.process(input);
 	if(fc.complete()){
@@ -211,11 +234,19 @@ public:
     registerParameter(PARAMETER_H, "Tune>");
     // debugMessage("PolyVco SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
   }
+  
+  float getLinearCVForNote(float note){
+    // cv = tuner.getNoteCV(note);
+    // float low = frequencyToNote(FREQ_LOW)+0.06;
+    // float high = frequencyToNote(FREQ_HIGH)+0.92;
+    float low = frequencyToNote(FREQ_LOW);
+    float high = frequencyToNote(FREQ_HIGH);
+    return (note-low)/(high-low);
+  }
 
   void processMidi(MidiMessage msg){
     switch (msg.getStatus()) {
     case NOTE_ON:
-    case NOTE_OFF:
       basenote = msg.getNote();
       break;
     case CONTROL_CHANGE:
@@ -256,10 +287,10 @@ public:
       }
     }
   }
-  
+
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(0);
-    FloatArray right = buffer.getSamples(2); // channel 3
+    FloatArray right = buffer.getSamples(2); // channel 3 on Noctua
     float cv;
     fc.process(left);
     switch(mode){
@@ -281,29 +312,34 @@ public:
 	tuner.process(left);
 	cv = tuner.getTuningCV();
 	debugMessage("tuning", cv, fc.getFrequency(), fc.getSpread());
-	if(tuner.isTuned()) // just finished
+	if(tuner.isTuned()){
+	  // just finished
 	  mode = PLAY_MODE;
+	  FREQ_LOW = tuner.getLowestFrequency();
+	  FREQ_HIGH = tuner.getHighestFrequency();
+	}
       }
       break;
     }
     case PLAY_MODE: {      
       float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
       cv = tuner.getNoteCV(note);
-      debugMessage("play", note, cv, noteToFrequency(note));
       // debugMessage("play", note, fc.getFrequency(), noteToFrequency(note));
+      float measured = frequencyToNote(fc.getFrequency());
+      debugMessage("play", note, measured, (measured-note)*100);
       break;
     }
     case LINEAR_MODE: {
       float note = (int)(getParameterValue(PARAMETER_B)*63) + basenote;
-      // cv = tuner.getNoteCV(note);
-      float low = frequencyToNote(FREQ_LOW)+0.06;
-      float high = frequencyToNote(FREQ_HIGH)+0.92;
-      cv = (note-low)/(high-low);
-      debugMessage("cv/meas/target", cv, frequencyToNote(fc.getFrequency()), note);
-    }      
+      cv = getLinearCVForNote(note);
+      // debugMessage("lerp", note, fc.getFrequency(), noteToFrequency(note));
+      float measured = frequencyToNote(fc.getFrequency());
+      debugMessage("lerp", note, measured, (measured-note)*100);
     }
-    left.setAll(cv*range1+offset1);
-    right.setAll(cv*range3+offset3);
+    }
+    // left.setAll(cv*range1+offset1);
+    // left.setAll(cv*(CH1_MAX-CH1_MIN)+CH1_MIN);
+    right.setAll(cv*(CH2_MAX-CH2_MIN)+CH2_MIN);
     setParameterValue(PARAMETER_H, cv);
   }
 };
