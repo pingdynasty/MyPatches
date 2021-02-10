@@ -20,11 +20,11 @@
 #include "Patch.h"
 #include "MonoVoiceAllocator.hpp"
 
-static constexpr int TUNING_TABLE_SIZE = 128;
-static constexpr int CV_SETTLE_BLOCKS = 1;
+static constexpr int TUNING_TABLE_SIZE = 1024;
+static constexpr int CV_SETTLE_BLOCKS = 2;
 
 static constexpr int POINTS_AVERAGE = 3;
-static constexpr int POINTS_DISCARD = 0;
+static constexpr int POINTS_DISCARD = 2;
 static constexpr float POS_THRESHOLD = 0.1;
 static constexpr float NEG_THRESHOLD = -0.1;
 // static constexpr float POS_THRESHOLD = 1.0;
@@ -32,9 +32,6 @@ static constexpr float NEG_THRESHOLD = -0.1;
 // sync out on Magus audio in: -0.22 to 0.03
 // sync out on Noctua audio in: 0 to 1.99
 static constexpr float SPREAD_THRESHOLD = 0;
-
-static constexpr float range1 = -2.00;
-static constexpr float offset1 = 1.00;
 
 static constexpr float CH1_MIN = 1; // inverted range
 static constexpr float CH1_MAX = -1;
@@ -315,6 +312,7 @@ public:
 	debugMessage("tuning", cv, fc.getFrequency(), fc.getSpread());
 	if(tuner.isTuned()){
 	  // just finished
+	  debugMessage("TUNED!");
 	  mode = PLAY_MODE;
 	}
       }
@@ -325,7 +323,8 @@ public:
       cv = tuner.getNoteCV(note);
       // debugMessage("play", note, fc.getFrequency(), noteToFrequency(note));
       float measured = frequencyToNote(fc.getFrequency());
-      debugMessage("play", note, measured, (measured-note)*100);
+      if(allocator.getGate())
+	debugMessage("play", note, measured, (measured-note)*100);
       setButton(PUSHBUTTON, allocator.getGate());
       break;
     }
@@ -334,12 +333,12 @@ public:
       cv = getLinearCVForNote(note);
       // debugMessage("lerp", note, fc.getFrequency(), noteToFrequency(note));
       float measured = frequencyToNote(fc.getFrequency());
-      debugMessage("lerp", note, measured, (measured-note)*100);
+      if(allocator.getGate())
+	debugMessage("lerp", note, measured, (measured-note)*100);
       setButton(PUSHBUTTON, allocator.getGate());
       break;
     }
     }
-    // left.setAll(cv*range1+offset1);
     // left.setAll(cv*(CH1_MAX-CH1_MIN)+CH1_MIN);
     right.setAll(cv*(CH2_MAX-CH2_MIN)+CH2_MIN);
     setParameterValue(PARAMETER_H, cv);
