@@ -3,7 +3,7 @@
 
 #include "wasm3.h"
 #include "m3_env.h"
-#include "extra/fib32_tail.wasm.h"
+#include "fib32_tail.wasm.h"
 
 #include "Patch.h"
 
