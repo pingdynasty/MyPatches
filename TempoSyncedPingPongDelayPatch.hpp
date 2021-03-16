@@ -38,7 +38,7 @@ DESCRIPTION:
 */
 
 #include "Patch.h"
-#include "DcFilter.hpp"
+#include "DcBlockingFilter.h"
 #include "BiquadFilter.h"
 #include "CircularBuffer.hpp"
 #include "TapTempo.hpp"
@@ -74,7 +74,7 @@ private:
   CircularBuffer* delayBufferR;
   int delayL, delayR, ratio;
   TapTempo<TRIGGER_LIMIT> tempo;
-  StereoDcFilter dc;
+  StereoDcBlockingFilter dc;
   StereoBiquadFilter* lowpass;
   RampOscillator* lfo1;
   SineOscillator* lfo2;
@@ -92,8 +92,8 @@ public:
     registerParameter(PARAMETER_G, "LFO Ramp>");
     delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
     delayBufferR = CircularBuffer::create(TRIGGER_LIMIT*2);
-    lowpass = StereoBiquadFilter::create(1);
-    lowpass->setLowPass(18000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    lowpass = StereoBiquadFilter::create(getSampleRate(), 1);
+    lowpass->setLowPass(18000, FilterStage::BUTTERWORTH_Q);
     lfo1 = RampOscillator::create(getSampleRate()/getBlockSize());    
     lfo2 = SineOscillator::create(getSampleRate()/getBlockSize());    
   }
@@ -146,7 +146,7 @@ public:
     float dry = 1.0-wet;
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    dc.process(buffer); // remove DC offset
+    dc.process(buffer, buffer); // remove DC offset
     for(int n=0; n<size; n++){
       float x1 = n/(float)size;
       float x0 = 1.0-x1;
@@ -158,7 +158,7 @@ public:
       left[n] = ldly*wet + left[n]*dry;
       right[n] = rdly*wet + right[n]*dry;
     }
-    lowpass->process(buffer);
+    lowpass->process(buffer, buffer);
     left.tanh();
     right.tanh();
     delayL = newDelayL;
@@ -167,8 +167,8 @@ public:
     float lfoFreq = getSampleRate()/(time*TRIGGER_LIMIT);
     lfo1->setFrequency(lfoFreq);
     lfo2->setFrequency(lfoFreq);
-    setParameterValue(PARAMETER_F, lfo1->getNextSample());
-    setParameterValue(PARAMETER_G, lfo2->getNextSample()*0.5+0.5);
+    setParameterValue(PARAMETER_F, lfo1->generate()*0.5+0.5);
+    setParameterValue(PARAMETER_G, lfo2->generate()*0.5+0.5);
     setButton(PUSHBUTTON, lfo1->getPhase() < 0.5);
   }
 };
