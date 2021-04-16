@@ -2,8 +2,7 @@
 #define __VosimPatch_hpp__
 
 #include "StompBox.h"
-#include "Oscillators.hpp"
-#include "PolyBlepOscillator.h"
+#include "SineOscillator.h"
 #include "VoltsPerOctave.h"
 
 class VosimOscillator : public Oscillator {
@@ -22,15 +21,39 @@ public:
   void reset(){
     phase = 0.0f;
   }
-  float getNextSample(){
+  void setPhase(float ph){
+    phase = 1-ph/(2*M_PI);
+  }
+  float getPhase(){
+    return (1-phase)*2*M_PI;
+  }
+  void setFormant1(float frequency){
+    formant1->setFrequency(frequency);
+  }
+  void setFormant2(float frequency){
+    formant2->setFrequency(frequency);
+  }
+  using Oscillator::generate;
+  float generate(float fm){
+    phase -= incr+fm;
+    if(phase <= 0.0){
+      phase += 1.0;
+      formant1->reset();
+      formant2->reset();
+    }
+    float s1 = formant1->generate();
+    float s2 = formant2->generate();
+    return (s1*s1 + s2*s2)*phase*0.5;
+  }
+  float generate(){
     phase -= incr;
     if(phase <= 0.0){
       phase += 1.0;
       formant1->reset();
       formant2->reset();
     }
-    float s1 = formant1->getNextSample();
-    float s2 = formant2->getNextSample();
+    float s1 = formant1->generate();
+    float s2 = formant2->generate();
     return (s1*s1 + s2*s2)*phase*0.5;
   }
 };
@@ -62,9 +85,9 @@ public:
     osc->setFrequency(lfreq);
     hz.setTune(f1);
     float rfreq = hz.getFrequency(right[0]);
-    sine1->setFrequency(rfreq);
-    sine2->setFrequency(rfreq*f2);
-    osc->getSamples(left);
+    osc->setFormant1(rfreq);
+    osc->setFormant2(rfreq*f2);
+    osc->generate(left);
     left.multiply(gain);
     right.copyFrom(left);
   }
