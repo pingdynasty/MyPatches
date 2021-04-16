@@ -56,6 +56,16 @@ public:
     float s2 = formant2->generate();
     return (s1*s1 + s2*s2)*phase*0.5;
   }
+  static VosimOscillator* create(float sr){
+    SineOscillator* f1 = SineOscillator::create(sr);
+    SineOscillator* f2 = SineOscillator::create(sr);
+    return new VosimOscillator(sr, f1, f2);
+  }
+  static void destroy(VosimOscillator* obj){
+    SineOscillator::destroy(obj->formant1);
+    SineOscillator::destroy(obj->formant2);
+    delete obj;
+  }
 };
 
 class VosimPatch : public Patch {
@@ -65,13 +75,14 @@ class VosimPatch : public Patch {
   VoltsPerOctave hz;
 public:
   VosimPatch(){
-    sine1 = new SineOscillator(getSampleRate());
-    sine2 = new SineOscillator(getSampleRate());
-    osc = new VosimOscillator(getSampleRate(), sine1, sine2);
+    osc = VosimOscillator::create(getSampleRate());
     registerParameter(PARAMETER_A, "Fundamental");
     registerParameter(PARAMETER_B, "Formant");
     registerParameter(PARAMETER_C, "Detune");
     registerParameter(PARAMETER_D, "Gain");
+  }
+  ~VosimPatch(){
+    VosimOscillator::destroy(osc);
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
