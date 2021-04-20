@@ -5,7 +5,7 @@
 #include "OpenWareLibrary.h"
 
 // #define USE_SVF
-#define VOICES 3
+#define VOICES 2
 
 /**
  * Triple tone generator that produces a triad chord that tracks the frequency of the input audio signal.
@@ -19,9 +19,11 @@
 #if VOICES == 1
 #define GAINFACTOR 0.5
 #elif VOICES == 2
-#define GAINFACTOR 0.7
+#define GAINFACTOR 0.3
+#elif VOICES == 3
+#define GAINFACTOR 0.3
 #elif VOICES == 4
-#define GAINFACTOR 0.6
+#define GAINFACTOR 0.2
 #endif
 
 static const float TRIAD_SEMITONES[TRIADS][5] = {
@@ -156,6 +158,9 @@ public:
     case 5:
       setFilter(fc, value*2+0.1);
       break;
+    case 6:
+      setSub(value*2);
+      break;
     }
   }
   static ChordSignalGenerator* create(size_t blocksize, float sr){
@@ -176,6 +181,7 @@ typedef PolyphonicSignalGenerator<ChordSignalGenerator, VOICES> ChordVoices;
 class ChorduroyPatch : public Patch {
 private:
   ChordVoices* voices;
+  int basenote = 60;
 public:
   ChorduroyPatch(){
     voices = ChordVoices::create(getBlockSize());
@@ -211,20 +217,20 @@ public:
       switch(bid){
       case PUSHBUTTON:
       case BUTTON_A:
-	voices->getVoice(0)->setChord(0);
-	voices->getVoice(0)->noteOn(MidiMessage::note(0, 60, 100));
+	voices->setParameter(1, 0);
+	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_B:
-	voices->getVoice(0)->setChord(1);
-	voices->getVoice(0)->trigger();
+	voices->setParameter(1, 1);
+	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_C:
-	voices->getVoice(0)->setChord(2);
-	voices->getVoice(0)->trigger();
+	voices->setParameter(1, 2);
+	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_D:      
-	voices->getVoice(0)->setChord(3);
-	voices->getVoice(0)->trigger();
+	voices->setParameter(1, 3);
+	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       }
     }
@@ -233,11 +239,11 @@ public:
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-
+    basenote = getParameterValue(PARAMETER_A)*12*5+20;    
     voices->setParameter(4, getParameterValue(PARAMETER_B));
     voices->setParameter(5, getParameterValue(PARAMETER_C));
     voices->setParameter(2, getParameterValue(PARAMETER_D));
-    voices->setParameter(3, getParameterValue(PARAMETER_E));
+    voices->setParameter(6, getParameterValue(PARAMETER_E));
 
     voices->generate(left);
     left.tanh();
