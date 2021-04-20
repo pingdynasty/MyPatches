@@ -140,21 +140,21 @@ public:
     float* wave01 = waves->getWave(xi+1, yi, zi);
     float* wave10 = waves->getWave(xi, yi+1, zi);
     float* wave11 = waves->getWave(xi+1, yi+1, zi);
-    size_t zi0 = phase; // z is phase and goes from 0 to Z
+    size_t phi0 = phase; // phase goes from 0.0 to SIZE
 #ifdef DDS_INTERPOLATE
     // interpolating samples
-    size_t zi1 = zi0+1;
-    float zf1 = phase-zi0; // fractional part
-    float zf0 = 1-zf1;
-    float s00 = wave00[zi0]*zf0 + wave00[zi1]*zf1;
-    float s01 = wave01[zi0]*zf0 + wave01[zi1]*zf1;
-    float s10 = wave10[zi0]*zf0 + wave10[zi1]*zf1;
-    float s11 = wave11[zi0]*zf0 + wave11[zi1]*zf1;
+    size_t phi1 = phi0+1;
+    float phf1 = phase-phi0; // fractional part
+    float phf0 = 1-phf1;
+    float s00 = wave00[phi0]*phf0 + wave00[phi1]*phf1;
+    float s01 = wave01[phi0]*phf0 + wave01[phi1]*phf1;
+    float s10 = wave10[phi0]*phf0 + wave10[phi1]*phf1;
+    float s11 = wave11[phi0]*phf0 + wave11[phi1]*phf1;
 #else
-    float s00 = wave00[zi0];
-    float s01 = wave01[zi0];
-    float s10 = wave10[zi0];
-    float s11 = wave11[zi0];
+    float s00 = wave00[phi0];
+    float s01 = wave01[phi0];
+    float s10 = wave10[phi0];
+    float s11 = wave11[phi0];
 #endif
     s00 += (s10 - s00)*yf;
     s01 += (s11 - s01)*yf;

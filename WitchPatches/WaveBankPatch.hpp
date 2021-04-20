@@ -10,7 +10,7 @@
 
 static const int TRIGGER_LIMIT = (1<<17);
 
-#define VOICES 4
+#define VOICES 2
 #if VOICES == 1
 #define GAINFACTOR 0.8
 #elif VOICES == 2
@@ -284,6 +284,8 @@ public:
     voices->setParameter(MorphSynth::PARAMETER_X, x);
     voices->setParameter(MorphSynth::PARAMETER_Y, y);
     voices->generate(buffer);
+    buffer.getSamples(LEFT_CHANNEL).tanh();
+    buffer.getSamples(RIGHT_CHANNEL).tanh();
     
     // lfo
     tempo1.clock(getBlockSize());
