@@ -185,24 +185,18 @@ private:
 public:
   ChorduroyPatch(){
     voices = ChordVoices::create(getBlockSize());
-    for(int i=0; i<VOICES; ++i){
-      ChordSignalGenerator* voice = ChordSignalGenerator::create(getBlockSize(), getSampleRate());
-      voices->setVoice(i, voice);
-    }
+    for(int i=0; i<VOICES; ++i)
+      voices->setVoice(i, ChordSignalGenerator::create(getBlockSize(), getSampleRate()));
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
     registerParameter(PARAMETER_E, "Waveshape");
-    registerParameter(PARAMETER_F, "Chord");
-    registerParameter(PARAMETER_G, "Sub");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.8);
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.25);
-    setParameterValue(PARAMETER_F, 0.5);
-    setParameterValue(PARAMETER_G, 0.5);
   }
   ~ChorduroyPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -244,7 +238,6 @@ public:
     voices->setParameter(5, getParameterValue(PARAMETER_C));
     voices->setParameter(2, getParameterValue(PARAMETER_D));
     voices->setParameter(6, getParameterValue(PARAMETER_E));
-
     voices->generate(left);
     left.tanh();
     right.copyFrom(left);

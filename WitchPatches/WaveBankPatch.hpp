@@ -242,12 +242,25 @@ public:
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     int note = 0;
+    static int lastnote[4];
     switch(bid){
     case BUTTON_1:
-      note = basenote;
+      if(value){
+	note = basenote;
+	lastnote[0] = note;
+	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      }else{
+	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
+      }
       break;
     case BUTTON_2:
-      note = basenote+3;
+      if(value){
+	note = basenote+3;
+	lastnote[1] = note;
+	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      }else{
+	voices->noteOff(MidiMessage::note(0, lastnote[1], 0));
+      }
       break;
     case BUTTON_3:
       tempo1.trigger(value, samples);
@@ -261,13 +274,6 @@ public:
 	lfo2->reset(); // todo: instead of hard reset, calculate to sync on next edge
       // note = basenote+12;
       break;
-    }
-    if(note){
-      if(value){
-	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
-      }else{
-	voices->noteOff(MidiMessage::note(0, note, 0));
-      }
     }
   }
 
