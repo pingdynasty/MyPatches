@@ -6,11 +6,7 @@
 template<size_t X, size_t Y, size_t Z, size_t SIZE>
 class WaveBank {
 protected:
-#ifdef DDS_INTERPOLATE
-  float waves[X][Y][Z][SIZE+1];
-#else
   float waves[X][Y][Z][SIZE];
-#endif
 public:
   float* getWave(size_t x, size_t y, size_t z){
     return waves[x%X][y%Y][z];
@@ -56,9 +52,6 @@ public:
       fft.setMagnitude(zeros, fftoffs, (fft.getSize())-fftoffs);
       tmp.copyFrom(fft);
       fourier->ifft(tmp, dest);
-#ifdef DDS_INTERPOLATE
-      dest[SIZE] = dest[0]; // set SIZE+1 sample to wrap around
-#endif
       // fftoffs /= 2;
       // fft.setMagnitude(zeros, fftoffs, (fft.getSize())-fftoffs);
     }
@@ -143,7 +136,7 @@ public:
     size_t phi0 = phase; // phase goes from 0.0 to SIZE
 #ifdef DDS_INTERPOLATE
     // interpolating samples
-    size_t phi1 = phi0+1;
+    size_t phi1 = (phi0+1) % SIZE;
     float phf1 = phase-phi0; // fractional part
     float phf0 = 1-phf1;
     float s00 = wave00[phi0]*phf0 + wave00[phi1]*phf1;
@@ -165,7 +158,6 @@ public:
     return s00;
   }
   using Oscillator::generate;
-  // using SignalGenerator::generate;
 #if 0
   void generate(FloatArray output){
     float* out = output.getData();
@@ -301,6 +293,10 @@ WaveBank<X, Y, Z, SIZE>* WaveBank<X, Y, Z, SIZE>::create(FloatArray wavetable){
 
 template<size_t X, size_t Y, size_t Z, size_t SIZE>
 void WaveBank<X, Y, Z, SIZE>::destroy(WaveBank<X, Y, Z, SIZE>* obj){
+  // for(int x=0; x<X; ++x)
+  //   for(int y=0; y<Y; ++y)
+  //     for(int z=0; z<Z; ++z)
+  // 	delete[] obj->getWave(x, y, z);
   delete obj;
 }
 

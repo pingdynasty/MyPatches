@@ -27,11 +27,11 @@
 #endif
 
 static const float TRIAD_SEMITONES[TRIADS][5] = {
-   {0, 1, 6, 12, 12+1}, // Viennese trichord
-   {0, 3, 6, 12, 12+3}, // Diminishied triad
    {0, 3, 7, 12, 12+3}, // Minor triad
    {0, 4, 7, 12, 12+4}, // Major triad
-   {0, 4, 8, 12, 12+4}  // Augmented triad
+   {0, 3, 6, 12, 12+3}, // Diminished triad
+   {0, 4, 8, 12, 12+4},  // Augmented triad
+   {0, 1, 6, 12, 12+1}, // Viennese trichord
 };
 
 class ChordSignalGenerator : public AbstractSynth {
@@ -52,6 +52,14 @@ private:
   int inversion = 0;
   float gain = GAINFACTOR;
 public:
+  enum Parameters {
+		   PARAMETER_CHORD = 1,
+		   PARAMETER_DECAY,
+		   PARAMETER_WAVESHAPE,
+		   PARAMETER_FILTER_FC,
+		   PARAMETER_FILTER_Q,
+		   PARAMETER_SUBOSC
+  };
   ChordSignalGenerator(FloatArray buffer, float sr): buffer(buffer) {
 #ifdef USE_SVF
     vcf = StateVariableFilter::create(sr);
@@ -125,7 +133,6 @@ public:
     vcf->setLowPass(cutoff, q);
     return vcf->process(y)*gain;
   }
-  // decay 150ms to 5s
   void generate(FloatArray out) {
     // vco
     sine->generate(out);
@@ -143,22 +150,22 @@ public:
   }
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
-    case 1:
+    case PARAMETER_CHORD:
       setChord(value);
       break;
-    case 2:
+    case PARAMETER_DECAY:
       setDecay(value*14);
       break;
-    case 3:
+    case PARAMETER_WAVESHAPE:
       setShape(value*2);
       break;
-    case 4:
+    case PARAMETER_FILTER_FC:
       setFilter(value*8000+10, q);
       break;
-    case 5:
+    case PARAMETER_FILTER_Q:
       setFilter(fc, value*2+0.1);
       break;
-    case 6:
+    case PARAMETER_SUBOSC:
       setSub(value*2);
       break;
     }
@@ -191,12 +198,14 @@ public:
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "Waveshape");
+    registerParameter(PARAMETER_E, "Sub");
+    registerParameter(PARAMETER_AA, "Waveshape");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.8);
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
-    setParameterValue(PARAMETER_E, 0.25);
+    setParameterValue(PARAMETER_E, 0.6);
+    setParameterValue(PARAMETER_AA, 0.0);
   }
   ~ChorduroyPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -211,19 +220,19 @@ public:
       switch(bid){
       case PUSHBUTTON:
       case BUTTON_A:
-	voices->setParameter(1, 0);
+	voices->setParameter(ChordSignalGenerator::PARAMETER_CHORD, 0);
 	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_B:
-	voices->setParameter(1, 1);
+	voices->setParameter(ChordSignalGenerator::PARAMETER_CHORD, 1);
 	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_C:
-	voices->setParameter(1, 2);
+	voices->setParameter(ChordSignalGenerator::PARAMETER_CHORD, 2);
 	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       case BUTTON_D:      
-	voices->setParameter(1, 3);
+	voices->setParameter(ChordSignalGenerator::PARAMETER_CHORD, 3);
 	voices->noteOn(MidiMessage::note(0, basenote, 100));
 	break;
       }
@@ -233,11 +242,12 @@ public:
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    basenote = getParameterValue(PARAMETER_A)*12*5+20;    
-    voices->setParameter(4, getParameterValue(PARAMETER_B));
-    voices->setParameter(5, getParameterValue(PARAMETER_C));
-    voices->setParameter(2, getParameterValue(PARAMETER_D));
-    voices->setParameter(6, getParameterValue(PARAMETER_E));
+    basenote = getParameterValue(PARAMETER_A)*12*5+42;
+    voices->setParameter(ChordSignalGenerator::PARAMETER_FILTER_FC, getParameterValue(PARAMETER_B));
+    voices->setParameter(ChordSignalGenerator::PARAMETER_FILTER_Q, getParameterValue(PARAMETER_C));
+    voices->setParameter(ChordSignalGenerator::PARAMETER_DECAY, getParameterValue(PARAMETER_D));
+    voices->setParameter(ChordSignalGenerator::PARAMETER_SUBOSC, getParameterValue(PARAMETER_E));
+    voices->setParameter(ChordSignalGenerator::PARAMETER_WAVESHAPE, getParameterValue(PARAMETER_AA));
     voices->generate(left);
     left.tanh();
     right.copyFrom(left);

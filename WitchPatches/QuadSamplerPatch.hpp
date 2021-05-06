@@ -1,0 +1,233 @@
+#ifndef __QuadSamplerPatch_hpp__
+#define __QuadSamplerPatch_hpp__
+
+#include "OpenWareLibrary.h"
+
+static const int TRIGGER_LIMIT = (1<<17);
+
+#define POLYPHONY 4
+#define BUTTON_VELOCITY 100
+
+class StereoSamplerVoice : public AbstractSynth {
+private:
+  SampleOscillator* oscL;
+  SampleOscillator* oscR;
+  ExponentialDecayEnvelope* env;
+  float gain;
+  Control<PARAMETER_D> decaytime = 0.0f;
+  StereoBiquadFilter* filter;
+  FloatArray buffer;
+public:
+  StereoSamplerVoice(float sr, size_t bs, FloatArray left, FloatArray right)
+    : gain(1.0f) {
+    oscL = SampleOscillator::create(sr, left);
+    oscR = SampleOscillator::create(sr, right);
+    env = ExponentialDecayEnvelope::create(sr);
+    filter = StereoBiquadFilter::create(sr, 2);
+    buffer = FloatArray::create(bs);
+  }
+  static StereoSamplerVoice* create(float sr, size_t bs, FloatArray left, FloatArray right) {
+    return new StereoSamplerVoice(sr, bs, left, right);
+  }
+  static void destroy(StereoSamplerVoice* obj) {
+    SampleOscillator::destroy(obj->oscL);
+    SampleOscillator::destroy(obj->oscR);
+    FloatArray::destroy(obj->buffer);
+    ExponentialDecayEnvelope::destroy(obj->env);
+    StereoBiquadFilter::destroy(obj->filter);
+    delete obj;
+  }
+  void setFrequency(float freq) {
+    oscL->setFrequency(freq);
+    oscR->setFrequency(freq);
+    freq *= 30;
+    freq = min(18000, freq);
+    // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
+  }
+  void setDecay(float decay) {
+    decay = decay*oscL->getSampleLength()/480;
+    env->setDecay(decay);
+  }
+  void setGain(float value) {
+    gain = value;
+  }
+  void gate(bool state) {
+    // env->gate(state);
+    if(state){
+      env->trigger(state);
+      oscL->reset();
+      oscR->reset();
+    }
+  }
+  void trigger() {
+    oscL->reset();
+    oscR->reset();
+    env->trigger();
+  }
+  void generate(AudioBuffer& output){
+    setDecay(decaytime*decaytime);
+    // oscL->setDuration(duration);
+    // oscR->setDuration(duration);    
+    FloatArray left = output.getSamples(LEFT_CHANNEL);
+    FloatArray right = output.getSamples(RIGHT_CHANNEL);
+    oscL->generate(left);
+    oscR->generate(right);
+    env->generate(buffer);
+    buffer.multiply(gain);
+    left.multiply(buffer);
+    right.multiply(buffer);
+    filter->process(output, output);    
+    // left.tanh();
+    // right.tanh();
+  }
+  float filter_fc = 8000;
+  float filter_q = 4;
+  float filter_gain = 0;
+  virtual void setParameter(uint8_t parameter_id, float value){
+    switch(parameter_id){
+    case 1:
+      filter_fc = value;
+      filter->setPeak(filter_fc, filter_q, filter_gain);
+      break;
+    case 2:
+      filter_q = value;
+      break;
+    case 3:
+      filter_gain = value;
+      break;
+    }
+  }
+  SampleOscillator* getOscillator(size_t channel){
+    if(channel == 0)
+      return oscL;
+    else if(channel == 1)
+      return oscR;
+    return NULL;
+  }
+};
+
+#if defined USE_MPE
+typedef MidiPolyphonicExpressionMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
+#elif POLYPHONY == 1
+typedef MonophonicMultiSignalGenerator<StereoSamplerVoice> VoiceProcessor;
+#else
+typedef PolyphonicMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
+#endif
+
+class QuadSamplerPatch : public Patch {
+private:
+  VoiceProcessor* voices;
+  int basenote = 60;
+  AgnesiOscillator* lfo1;
+  ExponentialDecayEnvelope* env;
+public:
+
+  StereoSamplerVoice* createVoice(const char* name){
+    // load sample
+    Resource* resource = getResource(name);
+    WavFile wav(resource->getData(), resource->getSize());
+    if(!wav.isValid())
+      error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
+    FloatArray sampleL = wav.createFloatArray(0);
+    FloatArray sampleR = wav.createFloatArray(1);
+    debugMessage("wav", (int)wav.getNumberOfChannels(), wav.getNumberOfSamples(), wav.getSize());
+    Resource::destroy(resource);
+        // filter sample
+    DcBlockingFilter* filter = DcBlockingFilter::create();
+    filter->process(sampleL, sampleL);
+    filter->reset();
+    filter->process(sampleR, sampleR);
+    DcBlockingFilter::destroy(filter);
+    return StereoSamplerVoice::create(getSampleRate(), getBlockSize(), sampleL, sampleR);
+  }
+
+  QuadSamplerPatch() {
+    registerParameter(PARAMETER_A, "Frequency");
+    setParameterValue(PARAMETER_A, 0.8);
+    registerParameter(PARAMETER_B, "Cutoff");
+    setParameterValue(PARAMETER_B, 0.5);
+    registerParameter(PARAMETER_C, "Peak");
+    setParameterValue(PARAMETER_C, 0.5);
+    registerParameter(PARAMETER_D, "Decay");
+
+    // create voices
+    voices = VoiceProcessor::create(2, getBlockSize());
+    voices->setVoice(0, createVoice("sample1.wav"));
+    voices->setVoice(1, createVoice("sample2.wav"));
+    voices->setVoice(2, createVoice("sample3.wav"));
+    voices->setVoice(3, createVoice("sample4.wav"));
+    
+    // lfo
+    lfo1 = AgnesiOscillator::create(getBlockRate(), 0.5, 10);
+    registerParameter(PARAMETER_E, "LFO");
+    registerParameter(PARAMETER_F, "LFO>");
+    registerParameter(PARAMETER_G, "Envelope>");
+
+    env = ExponentialDecayEnvelope::create(getBlockRate());
+  }
+
+  ~QuadSamplerPatch() {
+    AgnesiOscillator::destroy(lfo1);
+    for(int i=0; i<POLYPHONY; ++i){
+      FloatArray::destroy(voices->getVoice(i)->getOscillator(LEFT_CHANNEL)->getSample());
+      FloatArray::destroy(voices->getVoice(i)->getOscillator(RIGHT_CHANNEL)->getSample());
+      StereoSamplerVoice::destroy(voices->getVoice(i));
+    }
+    VoiceProcessor::destroy(voices);
+  }
+    
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+    StereoSamplerVoice* voice = NULL;
+    switch(bid){
+    case BUTTON_1:
+      voice = voices->getVoice(0);
+      break;
+    case BUTTON_2:
+      voice = voices->getVoice(1);
+      break;
+    case BUTTON_3:
+      voice = voices->getVoice(2);
+      break;
+    case BUTTON_4:
+      voice = voices->getVoice(3);
+      break;
+    }
+    if(voice){
+      if(value){
+	voice->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
+      }else{
+	voice->gate(false);
+      }
+    }
+    if(value)
+      env->trigger();
+  }
+
+  void processMidi(MidiMessage msg){
+    voices->process(msg);
+  }    
+
+  void processAudio(AudioBuffer& buffer) {
+    basenote = getParameterValue(PARAMETER_A)*48+40;
+
+    float cutoff = getParameterValue(PARAMETER_B);
+    cutoff = cutoff*cutoff*12000+400;
+    float gain = getParameterValue(PARAMETER_C)*24-12;
+    voices->setParameter(3, gain);
+    voices->setParameter(1, cutoff);
+    
+    voices->generate(buffer);
+
+    float decay = getParameterValue(PARAMETER_D);
+    env->setDecay(decay*decay*40);
+
+    // lfo
+    lfo1->setFrequency(getParameterValue(PARAMETER_E)*2);
+    setParameterValue(PARAMETER_F, lfo1->generate());
+    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
+    setParameterValue(PARAMETER_G, env->generate());
+    setButton(BUTTON_F, fmodf(lfo1->getPhase(), M_PI/2) < M_PI/4);
+  }
+};
+
+#endif // __StereoSamplerPatch_hpp__
