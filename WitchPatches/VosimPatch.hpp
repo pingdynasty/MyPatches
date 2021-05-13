@@ -12,6 +12,7 @@
 class VosimSynth : public AbstractSynth {
 protected:
   VosimOscillator* osc;
+  PhaserSignalProcessor phaser;
   AdsrEnvelope* env;
   float gain;
   float mod1 = 0;
@@ -20,7 +21,10 @@ public:
   enum Parameters {
 		   PARAMETER_F1,
 		   PARAMETER_F2,
-		   PARAMETER_ENVELOPE
+		   PARAMETER_ENVELOPE,
+		   PARAMETER_EFFECT,
+		   PARAMETER_PHASER_DELAY,
+		   PARAMETER_PHASER_FEEDBACK,
   };
   VosimSynth(VosimOscillator* osc, AdsrEnvelope* env) : osc(osc), env(env), gain(0) {}
   void setFrequency(float freq){
@@ -76,6 +80,16 @@ public:
     case PARAMETER_ENVELOPE:
       setEnvelope(value*value*3);
       break;
+    case PARAMETER_EFFECT:
+      phaser.setDepth(min(1, value*2));
+      phaser.setFeedback(max(0, value-0.2));
+      break;
+    case PARAMETER_PHASER_DELAY:
+      phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
+      break;
+    case PARAMETER_PHASER_FEEDBACK:
+      phaser.setFeedback(value);
+      break;
     }
   }
 };
@@ -86,7 +100,7 @@ public:
   using SignalGenerator::generate;
   float generate(){
     // return osc->generate();
-    return osc->generate()*env->generate()*gain;
+    return phaser.process(osc->generate())*env->generate()*gain;
   }
   static VosimSignalGenerator* create(float sr){
     VosimOscillator* osc = VosimOscillator::create(sr);
@@ -190,6 +204,7 @@ public:
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
+    voices->setParameter(VosimSynth::PARAMETER_EFFECT, getParameterValue(PARAMETER_E));
     static bool gate = false;
     static int lastnote[4] = {0};
     bool state = isButtonPressed(BUTTON_A);
@@ -219,7 +234,10 @@ public:
     setParameterValue(PARAMETER_G, lfo2->generate());
     setButton(BUTTON_F, lfo2->getPhase() < M_PI);
 
-    debugMessage("lfo1/2", lfo1->getBeatsPerMinute(), lfo2->getBeatsPerMinute());
+    voices->setParameter(VosimSynth::PARAMETER_PHASER_DELAY, lfo1->generate()*0.5+0.5);
+    // voices->setParameter(VosimSynth::PARAMETER_PHASER_FEEDBACK, getParameterValue(PARAMETER_AA));
+
+    // debugMessage("lfo1/2", lfo1->getBeatsPerMinute(), lfo2->getBeatsPerMinute());
     // doenv(getParameterValue(PARAMETER_D));
     // dolfo(getParameterValue(PARAMETER_E)*20);
     // dogate(voices->getNumberOfTakenVoices());

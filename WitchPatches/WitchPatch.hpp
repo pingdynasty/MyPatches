@@ -1,4 +1,43 @@
-
+class PhaserSignalProcessor : public SignalProcessor {
+protected:
+  class AllpassDelay {
+  private:
+    float _a1, _zm1;        
+  public:
+    AllpassDelay() : _a1( 0.f ), _zm1( 0.f ){}        
+    void delay(float delay){ //sample delay time
+      _a1 = (1.f - delay) / (1.f + delay);
+    }        
+    float update(float inSamp){
+      float y = inSamp * -_a1 + _zm1;
+      _zm1 = y * _a1 + inSamp;            
+      return y;
+    }
+  };
+  AllpassDelay alps[6];
+  float feedback = 0;
+  float depth = 0;
+  float zm1 = 0;
+public:
+  void setFeedback(float f){
+    feedback = f;
+  }
+  void setDepth(float d){
+    depth = d;
+  }
+  void setDelay(float d){
+    //update filter coeffs
+    for(size_t i=0; i<6; i++)
+      alps[i].delay(d);
+  }
+  float process(float input){
+    float y = alps[0].update(alps[1].update(alps[2].update(alps[3].update(alps[4].update(alps[5].update(input + zm1 * feedback ))))));											      
+    zm1 = y;
+    input += y * depth;
+    return input;
+  }
+  using SignalProcessor::process;
+};
 
 class TapTempoOscillator : public TapTempo, public SignalGenerator {
 protected:
