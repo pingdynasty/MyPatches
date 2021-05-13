@@ -2,15 +2,16 @@ class PhaserSignalProcessor : public SignalProcessor {
 protected:
   class AllpassDelay {
   private:
-    float _a1, _zm1;        
+    float _a1;
+    float _zm1;        
   public:
     AllpassDelay() : _a1( 0.f ), _zm1( 0.f ){}        
     void delay(float delay){ //sample delay time
       _a1 = (1.f - delay) / (1.f + delay);
-    }        
-    float update(float inSamp){
-      float y = inSamp * -_a1 + _zm1;
-      _zm1 = y * _a1 + inSamp;            
+    }
+    float update(float x){
+      float y = x * -_a1 + _zm1;
+      _zm1 = y * _a1 + x;
       return y;
     }
   };
@@ -39,12 +40,12 @@ public:
   using SignalProcessor::process;
 };
 
+// todo: reset oscillator phase on trigger
 class TapTempoOscillator : public TapTempo, public SignalGenerator {
 protected:
   Oscillator* oscillator;
 public:
-  TapTempoOscillator(float sr, size_t limit, Oscillator* osc): TapTempo(sr, limit), oscillator(osc) {}
-  
+  TapTempoOscillator(float sr, size_t limit, Oscillator* osc): TapTempo(sr, limit), oscillator(osc) {}  
   float generate(){
     oscillator->setFrequency(getFrequency());
     return oscillator->generate();
@@ -56,7 +57,6 @@ public:
     oscillator->setFrequency(getFrequency());
     oscillator->generate(output);
   }
-
   static TapTempoOscillator* create(float sr, size_t limit, Oscillator* osc){
     return new TapTempoOscillator(sr, limit, osc);
   }
