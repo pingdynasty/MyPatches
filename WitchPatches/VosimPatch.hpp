@@ -4,9 +4,10 @@
 #include "OpenWareLibrary.h"
 #include "WitchPatch.hpp"
 
-#define VOICES 1
+#define VOICES 4
 #define GAINFACTOR 0.4
 #define BUTTON_VELOCITY 100
+#define TRIGGER_LIMIT (1<<19)
 
 class VosimSynth : public AbstractSynth {
 protected:
@@ -16,6 +17,11 @@ protected:
   float mod1 = 0;
   float mod2 = 0;
 public:
+  enum Parameters {
+		   PARAMETER_F1,
+		   PARAMETER_F2,
+		   PARAMETER_ENVELOPE
+  };
   VosimSynth(VosimOscillator* osc, AdsrEnvelope* env) : osc(osc), env(env), gain(0) {}
   void setFrequency(float freq){
     osc->setFrequency(freq);    
@@ -61,13 +67,13 @@ public:
   }
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
-    case 1:
+    case PARAMETER_F1:
       osc->setFormant1(osc->getFrequency()+noteToFrequency(value*12*8+mod1));
       break;
-    case 2:
-      osc->setFormant2(osc->getFrequency()+noteToFrequency(value*12*8+mod2));
+    case PARAMETER_F2:
+      osc->setFormant2(osc->getFrequency()+noteToFrequency(value*12*8+mod2+12));
       break;
-    case 3:
+    case PARAMETER_ENVELOPE:
       setEnvelope(value*value*3);
       break;
     }
@@ -100,10 +106,11 @@ typedef MonophonicSignalGenerator<VosimSignalGenerator> VosimVoices;
 typedef PolyphonicSignalGenerator<VosimSignalGenerator, VOICES> VosimVoices;
 #endif
 
-class VosimPatch : public WitchPatch {
+class VosimPatch : public Patch {
   VosimVoices* voices;
   int basenote = 60;
-  VoltsPerOctave hz;
+  TapTempoSineOscillator* lfo1;
+  TapTempoSineOscillator* lfo2;
 public:
   VosimPatch(){
     voices = VosimVoices::create(getBlockSize());
@@ -112,91 +119,109 @@ public:
       voices->setVoice(i, voice);
     }
     registerParameter(PARAMETER_A, "Fundamental");
-    registerParameter(PARAMETER_B, "Formant");
-    registerParameter(PARAMETER_C, "Detune");
+    registerParameter(PARAMETER_B, "Formant Low");
+    registerParameter(PARAMETER_C, "Formant High");
     registerParameter(PARAMETER_D, "Gain");
+    lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo2 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1->setBeatsPerMinute(120);
+    lfo2->setBeatsPerMinute(240);
+    // lfo2 = TapTempoAgnesiOscillator::create(getBlockRate(), TRIGGER_LIMIT);
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i){
       VosimSignalGenerator::destroy(voices->getVoice(i));
     }
     VosimVoices::destroy(voices);
+    TapTempoSineOscillator::destroy(lfo1);
+    TapTempoSineOscillator::destroy(lfo2);
   }
 
-  // void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-  //   int note = 0;
-  //   static int lastnote[4];
-  //   switch(bid){
-  //   case BUTTON_1:
-  //     if(value){
-  // 	note = basenote;
-  // 	lastnote[0] = note;
-  // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
-  //     }else{
-  // 	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
-  //     }
-  //     break;
-  //   case BUTTON_2:
-  //     if(value){
-  // 	note = basenote+3;
-  // 	lastnote[1] = note;
-  // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
-  //     }else{
-  // 	voices->noteOff(MidiMessage::note(0, lastnote[1], 0));
-  //     }
-  //     break;
-  //   case BUTTON_3:
-  //     if(value){
-  // 	note = basenote+7;
-  // 	lastnote[2] = note;
-  // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
-  //     }else{
-  // 	voices->noteOff(MidiMessage::note(0, lastnote[2], 0));
-  //     }
-  //     break;
-  //   case BUTTON_4:
-  //     if(value){
-  // 	note = basenote+12;
-  // 	lastnote[3] = note;
-  // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
-  //     }else{
-  // 	voices->noteOff(MidiMessage::note(0, lastnote[3], 0));
-  //     }
-  //     break;
-  //   }
-  // }
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+    // int note = 0;
+    // static int lastnote[4];
+    switch(bid){
+    // case BUTTON_1:
+    //   if(value){
+    // 	note = basenote;
+    // 	lastnote[0] = note;
+    // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+    //   }else{
+    // 	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
+    //   }
+    //   break;
+    case BUTTON_2:
+      lfo1->trigger(value, samples);
+      // if(value){
+      // 	note = basenote+3;
+      // 	lastnote[1] = note;
+      // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      // }else{
+      // 	voices->noteOff(MidiMessage::note(0, lastnote[1], 0));
+      // }
+      break;
+    case BUTTON_3:
+      lfo2->trigger(value, samples);
+      // if(value){
+      // 	note = basenote+7;
+      // 	lastnote[2] = note;
+      // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      // }else{
+      // 	voices->noteOff(MidiMessage::note(0, lastnote[2], 0));
+      // }
+      break;
+    // case BUTTON_4:
+    //   if(value){
+    // 	note = basenote+7;
+    // 	lastnote[3] = note;
+    // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+    //   }else{
+    // 	voices->noteOff(MidiMessage::note(0, lastnote[3], 0));
+    //   }
+    //   break;
+    }
+  }
   
   void processMidi(MidiMessage msg){
     voices->process(msg);
   }
   void processAudio(AudioBuffer &buffer) {
     basenote = round(getParameterValue(PARAMETER_A)*12*5+42);
-    // float a = getParameterValue(PARAMETER_A);
-    // debugMessage("a/note/*5", a, (float)basenote, a*5);
-    voices->setParameter(1, getParameterValue(PARAMETER_B));
-    voices->setParameter(2, getParameterValue(PARAMETER_C));
-    voices->setParameter(3, getParameterValue(PARAMETER_D));
+    voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
+    voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
+    voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
     static bool gate = false;
-    static int lastnote[4];
+    static int lastnote[4] = {0};
     bool state = isButtonPressed(BUTTON_A);
     if(state != gate){
       gate = state;
       if(state){
-	lastnote[0] = basenote;
-  	voices->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
+    	lastnote[0] = basenote;
+    	voices->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
       }else{
-  	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
+    	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
       }
     }
-    voices->getVoice(0)->setNote(basenote);
-    voices->getVoice(0)->gate(isButtonPressed(BUTTON_A));
+    // voices->getVoice(0)->setNote(basenote);
+    // voices->getVoice(0)->gate(isButtonPressed(BUTTON_A));
+
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices->generate(left);
     left.tanh();
     right.copyFrom(left);
-    doenv(getParameterValue(PARAMETER_D));
-    dolfo(getParameterValue(PARAMETER_E)*20);
+
+    // lfo
+    lfo1->clock(getBlockSize());
+    lfo2->clock(getBlockSize());
+    setParameterValue(PARAMETER_F, lfo1->generate());
+    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
+    setParameterValue(PARAMETER_G, lfo2->generate());
+    setButton(BUTTON_F, lfo2->getPhase() < M_PI);
+
+    debugMessage("lfo1/2", lfo1->getBeatsPerMinute(), lfo2->getBeatsPerMinute());
+    // doenv(getParameterValue(PARAMETER_D));
+    // dolfo(getParameterValue(PARAMETER_E)*20);
     // dogate(voices->getNumberOfTakenVoices());
   }
 };
