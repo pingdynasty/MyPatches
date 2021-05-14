@@ -1,3 +1,26 @@
+class SeriesSignalProcessor : public SignalProcessor {
+protected:
+  SignalProcessor* a;
+  SignalProcessor* b;
+public:
+  void process(FloatArray input, FloatArray output){
+    a->process(input, output);
+    b->process(output, output);
+  }
+};
+
+class StereoSignalProcessor : public MultiSignalProcessor {
+protected:
+  SignalProcessor* left;
+  SignalProcessor* right;
+public:
+  StereoSignalProcessor(SignalProcessor* left, SignalProcessor* right): left(left), right(right) {}
+  void process(AudioBuffer& input, AudioBuffer& output){
+    left->process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+    right->process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+  }
+};
+
 class PhaserSignalProcessor : public SignalProcessor {
 protected:
   class AllpassDelay {

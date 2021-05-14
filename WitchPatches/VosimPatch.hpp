@@ -5,9 +5,9 @@
 #include "WitchPatch.hpp"
 
 #define VOICES 4
-#define GAINFACTOR 0.4
+#define GAINFACTOR 0.35
 #define BUTTON_VELOCITY 100
-#define TRIGGER_LIMIT (1<<19)
+#define TRIGGER_LIMIT (1<<22)
 
 class VosimSynth : public AbstractSynth {
 protected:
@@ -20,10 +20,7 @@ public:
   enum Parameters {
 		   PARAMETER_F1,
 		   PARAMETER_F2,
-		   PARAMETER_ENVELOPE,
-		   // PARAMETER_EFFECT,
-		   // PARAMETER_PHASER_DELAY,
-		   // PARAMETER_PHASER_FEEDBACK,
+		   PARAMETER_ENVELOPE
   };
   VosimSynth(VosimOscillator* osc, AdsrEnvelope* env) : osc(osc), env(env), gain(0) {}
   void setFrequency(float freq){
@@ -79,16 +76,6 @@ public:
     case PARAMETER_ENVELOPE:
       setEnvelope(value*value*3);
       break;
-    // case PARAMETER_EFFECT:
-    //   phaser.setDepth(min(1, value*2));
-    //   phaser.setFeedback(max(0, value-0.2));
-    //   break;
-    // case PARAMETER_PHASER_DELAY:
-    //   phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
-    //   break;
-    // case PARAMETER_PHASER_FEEDBACK:
-    //   phaser.setFeedback(value);
-    //   break;
     }
   }
 };
@@ -98,8 +85,6 @@ public:
   VosimSignalGenerator(VosimOscillator* osc, AdsrEnvelope* env) : VosimSynth(osc, env){}
   using SignalGenerator::generate;
   float generate(){
-    // return osc->generate();
-    // return phaser.process(osc->generate())*env->generate()*gain;
     return osc->generate()*env->generate()*gain;
   }
   static VosimSignalGenerator* create(float sr){
@@ -113,28 +98,6 @@ public:
     delete obj;
   }
 };
-
-// class VosimStereoVoice : public VosimSynth, public MultiSignalGenerator {
-// protected:
-//   PhaserSignalProcessor phaser_left;
-//   PhaserSignalProcessor phaser_right;
-// public:
-//   void setParameter(uint8_t parameter_id, float value){
-//     switch(parameter_id){
-//       case PARAMETER_EFFECT:
-//       phaser.setDepth(min(1, value*2));
-//       phaser.setFeedback(max(0, value-0.2));
-//       break;
-//     case PARAMETER_PHASER_DELAY:
-//       phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
-//       break;
-//     case PARAMETER_PHASER_FEEDBACK:
-//       phaser.setFeedback(value);
-//       break;
-//     }
-//       void generate(AudioBuffer& output){
-//       }
-// };
 
 class StereoPhaserProcessor : public MultiSignalProcessor {
 protected:
@@ -173,23 +136,23 @@ class VosimPatch : public Patch {
 public:
   VosimPatch(){
     voices = VosimVoices::create(getBlockSize());
-    for(int i=0; i<VOICES; ++i){
-      VosimSignalGenerator* voice = VosimSignalGenerator::create(getSampleRate());
-      voices->setVoice(i, voice);
-    }
-    registerParameter(PARAMETER_A, "Fundamental");
+    for(int i=0; i<VOICES; ++i)
+      voices->setVoice(i, VosimSignalGenerator::create(getSampleRate()));
+    registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Formant Low");
     registerParameter(PARAMETER_C, "Formant High");
-    registerParameter(PARAMETER_D, "Gain");
+    registerParameter(PARAMETER_D, "Envelope");
+    registerParameter(PARAMETER_E, "Effect Amount");
+    registerParameter(PARAMETER_F, "LFO1>");
+    registerParameter(PARAMETER_G, "LFO2>");
     lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo1->setBeatsPerMinute(120);
-    lfo2->setBeatsPerMinute(80);
+    lfo1->setBeatsPerMinute(60);
+    lfo2->setBeatsPerMinute(120);
   }
   ~VosimPatch(){
-    for(int i=0; i<VOICES; ++i){
+    for(int i=0; i<VOICES; ++i)
       VosimSignalGenerator::destroy(voices->getVoice(i));
-    }
     VosimVoices::destroy(voices);
     TapTempoSineOscillator::destroy(lfo1);
     TapTempoAgnesiOscillator::destroy(lfo2);
@@ -203,60 +166,57 @@ public:
     case BUTTON_3:
       lfo2->trigger(value, samples);
       break;
+    case BUTTON_4:
+      static bool sustain = false;
+      if(value){
+	sustain = !sustain; // toggle
+	voices->setSustain(sustain);
+      }
+      setButton(BUTTON_4, sustain);
+      break;
     }
   }
   
   void processMidi(MidiMessage msg){
     voices->process(msg);
   }
+
   void processAudio(AudioBuffer &buffer) {
     basenote = round(getParameterValue(PARAMETER_A)*12*5+42);
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
     phaser.setEffect(getParameterValue(PARAMETER_E));
-    static bool gate[4] = {false};
-    static int lastnote[4] = {0};
+    static bool gate = {false};
+    static int lastnote = {0};
     bool state = isButtonPressed(BUTTON_1);
-    if(state != gate[0]){
-      gate[0] = state;
+    if(state != gate){
+      gate = state;
       if(state){
-    	lastnote[0] = basenote;
+    	lastnote = basenote;
     	voices->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
       }else{
-    	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
+    	voices->noteOff(MidiMessage::note(0, lastnote, 0));
       }
     }
-    state = isButtonPressed(BUTTON_4);
-    if(state != gate[3]){
-      gate[3] = state;
-      if(state){
-    	lastnote[3] = basenote;
-    	voices->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
-      }else{
-    	voices->noteOff(MidiMessage::note(0, lastnote[3], 0));
-      }
-    }
-    // voices->getVoice(0)->setNote(basenote);
-    // voices->getVoice(0)->gate(isButtonPressed(BUTTON_A));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices->generate(left);
-    left.tanh();
     right.copyFrom(left);
     phaser.process(buffer, buffer);
+    left.tanh();
+    right.tanh();
 
     // lfo
     lfo1->clock(getBlockSize());
     lfo2->clock(getBlockSize());
     float lfo = lfo1->generate()*0.5+0.5;
+    phaser.setDelay(lfo);
     setParameterValue(PARAMETER_F, lfo);
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
     setParameterValue(PARAMETER_G, lfo2->generate());
     setButton(BUTTON_F, lfo2->getPhase() < M_PI);
-
-    phaser.setDelay(lfo);
   }
 };
 
