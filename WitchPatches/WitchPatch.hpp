@@ -1,3 +1,101 @@
+
+class SeriesSignalProcessor : public SignalProcessor {
+protected:
+  SignalProcessor* a;
+  SignalProcessor* b;
+public:
+  void process(FloatArray input, FloatArray output){
+    a->process(input, output);
+    b->process(output, output);
+  }
+};
+
+class StereoSignalProcessor : public MultiSignalProcessor {
+protected:
+  SignalProcessor* left;
+  SignalProcessor* right;
+public:
+  StereoSignalProcessor(SignalProcessor* left, SignalProcessor* right): left(left), right(right) {}
+  void process(AudioBuffer& input, AudioBuffer& output){
+    left->process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+    right->process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+  }
+};
+
+class WaveMultiplierProcessor : public SignalProcessor, public MultiSignalProcessor {
+protected:
+  static constexpr size_t WAVETABLE_SIZE = 1024;
+  float wavetable[WAVETABLE_SIZE];
+  float multiplier;
+public:
+  WaveMultiplierProcessor() {
+    for(int i=0; i<WAVETABLE_SIZE; ++i)
+      // wavetable[i] = 2.0f*i/WAVETABLE_SIZE - 1.0f; // tri
+      wavetable[i] = sinf(2.0f*M_PI*i/WAVETABLE_SIZE); // sine
+  }
+  void setEffect(float value){
+    multiplier = 0.25 + value*2.75;
+  }
+  void setMultiplier(float value){
+    multiplier = value;
+  }
+  using SignalProcessor::process;
+  float process(float input){
+    size_t index = (input+1)*multiplier*WAVETABLE_SIZE;
+    return wavetable[index & (WAVETABLE_SIZE-1)];
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    for(size_t ch=0; ch<input.getChannels(); ++ch)
+      SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
+  }
+};
+
+class OverdriveProcessor : public SignalProcessor, public MultiSignalProcessor {
+protected:
+  float offset = 0;
+  float drive = 1;
+public:
+  void setOffset(float value){
+    offset = value/10;
+  }
+  void setDrive(float value){
+    drive = value*40+1;
+  }
+  void setEffect(float value){
+    setDrive(value*0.8);
+  }
+  void setModulation(float value){
+    offset = 0.5*value*(drive-1)/40;
+  }
+  float nonlinear(float x){ // Overdrive curve
+    return x * ( 27 + x*x ) / ( 27 + 9*x*x );
+  }
+  float process(float input){
+    return clamp(nonlinear(input*drive+offset), -1, 1);
+  }
+  using SignalProcessor::process;
+  void process(AudioBuffer& input, AudioBuffer& output){
+    for(size_t ch=0; ch<input.getChannels(); ++ch){
+      SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
+      offset *= -1;
+    }
+  }
+};
+
+class OffsetScaler : public SignalProcessor {
+protected:
+  float offset;
+  float scalar;
+public:
+  float process(float input){
+    return input*scalar + offset;
+  }
+  void process(FloatArray input, FloatArray output){
+    input.add(offset, output);
+    output.multiply(scalar);
+  }
+};
+
 class CvNoteProcessor {
 protected:
   MidiProcessor* processor;
@@ -51,29 +149,6 @@ public:
   }
 };
 
-class SeriesSignalProcessor : public SignalProcessor {
-protected:
-  SignalProcessor* a;
-  SignalProcessor* b;
-public:
-  void process(FloatArray input, FloatArray output){
-    a->process(input, output);
-    b->process(output, output);
-  }
-};
-
-class StereoSignalProcessor : public MultiSignalProcessor {
-protected:
-  SignalProcessor* left;
-  SignalProcessor* right;
-public:
-  StereoSignalProcessor(SignalProcessor* left, SignalProcessor* right): left(left), right(right) {}
-  void process(AudioBuffer& input, AudioBuffer& output){
-    left->process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    right->process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
-  }
-};
-
 class PhaserSignalProcessor : public SignalProcessor {
 protected:
   class AllpassDelay {
@@ -121,6 +196,9 @@ protected:
   PhaserSignalProcessor phaser_left;
   PhaserSignalProcessor phaser_right;
 public:
+  void setModulation(float value){
+    setDelay(value);
+  }
   void setEffect(float value){
     phaser_left.setDepth(min(1, value*2));
     phaser_left.setFeedback(max(0, value*1.25-0.4));

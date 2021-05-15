@@ -129,7 +129,9 @@ private:
   SynthVoices* voices;
   TapTempoSineOscillator* lfo1;
   TapTempoAgnesiOscillator* lfo2;
-  StereoPhaserProcessor phaser;
+  // StereoPhaserProcessor phaser;
+  // WaveMultiplierProcessor overdrive;
+  OverdriveProcessor overdrive;
   CvNoteProcessor* cvnote;
 public:
   PolySubPatch() {
@@ -200,14 +202,15 @@ public:
 
     voices->setParameter(SubSynth::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SubSynth::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
+
     voices->setParameter(SubSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
-    phaser.setEffect(getParameterValue(PARAMETER_E));
+    overdrive.setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices->generate(left);
     right.copyFrom(left);
-    phaser.process(buffer, buffer);
+    overdrive.process(buffer, buffer);
     left.tanh();
     right.tanh();
 
@@ -215,7 +218,7 @@ public:
     lfo1->clock(getBlockSize());
     lfo2->clock(getBlockSize());
     float lfo = lfo1->generate()*0.5+0.5;
-    phaser.setDelay(lfo);
+    overdrive.setModulation(lfo);
     setParameterValue(PARAMETER_F, lfo);
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
     setParameterValue(PARAMETER_G, lfo2->generate());
