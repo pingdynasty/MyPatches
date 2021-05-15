@@ -1,3 +1,56 @@
+class CvNoteProcessor {
+protected:
+  MidiProcessor* processor;
+  size_t cv_delay;
+  size_t cv_ticks;
+  bool cv_triggered = false;
+  bool cv_ison = false;
+  uint8_t cv_noteon = NO_NOTE;
+  static constexpr uint8_t NO_NOTE = 0xff;
+  static constexpr uint8_t CV_VELOCITY = 100;
+public:
+  // enum State {
+  // 	      STATE_TRIGGERED,
+  // 	      STATE_PLAYING,
+  // };
+  CvNoteProcessor(MidiProcessor* processor, size_t delay)
+    : processor(processor), cv_delay(delay) {}
+  virtual uint8_t getNoteForCv(float cv){
+    return cv*12*5+42; // todo
+  }
+  void gate(bool ison, size_t delay){
+    if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
+      cv_ison = ison;
+      cv_triggered = true;
+      cv_ticks = delay;
+      if(ison)
+	cv_noteon = NO_NOTE;
+    }
+  }
+  void cv(float value){
+    if(cv_triggered && cv_ticks >= cv_delay){
+      cv_triggered = false;
+      if(cv_noteon == NO_NOTE){
+	cv_noteon = getNoteForCv(value);
+	processor->noteOn(MidiMessage::note(0, cv_noteon, CV_VELOCITY));
+      }else{
+	processor->noteOff(MidiMessage::note(0, cv_noteon, 0));
+	cv_noteon = NO_NOTE;
+      }
+    }
+  }
+  void clock(size_t ticks){
+    if(cv_ticks < cv_delay)
+      cv_ticks += ticks;
+  }
+  static CvNoteProcessor* create(float sr, float delay_milliseconds, MidiProcessor* processor){
+    return new CvNoteProcessor(processor, sr*delay_milliseconds/1000);
+  }
+  static void destroy(CvNoteProcessor* obj){
+    delete obj;
+  }
+};
+
 class SeriesSignalProcessor : public SignalProcessor {
 protected:
   SignalProcessor* a;
@@ -61,6 +114,28 @@ public:
     return input;
   }
   using SignalProcessor::process;
+};
+
+class StereoPhaserProcessor : public MultiSignalProcessor {
+protected:
+  PhaserSignalProcessor phaser_left;
+  PhaserSignalProcessor phaser_right;
+public:
+  void setEffect(float value){
+    phaser_left.setDepth(min(1, value*2));
+    phaser_left.setFeedback(max(0, value*1.25-0.4));
+    phaser_right.setDepth(min(1, value*2));
+    phaser_right.setFeedback(max(0, value*1.25-0.4));
+  }
+  void setDelay(float value){
+      // phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
+    phaser_left.setDelay(value*0.04+0.02);
+    phaser_right.setDelay(value*0.05+0.018);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    phaser_left.process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+    phaser_right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+  }
 };
 
 // todo: reset oscillator phase on trigger

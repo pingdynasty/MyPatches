@@ -99,28 +99,6 @@ public:
   }
 };
 
-class StereoPhaserProcessor : public MultiSignalProcessor {
-protected:
-  PhaserSignalProcessor phaser_left;
-  PhaserSignalProcessor phaser_right;
-public:
-  void setEffect(float value){
-    phaser_left.setDepth(min(1, value*2));
-    phaser_left.setFeedback(max(0, value*1.25-0.4));
-    phaser_right.setDepth(min(1, value*2));
-    phaser_right.setFeedback(max(0, value*1.25-0.4));
-  }
-  void setDelay(float value){
-      // phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
-    phaser_left.setDelay(value*0.04+0.02);
-    phaser_right.setDelay(value*0.05+0.018);
-  }
-  void process(AudioBuffer& input, AudioBuffer& output){
-    phaser_left.process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    phaser_right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
-  }
-};
-
 #if VOICES == 1
 typedef MonophonicSignalGenerator<VosimSignalGenerator> VosimVoices;
 #else
@@ -129,10 +107,10 @@ typedef PolyphonicSignalGenerator<VosimSignalGenerator, VOICES> VosimVoices;
 
 class VosimPatch : public Patch {
   VosimVoices* voices;
-  int basenote = 60;
   TapTempoSineOscillator* lfo1;
   TapTempoAgnesiOscillator* lfo2;
   StereoPhaserProcessor phaser;
+  CvNoteProcessor* cvnote;
 public:
   VosimPatch(){
     voices = VosimVoices::create(getBlockSize());
@@ -149,6 +127,7 @@ public:
     lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo1->setBeatsPerMinute(60);
     lfo2->setBeatsPerMinute(120);
+    cvnote = CvNoteProcessor::create(getSampleRate(), 3, voices);
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -156,10 +135,14 @@ public:
     VosimVoices::destroy(voices);
     TapTempoSineOscillator::destroy(lfo1);
     TapTempoAgnesiOscillator::destroy(lfo2);
+    CvNoteProcessor::destroy(cvnote);
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
+    case BUTTON_1:
+      cvnote->gate(value, samples);
+      break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
       break;
@@ -171,6 +154,8 @@ public:
       if(value){
 	sustain = !sustain; // toggle
 	voices->setSustain(sustain);
+	if(!sustain)
+	  voices->allNotesOff();
       }
       setButton(BUTTON_4, sustain);
       break;
@@ -182,23 +167,12 @@ public:
   }
 
   void processAudio(AudioBuffer &buffer) {
-    basenote = round(getParameterValue(PARAMETER_A)*12*5+42);
+    cvnote->cv(getParameterValue(PARAMETER_A));
+    cvnote->clock(getBlockSize());
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
     phaser.setEffect(getParameterValue(PARAMETER_E));
-    static bool gate = {false};
-    static int lastnote = {0};
-    bool state = isButtonPressed(BUTTON_1);
-    if(state != gate){
-      gate = state;
-      if(state){
-    	lastnote = basenote;
-    	voices->noteOn(MidiMessage::note(0, basenote, BUTTON_VELOCITY));
-      }else{
-    	voices->noteOff(MidiMessage::note(0, lastnote, 0));
-      }
-    }
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
