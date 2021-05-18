@@ -51,8 +51,8 @@ public:
       release = df + tmin;
       break;
     case 2: // s/l
-      attack = df + tmin;
-      release = 1.0 + tmin;
+      attack = df*df + tmin;
+      release = 1.0 + df*df; // allow extra-long decays
       break;
       // l/l
     }
@@ -74,7 +74,7 @@ public:
       osc->setFormant2(osc->getFrequency()+noteToFrequency(value*12*8+mod2+12));
       break;
     case PARAMETER_ENVELOPE:
-      setEnvelope(value*value*3);
+      setEnvelope(value*3);
       break;
     }
   }

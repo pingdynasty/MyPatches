@@ -1,26 +1,164 @@
+class AbstractStatelessProcessor : public SignalProcessor, public MultiSignalProcessor {
+public:
+  using SignalProcessor::process;
+  void process(AudioBuffer& input, AudioBuffer& output){
+    for(size_t ch=0; ch<input.getChannels(); ++ch)
+      SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
+  }
+};
+
+class FuzzProcessor : public AbstractStatelessProcessor {
+protected:
+  float drive = 0; // -3 to 100
+public:
+  float process(float x){
+    // //fuzz(x)      = x-0.15*x^2-0.15*x^3;
+    // return x - 0.15*x*x - 0.15*x*x*x;
+    // //fuzz(x)      = 1.5*x-0.5*x^3;
+    // return 1.5*x - 0.5*x*x*x;
+    // fuzz(x)      = (1+drive/101)*x/(1+drive/101*abs(x));
+    return (1+drive/101)*x/(1+drive/101*abs(x));
+    // https://www.desmos.com/calculator/7qom9leesg
+  }
+  using AbstractStatelessProcessor::process;
+};
+
+class FizzProcessor : public AbstractStatelessProcessor {
+protected:
+public:
+  float process(float x){
+    // fiz(x)       = x+(x^7);
+    return x+(x*x*x*x*x*x*x);
+  }
+  using AbstractStatelessProcessor::process;
+};
+
+class SoftClipProcessor : public AbstractStatelessProcessor {
+  // ref: https://www.dsprelated.com/freebooks/pasp/Soft_Clipping.html
+  /**
+   * Third-order static soft-clipping function used in Yamaha multi-effects
+   * ref:  T. Araya and A. Suyama, “Sound effector capable of
+   * imparting plural sound effects like distortion and other
+   * effects,” US Patent 5,570,424, 29 Oct. 1996.
+   */
+public:
+  float process(float x){
+    return clamp((3*x/2)*(1-x*x/3), -1, 1); // cubic nonlinearity
+    // return clamp(3*(x-x*x*x/3)/2, -1, 1); // cubic nonlinearity
+  }
+  using AbstractStatelessProcessor::process;
+};
+
+class ToneProcessor : public SignalProcessor {
+protected:
+  float B[3];
+  float A[3];
+  float tone; // tone control, must be between 0 and 1. Defaults to 0.5.
+  float fs;   // sampling frequency
+  float x[4]; // current and previous input samples
+  float y[4]; // current and previous output samples
+public:
+  ToneProcessor(float sr): fs(sr) {
+    memset(B, 0, sizeof(B));
+    memset(A, 0, sizeof(A));
+    memset(x, 0, sizeof(x));
+    memset(y, 0, sizeof(y));
+  }
+  void setEffect(float value){
+    setTone(value);
+  }
+  void setModulation(float value){
+    // todo?
+  }
+  // void process(FloatArray input, FloatArray output){
+  using SignalProcessor::process;
+  float process(float input){
+    static int p = 0;
+    x[p] = input;
+    y[p] = input*B[0] + x[(p+1)&3]*B[1]+x[(p+2)&3]*B[2] - (A[1]*y[(p+1)&3] + A[2]*y[(p+2)&3]);
+    p = (p-1+4)&3;
+    return y[p];
+  } 
+  void setTone(float newTone){ //float tone must be a float between 0 and 1 (no check is performed)
+    tone = newTone;
+    updateCoefficients();
+  }
+  void updateCoefficients(){
+    /* Computes the filter coefficients for a bigMuff-style tone circuit, adpated from Matlab code by Guillaume Le Nost */
+    // Values from schematics
+    const float pot = 100e3; // tone pot
+    const float cb = 3.3e-9; // C9  +/- 5%
+    const float rb = 27e3 ; // R5 // better than 27e3 (nominal value)
+    const float r1 = pot * (1-tone);
+    const float rt = 27e3; // R8
+    const float ct = 10e-9; // C8  better than 10e-9. Better than 0.9*10e-9 for Ton=0.5
+    float r2 = pot * (tone) ;
+
+    // Equation from circuit analysis (H(s))
+    float b2 = ct*cb*r2*rt;
+    float b1 = cb*(r1+r2+rt);
+    float b0 = 1+ r1/rb;
+    float a2 = ct*rt*cb*(r1+r2);
+    float a1 = ct*rt*(1+(r1+r2)/rb) + cb*(r1+r2+rt);
+    float a0 = 1+(r1+r2+rt)/rb;
+
+    // Bilinear Transform
+    float c = 2*fs; // c=2/T
+    float cc = c*c; // cc=c^2;
+    float value = 0.5-tone;
+    float gain = 3*(value>=0 ? value: -value ); //gain=3*(abs(0.5-tone));
+    gain = exp10f(gain/20); // from dB to linear
+    float A0=a0 + a1*c + a2*cc;
+    A[0]= 1;
+    A[1] = (2*a0 - 2*a2*cc)/A0;
+    A[2] = (a0 - a1*c + a2*cc)/A0;
+  
+    float gainOverA0=gain/A0;
+    B[0] = (b0 + b1*c + b2*cc)*gainOverA0;
+    B[1]= (2*b0 - 2*b2*cc)*gainOverA0;
+    B[2] = (b0 - b1*c + b2*cc)*gainOverA0;
+  }
+};
 
 class SeriesSignalProcessor : public SignalProcessor {
 protected:
   SignalProcessor* a;
   SignalProcessor* b;
 public:
+  float process(float input){
+    return b->process(a->process(input));
+  }
   void process(FloatArray input, FloatArray output){
     a->process(input, output);
     b->process(output, output);
   }
 };
 
-class StereoSignalProcessor : public MultiSignalProcessor {
+template<class Processor>
+class StereoSignalProcessor : public Processor {
 protected:
-  SignalProcessor* left;
-  SignalProcessor* right;
+  Processor right;
 public:
-  StereoSignalProcessor(SignalProcessor* left, SignalProcessor* right): left(left), right(right) {}
+  template <typename... Args>
+  StereoSignalProcessor(Args&&... args) :
+    Processor(std::forward<Args>(args)...), right(std::forward<Args>(args)...) {}
   void process(AudioBuffer& input, AudioBuffer& output){
-    left->process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    right->process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+    Processor::process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+    right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
   }
 };
+
+// class StereoSignalProcessor : public MultiSignalProcessor {
+// protected:
+//   SignalProcessor* left;
+//   SignalProcessor* right;
+// public:
+//   StereoSignalProcessor(SignalProcessor* left, SignalProcessor* right): left(left), right(right) {}
+//   void process(AudioBuffer& input, AudioBuffer& output){
+//     left->process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+//     right->process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+//   }
+// };
 
 class WaveMultiplierProcessor : public SignalProcessor, public MultiSignalProcessor {
 protected:
@@ -34,7 +172,11 @@ public:
       wavetable[i] = sinf(2.0f*M_PI*i/WAVETABLE_SIZE); // sine
   }
   void setEffect(float value){
-    multiplier = 0.25 + value*2.75;
+    multiplier = value*1.5 + 0.5;
+    // multiplier = 0.25 + value*2.75;
+  }
+  void setModulation(float value){
+    // todo?
   }
   void setMultiplier(float value){
     multiplier = value;
@@ -55,17 +197,11 @@ protected:
   float offset = 0;
   float drive = 1;
 public:
-  void setOffset(float value){
-    offset = value/10;
-  }
-  void setDrive(float value){
-    drive = value*40+1;
-  }
   void setEffect(float value){
-    setDrive(value*0.8);
+    drive = value*16+1;
   }
   void setModulation(float value){
-    offset = 0.5*value*(drive-1)/40;
+    offset = value*(drive-1)*0.02;
   }
   float nonlinear(float x){ // Overdrive curve
     return x * ( 27 + x*x ) / ( 27 + 9*x*x );
@@ -114,7 +250,7 @@ public:
   CvNoteProcessor(MidiProcessor* processor, size_t delay)
     : processor(processor), cv_delay(delay) {}
   virtual uint8_t getNoteForCv(float cv){
-    return cv*12*5+42; // todo
+    return cv*12*5+30; // todo
   }
   void gate(bool ison, size_t delay){
     if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
@@ -151,41 +287,36 @@ public:
 
 class PhaserSignalProcessor : public SignalProcessor {
 protected:
-  class AllpassDelay {
-  private:
-    float _a1;
-    float _zm1;        
-  public:
-    AllpassDelay() : _a1( 0.f ), _zm1( 0.f ){}        
-    void delay(float delay){ //sample delay time
-      _a1 = (1.f - delay) / (1.f + delay);
-    }
-    float update(float x){
-      float y = x * -_a1 + _zm1;
-      _zm1 = y * _a1 + x;
-      return y;
-    }
-  };
-  AllpassDelay alps[6];
+  float a1;
+  FloatArray zm1;
   float feedback = 0;
   float depth = 0;
-  float zm1 = 0;
+  float z = 0;
 public:
+  PhaserSignalProcessor(){
+    zm1 = FloatArray::create(6);
+  }
+  ~PhaserSignalProcessor(){
+    FloatArray::destroy(zm1);
+  }
+  void setDelay(float delay){ //sample delay time
+    a1 = (1.f - delay) / (1.f + delay);
+  }
   void setFeedback(float f){
     feedback = f;
   }
   void setDepth(float d){
     depth = d;
   }
-  void setDelay(float d){
-    //update filter coeffs
-    for(size_t i=0; i<6; i++)
-      alps[i].delay(d);
-  }
   float process(float input){
-    float y = alps[0].update(alps[1].update(alps[2].update(alps[3].update(alps[4].update(alps[5].update(input + zm1 * feedback ))))));											      
-    zm1 = y;
-    input += y * depth;
+    float x = input + z*feedback;
+    for(size_t i=0; i<zm1.getSize(); ++i){
+      float y = x * -a1 + zm1[i]; // each zm1 is an all pass stage
+      zm1[i] = y * a1 + x;
+      x = y; // the output of one stage becomes the input of the next one
+    }
+    z = x; // save for feedback
+    input += x * depth;
     return input;
   }
   using SignalProcessor::process;

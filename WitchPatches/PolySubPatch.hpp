@@ -72,8 +72,8 @@ public:
       release = df + tmin;
       break;
     case 2: // s/l
-      attack = df + tmin;
-      release = 1.0 + tmin;
+      attack = df*df + tmin;
+      release = 1.0 + df*df; // allow extra-long decays
       break;
       // l/l
     }
@@ -112,7 +112,7 @@ public:
       q = value*3+0.75;
       break;
     case PARAMETER_ENVELOPE:
-      setEnvelope(value*value*3);
+      setEnvelope(value*3);
       break;
     }
   }
@@ -132,9 +132,10 @@ private:
   // StereoPhaserProcessor phaser;
   // WaveMultiplierProcessor overdrive;
   OverdriveProcessor overdrive;
+  // StereoSignalProcessor<ToneProcessor> overdrive;
   CvNoteProcessor* cvnote;
 public:
-  PolySubPatch() {
+  PolySubPatch(){
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
@@ -211,8 +212,6 @@ public:
     voices->generate(left);
     right.copyFrom(left);
     overdrive.process(buffer, buffer);
-    left.tanh();
-    right.tanh();
 
     // lfo
     lfo1->clock(getBlockSize());
