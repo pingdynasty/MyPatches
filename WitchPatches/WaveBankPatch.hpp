@@ -2,83 +2,56 @@
 #define __WaveBankPatch_hpp__
 
 #include "OpenWareLibrary.h"
-#include "TapTempo.hpp"
-#include "MidiPolyphonicExpressionProcessor.h"
 
 // #define USE_MPE
-#define DDS_INTERPOLATE
-
 #define VOICES 2
-#if VOICES == 1
-#define GAINFACTOR 0.8
-#elif VOICES == 2
-#define GAINFACTOR 0.7
-#elif VOICES == 4
-#define GAINFACTOR 0.6
-#else
-#define GAINFACTOR 0.4
-#endif
-
-#include "WaveBank.h"
-
+// #define DDS_INTERPOLATE
 #define SAMPLE_LEN 256
 #define NOF_X_WF 8
 #define NOF_Y_WF 8
 #define NOF_Z_WF 7
+#include "WitchPatch.hpp"
+#include "WaveBank.h"
 #include "WaveBankSynth.h"
 
-static const int TRIGGER_LIMIT = (1<<17);
-
+static const int TRIGGER_LIMIT = (1<<22);
 #define BUTTON_VELOCITY 100
 
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionMultiSignalGenerator<MorphStereoGenerator, VOICES> MorphVoices;
+typedef MidiPolyphonicExpressionMultiSignalGenerator<MorphStereoGenerator, VOICES> SynthVoices;
 #elif VOICES == 1
-typedef MonophonicMultiSignalGenerator<MorphStereoGenerator> MorphVoices;
+typedef MonophonicMultiSignalGenerator<MorphStereoGenerator> SynthVoices;
 #else
-typedef PolyphonicMultiSignalGenerator<MorphStereoGenerator, VOICES> MorphVoices;
+typedef PolyphonicMultiSignalGenerator<MorphStereoGenerator, VOICES> SynthVoices;
 #endif
 
 class WaveBankPatch : public Patch {
 private:
-  MorphVoices* voices;
-  int basenote = 60;
+  SynthVoices* voices;
   MorphBank* bank1;
   MorphBank* bank2;
-
-  SineOscillator* lfo1;
-  SineOscillator* lfo2;
-  TapTempo<TRIGGER_LIMIT> tempo1;
-  TapTempo<TRIGGER_LIMIT> tempo2;
+  TapTempoSineOscillator* lfo1;
+  TapTempoAgnesiOscillator* lfo2;
+  CvNoteProcessor* cvnote;
+  OverdriveProcessor overdrive;
 
   FloatArray createWavebank(const char* name){
     Resource* resource = getResource(name);
-    WavFile wav(resource->getData());
+    WavFile wav(resource->getData(), resource->getSize());
     if(!wav.isValid())
       error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
-    FloatArray bank = wav.createFloatArray();
+    FloatArray bank = wav.createFloatArray(0);
     Resource::destroy(resource);
     return bank;
   }
 public:
-  WaveBankPatch() :
-    tempo1(getSampleRate()*0.5), tempo2(getSampleRate()*0.25) {
-
-    FloatArray wt1 = createWavebank("wavetable1.wav");
-    MorphBank* bank1 = MorphBank::create(wt1);
-    FloatArray::destroy(wt1);
-    FloatArray wt2 = createWavebank("wavetable2.wav");
-    MorphBank* bank2 = MorphBank::create(wt2);
-    FloatArray::destroy(wt2);
-
-    voices = MorphVoices::create(2, getBlockSize());
-    for(int i=0; i<VOICES; ++i)
-      voices->setVoice(i, MorphStereoGenerator::create(bank1, bank2, getSampleRate(), getBlockSize()));
-    
+  WaveBankPatch(){
     registerParameter(PARAMETER_A, "Frequency");
     registerParameter(PARAMETER_B, "Morph X");
     registerParameter(PARAMETER_C, "Morph Y");
-    registerParameter(PARAMETER_D, "Envelope");
+    registerParameter(PARAMETER_E, "Overdrive");
+    registerParameter(PARAMETER_F, "Sine LFO>");
+    registerParameter(PARAMETER_G, "Witch LFO>");
     setParameterValue(PARAMETER_A, 0.8);
     setParameterValue(PARAMETER_B, 0.5);
     setParameterValue(PARAMETER_C, 0.5);
@@ -89,86 +62,97 @@ public:
     setParameterValue(PARAMETER_AA, 0.0);
     setParameterValue(PARAMETER_AB, 0.9);
 
+    FloatArray wt1 = createWavebank("wavetable1.wav");
+    MorphBank* bank1 = MorphBank::create(wt1);
+    FloatArray::destroy(wt1);
+    FloatArray wt2 = createWavebank("wavetable2.wav");
+    MorphBank* bank2 = MorphBank::create(wt2);
+    FloatArray::destroy(wt2);
+
+    // voices
+    voices = SynthVoices::create(2, getBlockSize());
+    for(int i=0; i<VOICES; ++i)
+      voices->setVoice(i, MorphStereoGenerator::create(bank1, bank2, getSampleRate(), getBlockSize()));
+    
     // lfo
-    lfo1 = SineOscillator::create(getBlockRate());
-    lfo2 = SineOscillator::create(getBlockRate());
-    registerParameter(PARAMETER_F, "LFO1>");
-    registerParameter(PARAMETER_G, "LFO2>");
+    lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1->setBeatsPerMinute(60);
+    lfo2->setBeatsPerMinute(120);
+
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices);
+
+#ifdef USE_MPE
+    // send MPE Configuration Message RPN
+    sendMidi(MidiMessage::cc(0, 100, 5));
+    sendMidi(MidiMessage::cc(0, 101, 0));
+    sendMidi(MidiMessage::cc(0, 6, VOICES));
+#endif
   }
 
   ~WaveBankPatch(){
-    MorphBank::destroy(bank1);
-    MorphBank::destroy(bank2);
-    SineOscillator::destroy(lfo1);
-    SineOscillator::destroy(lfo2);
     for(int i=0; i<VOICES; ++i)
       MorphStereoGenerator::destroy(voices->getVoice(i));
-    MorphVoices::destroy(voices);
+    SynthVoices::destroy(voices);
+    MorphBank::destroy(bank1);
+    MorphBank::destroy(bank2);
+    TapTempoSineOscillator::destroy(lfo1);
+    TapTempoAgnesiOscillator::destroy(lfo2);
+    CvNoteProcessor::destroy(cvnote);
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    int note = 0;
-    static int lastnote[4];
     switch(bid){
     case BUTTON_1:
-      if(value){
-	note = basenote;
-	lastnote[0] = note;
-	voices->noteOn(MidiMessage::note(1, note, BUTTON_VELOCITY));
-      }else{
-	voices->noteOff(MidiMessage::note(1, lastnote[0], 0));
-      }
+      cvnote->gate(value, samples);
       break;
     case BUTTON_2:
-      if(value){
-	note = basenote+3;
-	lastnote[1] = note;
-	voices->noteOn(MidiMessage::note(2, note, BUTTON_VELOCITY));
-      }else{
-	voices->noteOff(MidiMessage::note(2, lastnote[1], 0));
-      }
+      lfo1->trigger(value, samples);
       break;
     case BUTTON_3:
-      tempo1.trigger(value, samples);
-      if(value)
-	lfo1->reset();
-      // note = basenote+7;
+      lfo2->trigger(value, samples);
       break;
     case BUTTON_4:
-      tempo2.trigger(value, samples);
-      if(value)
-	lfo2->reset(); // todo: instead of hard reset, calculate to sync on next edge
-      // note = basenote+12;
+      static bool sustain = false;
+      if(value){
+	sustain = !sustain; // toggle
+#ifndef USE_MPE /// todo! MPE sustain
+	voices->setSustain(sustain);
+#endif
+	if(!sustain)
+	  voices->allNotesOff();
+      }
+      setButton(BUTTON_4, sustain);
       break;
     }
   }
-
+  
   void processMidi(MidiMessage msg){
     voices->process(msg);
   }
-    
+
   void processAudio(AudioBuffer &buffer) {
-    basenote = getParameterValue(PARAMETER_A)*48+40;
+    cvnote->cv(getParameterValue(PARAMETER_A));
+    cvnote->clock(getBlockSize());
+
     float x = getParameterValue(PARAMETER_B);  
     float y = getParameterValue(PARAMETER_C); 
     float env = getParameterValue(PARAMETER_D);
+    overdrive.setEffect(getParameterValue(PARAMETER_E));
     voices->setParameter(MorphSynth::PARAMETER_ENV, env);
     voices->setParameter(MorphSynth::PARAMETER_X, x);
     voices->setParameter(MorphSynth::PARAMETER_Y, y);
     voices->generate(buffer);
-    buffer.getSamples(LEFT_CHANNEL).tanh();
-    buffer.getSamples(RIGHT_CHANNEL).tanh();
-    
+    overdrive.process(buffer, buffer);
+
     // lfo
-    tempo1.clock(getBlockSize());
-    tempo2.clock(getBlockSize());
-    float rate = getSampleRate()/tempo1.getSamples();
-    lfo1->setFrequency(rate);
-    setParameterValue(PARAMETER_F, lfo1->generate()*0.5+0.5);
+    lfo1->clock(getBlockSize());
+    lfo2->clock(getBlockSize());
+    float lfo = lfo1->generate()*0.5+0.5;
+    overdrive.setModulation(lfo);
+    setParameterValue(PARAMETER_F, lfo);
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
-    rate = getSampleRate()/tempo2.getSamples();
-    lfo2->setFrequency(rate);
-    setParameterValue(PARAMETER_G, lfo2->generate()*0.5+0.5);
+    setParameterValue(PARAMETER_G, lfo2->generate());
     setButton(BUTTON_F, lfo2->getPhase() < M_PI);
   }
 };

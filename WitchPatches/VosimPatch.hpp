@@ -2,12 +2,13 @@
 #define __VosimPatch_hpp__
 
 #include "OpenWareLibrary.h"
-#include "WitchPatch.hpp"
 
+// #define USE_MPE
 #define VOICES 4
-#define GAINFACTOR 0.35
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
+
+#include "WitchPatch.hpp"
 
 class VosimSynth : public AbstractSynth {
 protected:
@@ -51,7 +52,7 @@ public:
       release = df + tmin;
       break;
     case 2: // s/l
-      attack = df*df + tmin;
+      attack = df*df*2 + tmin;
       release = 1.0 + df*df; // allow extra-long decays
       break;
       // l/l
@@ -99,7 +100,9 @@ public:
   }
 };
 
-#if VOICES == 1
+#if defined USE_MPE
+typedef MidiPolyphonicExpressionSignalGenerator<VosimSignalGenerator, VOICES> VosimVoices;
+#elif VOICES == 1
 typedef MonophonicSignalGenerator<VosimSignalGenerator> VosimVoices;
 #else
 typedef PolyphonicSignalGenerator<VosimSignalGenerator, VOICES> VosimVoices;
@@ -121,13 +124,19 @@ public:
     registerParameter(PARAMETER_C, "Formant High");
     registerParameter(PARAMETER_D, "Envelope");
     registerParameter(PARAMETER_E, "Effect Amount");
-    registerParameter(PARAMETER_F, "LFO1>");
-    registerParameter(PARAMETER_G, "LFO2>");
+    registerParameter(PARAMETER_F, "Sine LFO>");
+    registerParameter(PARAMETER_G, "Witch LFO>");
     lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo1->setBeatsPerMinute(60);
     lfo2->setBeatsPerMinute(120);
-    cvnote = CvNoteProcessor::create(getSampleRate(), 3, voices);
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices);
+#ifdef USE_MPE
+    // send MPE Configuration Message RPN
+    sendMidi(MidiMessage::cc(0, 100, 5));
+    sendMidi(MidiMessage::cc(0, 101, 0));
+    sendMidi(MidiMessage::cc(0, 6, VOICES));
+#endif
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -145,15 +154,21 @@ public:
       break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
+      if(value)
+	lfo1->reset();
       break;
     case BUTTON_3:
       lfo2->trigger(value, samples);
+      if(value)
+	lfo2->reset();
       break;
     case BUTTON_4:
       static bool sustain = false;
       if(value){
 	sustain = !sustain; // toggle
+#ifndef USE_MPE /// todo! MPE sustain
 	voices->setSustain(sustain);
+#endif
 	if(!sustain)
 	  voices->allNotesOff();
       }
@@ -179,8 +194,8 @@ public:
     voices->generate(left);
     right.copyFrom(left);
     phaser.process(buffer, buffer);
-    left.tanh();
-    right.tanh();
+    left.softclip();
+    right.softclip();
 
     // lfo
     lfo1->clock(getBlockSize());

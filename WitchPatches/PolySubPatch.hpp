@@ -2,12 +2,14 @@
 #define __PolySubPatch_hpp__
 
 #include "OpenWareLibrary.h"
-#include "WitchPatch.hpp"
 
+// #define USE_MPE
 #define VOICES 4
-#define GAINFACTOR 0.35
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
+
+#include "WitchPatch.hpp"
+
 
 class SubSynth : public AbstractSynth, public SignalGenerator {
 private:
@@ -16,6 +18,8 @@ private:
   AdsrEnvelope* env;
   SmoothFloat fc, q;
   float gain;
+  float mod1 = 0;
+  float mod2 = 0;
 public:
   enum Parameters {
 		   PARAMETER_WAVESHAPE,
@@ -39,11 +43,17 @@ public:
     BiquadFilter::destroy(obj->filter);
     delete obj;
   }
+  void setModulation(float modulation){
+    mod1 = modulation;
+  }
+  void setPressure(float modulation){
+    mod2 = modulation;
+  }
   void setFrequency(float freq){
     osc.setFrequency(freq);
   }
   void setFilter(float freq, float res){
-    fc = min(0.45, max(0.05, freq));
+    // fc = min(0.45, max(0.05, freq));
     fc = freq;
     q = res;
   }
@@ -72,7 +82,7 @@ public:
       release = df + tmin;
       break;
     case 2: // s/l
-      attack = df*df + tmin;
+      attack = df*df*2 + tmin;
       release = 1.0 + df*df; // allow extra-long decays
       break;
       // l/l
@@ -90,11 +100,12 @@ public:
     env->gate(state);
   }
   float generate(){
-    filter->setLowPass(fc, q);
+    filter->setLowPass(fc+mod1*fc, q);
     return filter->process(osc.generate())*gain*(1-q*0.2)*env->generate();
   }
   void generate(FloatArray samples){
-    filter->setLowPass(fc, q);
+    filter->setLowPass(fc+mod1*fc, q);
+    osc.setShape(mod2);
     osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(1-q*0.2)); // gain compensation for high q
@@ -103,10 +114,10 @@ public:
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
     case PARAMETER_WAVESHAPE:
-      setWaveshape(value*2);
+      mod2 = value;
       break;
     case PARAMETER_FILTER_CUTOFF:
-      fc = value*value*12000+400;
+      fc = value*value*8000+400;
       break;
     case PARAMETER_FILTER_RESONANCE:
       q = value*3+0.75;
@@ -118,7 +129,9 @@ public:
   }
 };
 
-#if VOICES == 1
+#if defined USE_MPE
+typedef MidiPolyphonicExpressionSignalGenerator<SubSynth, VOICES> SynthVoices;
+#elif VOICES == 1
 typedef MonophonicSignalGenerator<SubSynth> SynthVoices;
 #else
 typedef PolyphonicSignalGenerator<SubSynth, VOICES> SynthVoices;
@@ -140,7 +153,9 @@ public:
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "Waveshape");
+    registerParameter(PARAMETER_E, "Overdrive");
+    registerParameter(PARAMETER_F, "Sine LFO>");
+    registerParameter(PARAMETER_G, "Witch LFO>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.8);
     setParameterValue(PARAMETER_C, 0.2);
@@ -158,7 +173,14 @@ public:
     lfo1->setBeatsPerMinute(60);
     lfo2->setBeatsPerMinute(120);
 
-    cvnote = CvNoteProcessor::create(getSampleRate(), 3, voices);
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices);
+
+#ifdef USE_MPE
+    // send MPE Configuration Message RPN
+    sendMidi(MidiMessage::cc(0, 100, 5));
+    sendMidi(MidiMessage::cc(0, 101, 0));
+    sendMidi(MidiMessage::cc(0, 6, VOICES));
+#endif
   }
   ~PolySubPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -176,15 +198,22 @@ public:
       break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
+      if(value)
+	// lfo1->setPhase(M_PI/2);
+	lfo1->reset();
       break;
     case BUTTON_3:
       lfo2->trigger(value, samples);
+      if(value)
+	lfo2->reset();
       break;
     case BUTTON_4:
       static bool sustain = false;
       if(value){
 	sustain = !sustain; // toggle
+#ifndef USE_MPE /// todo! MPE sustain
 	voices->setSustain(sustain);
+#endif
 	if(!sustain)
 	  voices->allNotesOff();
       }
@@ -203,7 +232,6 @@ public:
 
     voices->setParameter(SubSynth::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SubSynth::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
-
     voices->setParameter(SubSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
     overdrive.setEffect(getParameterValue(PARAMETER_E));
 

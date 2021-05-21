@@ -1,3 +1,28 @@
+#if VOICES == 1
+#define GAINFACTOR 1
+#elif VOICES == 2
+#define GAINFACTOR 0.70
+#elif VOICES <= 4
+#define GAINFACTOR 0.5
+#elif VOICES <= 6
+#define GAINFACTOR 0.4
+#elif VOICES <= 8
+#define GAINFACTOR 0.35
+#else
+#define GAINFACTOR 0.25
+#endif
+
+float constexpr sqrtfNewtonRaphson(float x, float curr, float prev){
+  return curr == prev ? curr : sqrtfNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
+}
+/**
+ * Constexpr aproximation of the square root
+ * Only valid for finite and non-negative values of 'x'
+ */
+float constexpr constsqrtf(float x){
+  return sqrtfNewtonRaphson(x, x, 0);
+}
+
 class AbstractStatelessProcessor : public SignalProcessor, public MultiSignalProcessor {
 public:
   using SignalProcessor::process;
@@ -198,10 +223,10 @@ protected:
   float drive = 1;
 public:
   void setEffect(float value){
-    drive = value*16+1;
+    drive = value*8+1;
   }
   void setModulation(float value){
-    offset = value*(drive-1)*0.02;
+    offset = value*(drive-1)*0.04;
   }
   float nonlinear(float x){ // Overdrive curve
     return x * ( 27 + x*x ) / ( 27 + 9*x*x );
@@ -236,7 +261,7 @@ class CvNoteProcessor {
 protected:
   MidiProcessor* processor;
   size_t cv_delay;
-  size_t cv_ticks;
+  size_t cv_ticks = 0;
   bool cv_triggered = false;
   bool cv_ison = false;
   uint8_t cv_noteon = NO_NOTE;
@@ -250,7 +275,7 @@ public:
   CvNoteProcessor(MidiProcessor* processor, size_t delay)
     : processor(processor), cv_delay(delay) {}
   virtual uint8_t getNoteForCv(float cv){
-    return cv*12*5+30; // todo
+    return cv*12*5 + 30; // todo
   }
   void gate(bool ison, size_t delay){
     if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
@@ -352,13 +377,19 @@ class TapTempoOscillator : public TapTempo, public SignalGenerator {
 protected:
   Oscillator* oscillator;
 public:
-  TapTempoOscillator(float sr, size_t limit, Oscillator* osc): TapTempo(sr, limit), oscillator(osc) {}  
+  TapTempoOscillator(float sr, size_t limit, Oscillator* osc): TapTempo(sr, limit), oscillator(osc) {}
+  void reset(){
+    oscillator->reset();
+  }
   float generate(){
     oscillator->setFrequency(getFrequency());
     return oscillator->generate();
   }
   float getPhase(){
     return oscillator->getPhase();
+  }
+  void setPhase(float phase){
+    oscillator->setPhase(phase);
   }
   void generate(FloatArray output){
     oscillator->setFrequency(getFrequency());
