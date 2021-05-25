@@ -12,6 +12,31 @@
 #define GAINFACTOR 0.25
 #endif
 
+// template<class BaseOscillator>
+// class BlepTemplate {
+// // ref: http://www.martin-finke.de/blog/articles/audio-plugins-018-polyblep-oscillator/
+// protected:
+//   static float blep(float incr, float t){
+//     float dt = incr / (2*M_PI);
+//     if(t < dt){
+//       // 0 <= t < 1
+//       t /= dt;
+//       return t+t - t*t - 1.0;
+//     }else if(t > 1.0 - dt){
+//       // -1 < t < 0
+//       t = (t - 1.0) / dt;
+//       return t*t + t+t + 1.0;
+//     }
+//     // 0 otherwise
+//     return 0.0;
+//   }    
+// public:
+//   float generate(){
+//     float sample = BaseOscillator::generate();
+//     return sample - blep(incr, phase); // for saw only
+//   }
+// };
+
 float constexpr sqrtfNewtonRaphson(float x, float curr, float prev){
   return curr == prev ? curr : sqrtfNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
 }
@@ -22,6 +47,96 @@ float constexpr sqrtfNewtonRaphson(float x, float curr, float prev){
 float constexpr constsqrtf(float x){
   return sqrtfNewtonRaphson(x, x, 0);
 }
+
+class StereoChorusProcessor : public MultiSignalProcessor {
+protected:
+  AudioBuffer* buffer;
+  CircularFloatBuffer* bufferL;
+  CircularFloatBuffer* bufferR;
+  MultiBiquadFilter* filter;
+  SineOscillator* lfo;
+  float depth;
+  SmoothFloat delay;
+  SmoothFloat spread;
+  SmoothFloat amount;
+  static constexpr size_t taps = 4;
+public:
+  StereoChorusProcessor(AudioBuffer* buffer, CircularFloatBuffer* bufferL,
+			CircularFloatBuffer* bufferR, SineOscillator* lfo):
+    buffer(buffer), bufferL(bufferL), bufferR(bufferR), lfo(lfo),
+    depth(0), delay(0), spread(0), amount(0) {
+    if(bufferL)
+      delay = 0.75*bufferL->getSize();
+    filter = MultiBiquadFilter::create(48000, 2*taps, 4);
+    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+  }
+  void setDelay(float value){
+    delay = value;    
+  }
+  void setDepth(float value){
+    depth = value;
+  }
+  void setSpread(float value){
+    spread = value;
+  }
+  void setAmount(float value){
+    amount = value;
+  }
+  void setEffect(float value){
+    amount = value*0.6;
+    spread = 0.125*value*delay/taps;
+    delay = value*bufferL->getSize() - spread*taps;
+  }
+  void setModulation(float value){
+    depth = value;
+  }
+  // void process(FloatArray input, FloatArray output){
+  // }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    FloatArray inL = input.getSamples(LEFT_CHANNEL);
+    FloatArray inR = input.getSamples(RIGHT_CHANNEL);
+    output.multiply(1-amount); // scale dry signal
+    FloatArray outL = output.getSamples(LEFT_CHANNEL);
+    FloatArray outR = output.getSamples(RIGHT_CHANNEL);
+    // outL.multiply(1-amount);
+    // outR.multiply(1-amount);
+    size_t len = input.getSize();
+    bufferL->write(inL.getData(), len);
+    bufferR->write(inR.getData(), len);
+    // float ph = lfo->generate();
+    float ph = spread*0.25;
+    for(size_t i=0; i<taps; ++i){
+      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i);
+      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i);
+      float index = delay + ph*depth + spread*i;
+      bufferL->interpolatedDelay(bufL.getData(), bufL.getSize(), index);
+      index = delay + ph*depth - spread*(i+1);
+      bufferR->interpolatedDelay(bufR.getData(), bufR.getSize(), index);
+    }
+    filter->process(*buffer, *buffer);
+    buffer->multiply(amount);
+    for(size_t i=0; i<taps; ++i){
+      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i);
+      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i);
+      outL.add(bufL);
+      outR.add(bufR);      
+    }
+  }
+  static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
+    AudioBuffer* buffer = AudioBuffer::create(2*taps, bs);
+    CircularFloatBuffer* bufferL = CircularFloatBuffer::create(delaysize);
+    CircularFloatBuffer* bufferR = CircularFloatBuffer::create(delaysize);
+    SineOscillator* lfo = SineOscillator::create(sr);
+    return new StereoChorusProcessor(buffer, bufferL, bufferR, lfo);
+  }
+  static void destroy(StereoChorusProcessor* obj){
+    AudioBuffer::destroy(obj->buffer);
+    CircularFloatBuffer::destroy(obj->bufferL);
+    CircularFloatBuffer::destroy(obj->bufferR);
+    SineOscillator::destroy(obj->lfo);
+    delete obj;
+  }
+};
 
 class AbstractStatelessProcessor : public SignalProcessor, public MultiSignalProcessor {
 public:
@@ -241,6 +356,42 @@ public:
       offset *= -1;
     }
   }
+  static OverdriveProcessor* create(){
+    return new OverdriveProcessor();
+  }
+  static void destroy(OverdriveProcessor* obj){
+    delete obj;
+  }
+};
+
+class StereoOverdriveProcessor : public OverdriveProcessor {
+protected:
+  float previousOffset;
+public:
+  StereoOverdriveProcessor(): previousOffset(0) {}
+  void process(AudioBuffer& input, AudioBuffer& output){
+    float targetOffset = offset;
+    size_t len = input.getSize();
+    float incr = (targetOffset-previousOffset)/len;
+    float* lin = input.getSamples(LEFT_CHANNEL);
+    float* rin = input.getSamples(RIGHT_CHANNEL);
+    float* lout = output.getSamples(LEFT_CHANNEL);
+    float* rout = output.getSamples(RIGHT_CHANNEL);
+    while(len--){
+      *lout = OverdriveProcessor::process(*lin++);
+      offset *= -1;
+      *rout = OverdriveProcessor::process(*rin++);
+      offset *= -1;
+      offset += incr;
+    }
+    previousOffset = targetOffset;
+  }
+  static StereoOverdriveProcessor* create(){
+    return new StereoOverdriveProcessor();
+  }
+  static void destroy(StereoOverdriveProcessor* obj){
+    delete obj;
+  }
 };
 
 class OffsetScaler : public SignalProcessor {
@@ -261,6 +412,9 @@ class CvNoteProcessor {
 protected:
   MidiProcessor* processor;
   size_t cv_delay;
+  float note_range;
+  float note_offset;
+  uint8_t note_channel = 1;
   size_t cv_ticks = 0;
   bool cv_triggered = false;
   bool cv_ison = false;
@@ -272,10 +426,15 @@ public:
   // 	      STATE_TRIGGERED,
   // 	      STATE_PLAYING,
   // };
-  CvNoteProcessor(MidiProcessor* processor, size_t delay)
-    : processor(processor), cv_delay(delay) {}
+  CvNoteProcessor(MidiProcessor* processor, size_t delay, float range, float offset)
+    : processor(processor), cv_delay(delay), note_range(range), note_offset(offset) {}
   virtual uint8_t getNoteForCv(float cv){
-    return cv*12*5 + 30; // todo
+    return round(cv*note_range + note_offset);
+  }
+  uint8_t getNote(){
+    if(cv_noteon == NO_NOTE)
+      return 0;
+    return cv_noteon;
   }
   void gate(bool ison, size_t delay){
     if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
@@ -291,9 +450,9 @@ public:
       cv_triggered = false;
       if(cv_noteon == NO_NOTE){
 	cv_noteon = getNoteForCv(value);
-	processor->noteOn(MidiMessage::note(0, cv_noteon, CV_VELOCITY));
+	processor->noteOn(MidiMessage::note(note_channel, cv_noteon, CV_VELOCITY));
       }else{
-	processor->noteOff(MidiMessage::note(0, cv_noteon, 0));
+	processor->noteOff(MidiMessage::note(note_channel, cv_noteon, 0));
 	cv_noteon = NO_NOTE;
       }
     }
@@ -302,8 +461,9 @@ public:
     if(cv_ticks < cv_delay)
       cv_ticks += ticks;
   }
-  static CvNoteProcessor* create(float sr, float delay_milliseconds, MidiProcessor* processor){
-    return new CvNoteProcessor(processor, sr*delay_milliseconds/1000);
+  static CvNoteProcessor* create(float sr, float delay_milliseconds, MidiProcessor* processor,
+				 float range=12*5, float offset=30){
+    return new CvNoteProcessor(processor, sr*delay_milliseconds/1000, range, offset);
   }
   static void destroy(CvNoteProcessor* obj){
     delete obj;
@@ -324,6 +484,9 @@ public:
   ~PhaserSignalProcessor(){
     FloatArray::destroy(zm1);
   }
+  void setModulation(float value){
+    setDelay(value);
+  }
   void setDelay(float delay){ //sample delay time
     a1 = (1.f - delay) / (1.f + delay);
   }
@@ -342,7 +505,7 @@ public:
     }
     z = x; // save for feedback
     input += x * depth;
-    return input;
+    return clamp(input, -1, 1);
   }
   using SignalProcessor::process;
 };
@@ -370,9 +533,14 @@ public:
     phaser_left.process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
     phaser_right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
   }
+  static StereoPhaserProcessor* create(){
+    return new StereoPhaserProcessor();
+  }
+  static void destroy(StereoPhaserProcessor* obj){
+    delete obj;
+  }
 };
 
-// todo: reset oscillator phase on trigger
 class TapTempoOscillator : public TapTempo, public SignalGenerator {
 protected:
   Oscillator* oscillator;

@@ -3,15 +3,14 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
-#define VOICES 4
+#define USE_MPE
+#define VOICES 2
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
 
 #include "WitchPatch.hpp"
 
-
-class SubSynth : public AbstractSynth, public SignalGenerator {
+class SubSynth : public AbstractSynth, public SignalGenerator, public SignalProcessor {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
@@ -99,8 +98,11 @@ public:
   void gate(bool state) {
     env->gate(state);
   }
+  
+  // SignalGenerator
   float generate(){
     filter->setLowPass(fc+mod1*fc, q);
+    osc.setShape(mod2);
     return filter->process(osc.generate())*gain*(1-q*0.2)*env->generate();
   }
   void generate(FloatArray samples){
@@ -111,6 +113,24 @@ public:
     samples.multiply(gain*(1-q*0.2)); // gain compensation for high q
     env->process(samples, samples);
   }
+
+  // SignalProcessor
+  using MidiProcessor::process;
+  float process(float input){
+    filter->setLowPass(fc+mod1*fc, q);
+    osc.setShape(mod2);
+    return filter->process(osc.generate(input))*gain*(1-q*0.2)*env->generate();
+  }
+  void process(FloatArray fm, FloatArray output){
+    filter->setLowPass(fc+mod1*fc, q);
+    osc.setShape(mod2);
+    // osc.generate(output);
+    osc.generate(output, fm);
+    filter->process(output);
+    output.multiply(gain*(1-q*0.2)); // gain compensation for high q
+    env->process(output, output);
+  }
+
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
     case PARAMETER_WAVESHAPE:
@@ -129,12 +149,14 @@ public:
   }
 };
 
+typedef SubSynth SynthVoice;
+
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionSignalGenerator<SubSynth, VOICES> SynthVoices;
+typedef MidiPolyphonicExpressionSignalProcessor<SynthVoice, VOICES> SynthVoices;
 #elif VOICES == 1
-typedef MonophonicSignalGenerator<SubSynth> SynthVoices;
+typedef MonophonicSignalProcessor<SynthVoice> SynthVoices;
 #else
-typedef PolyphonicSignalGenerator<SubSynth, VOICES> SynthVoices;
+typedef PolyphonicProcessor<SynthVoice, VOICES> SynthVoices;
 #endif
 
 class PolySubPatch : public Patch {
@@ -165,7 +187,7 @@ public:
     // voices
     voices = SynthVoices::create(getBlockSize());
     for(int i=0; i<VOICES; ++i)
-      voices->setVoice(i, SubSynth::create(getSampleRate()));
+      voices->setVoice(i, SynthVoice::create(getSampleRate()));
 
     // lfo
     lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
@@ -184,7 +206,7 @@ public:
   }
   ~PolySubPatch(){
     for(int i=0; i<VOICES; ++i)
-      SubSynth::destroy(voices->getVoice(i));
+      SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
     TapTempoSineOscillator::destroy(lfo1);
     TapTempoAgnesiOscillator::destroy(lfo2);
@@ -230,15 +252,21 @@ public:
     cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
 
-    voices->setParameter(SubSynth::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
-    voices->setParameter(SubSynth::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
-    voices->setParameter(SubSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
+    voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
+    voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
+    voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
     overdrive.setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    voices->generate(left);
-    right.copyFrom(left);
+
+    float fm = 2 * exp2f(2*getParameterValue(PARAMETER_A) - 2) - 1;
+    // left.add(fm);
+    // debugMessage("fm", fm);
+    left.setAll(fm);
+    voices->process(left, right);
+    // voices->generate(right);
+    left.copyFrom(right);
     overdrive.process(buffer, buffer);
 
     // lfo

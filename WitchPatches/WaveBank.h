@@ -117,8 +117,8 @@ public:
     return y/Y;
   }
   float generate(float fm){
-    float sample = generate(fm);
-    phase += fm;
+    float sample = generate();
+    phase += fm*incr;
     if(phase >= SIZE)
       phase -= SIZE;
     return sample;

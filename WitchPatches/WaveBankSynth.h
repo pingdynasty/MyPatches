@@ -23,14 +23,12 @@ public:
   }
   void setGain(float gain){
     this->gain = gain*GAINFACTOR;
-    // debugMessage("gain/x/y", gain, x, y);
   }
   void trigger(){
     env->trigger();
   }
   void gate(bool state){
     env->gate(state);
-    // debugMessage("gate1", osc->getFrequency(), osc->getPhase());
   }
   MorphOsc* getOscillator(){
     return osc;
@@ -39,32 +37,30 @@ public:
     return env;
   }
   void setEnvelope(float df){
+    constexpr float tmin = 0.001;
     int di = (int)df;
+    df = df - di;
     float attack, release;
     switch(di){
       // a/d
     case 0: // l/s
-      attack = 1.0-df;
-      release = 0.0;
+      attack = 1- df + tmin;
+      release = tmin;
       break;
     case 1: // s/s
-      attack = 0.0;
-      release = df-1;
+      attack = tmin;
+      release = df + tmin;
       break;
     case 2: // s/l
-      attack = df-2;
-      release = 1.0;
+      attack = df*df*2 + tmin;
+      release = 1.0 + df*df; // allow extra-long decays
       break;
-    case 3: // l/l
-      attack = 1.0;
-      release = 1.0;
-      break;
+      // l/l
     }
     env->setAttack(attack);
     env->setRelease(release);
   }
   void setModulation(float modulation) override {
-    // debugMessage("mod", mod, modulation);
     xmod = modulation*0.5;
   }
   void setPressure(float pressure) override {
@@ -81,19 +77,24 @@ public:
       osc->setMorphY(y);
       break;
     case PARAMETER_ENV:
-      setEnvelope(value*4);
+      setEnvelope(value*3);
       break;
     }
   }
 };
 
-class MorphMonoGenerator : public MorphSynth, public SignalGenerator {
+class MorphMonoGenerator : public MorphSynth, public SignalGenerator, public SignalProcessor {
 public:
   MorphMonoGenerator(MorphOsc* osc, AdsrEnvelope* env): MorphSynth(osc, env) {}
   float generate(){
     return osc->generate()*env->generate()*gain;
   }
   using SignalGenerator::generate;
+  float process(float input){
+    return osc->generate(input)*env->generate()*gain;
+  }
+  using MidiProcessor::process;
+  using SignalProcessor::process;
   static MorphMonoGenerator* create(MorphBank* bank, float sr){
     MorphOsc* osc = MorphOsc::create(bank, sr);
     AdsrEnvelope* env = AdsrEnvelope::create(sr);
@@ -106,7 +107,7 @@ public:
   }
 };
 
-class MorphStereoGenerator : public MorphSynth, public MultiSignalGenerator {
+class MorphStereoGenerator : public MorphSynth, public MultiSignalGenerator, public MultiSignalProcessor  {
 private:
   MorphOsc* osc2;
   FloatArray buffer;
@@ -117,7 +118,6 @@ public:
     osc2->setFrequency(osc->getFrequency());
     osc2->setMorphX(osc->getMorphX());
     osc2->setMorphY(osc->getMorphY());
-    // debugMessage("osc1", osc->getFrequency(), osc->getPhase());
     FloatArray left = output.getSamples(LEFT_CHANNEL);
     FloatArray right = output.getSamples(RIGHT_CHANNEL);
     env->generate(buffer);
@@ -126,6 +126,21 @@ public:
     left.multiply(buffer);
     osc2->generate(right);
     right.multiply(buffer);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    osc2->setFrequency(osc->getFrequency());
+    osc2->setMorphX(osc->getMorphX());
+    osc2->setMorphY(osc->getMorphY());    
+    FloatArray lin = input.getSamples(LEFT_CHANNEL);
+    FloatArray rin = input.getSamples(RIGHT_CHANNEL);
+    FloatArray lout = output.getSamples(LEFT_CHANNEL);
+    FloatArray rout = output.getSamples(RIGHT_CHANNEL);
+    env->generate(buffer);
+    buffer.multiply(gain);
+    osc->generate(lout, lin);
+    lout.multiply(buffer);
+    osc2->generate(rout, rin);
+    rout.multiply(buffer);
   }
   static MorphStereoGenerator* create(MorphBank* bank1, MorphBank* bank2, float sr, size_t bs){
     FloatArray buffer = FloatArray::create(bs);

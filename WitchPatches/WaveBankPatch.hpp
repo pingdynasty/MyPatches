@@ -4,7 +4,7 @@
 #include "OpenWareLibrary.h"
 
 // #define USE_MPE
-#define VOICES 2
+#define VOICES 4
 // #define DDS_INTERPOLATE
 #define SAMPLE_LEN 256
 #define NOF_X_WF 8
@@ -18,12 +18,17 @@ static const int TRIGGER_LIMIT = (1<<22);
 #define BUTTON_VELOCITY 100
 
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionMultiSignalGenerator<MorphStereoGenerator, VOICES> SynthVoices;
+typedef MidiPolyphonicExpressionMultiSignalProcessor<MorphStereoGenerator, VOICES> SynthVoices;
 #elif VOICES == 1
 typedef MonophonicMultiSignalGenerator<MorphStereoGenerator> SynthVoices;
 #else
-typedef PolyphonicMultiSignalGenerator<MorphStereoGenerator, VOICES> SynthVoices;
+typedef PolyphonicMultiSignalProcessor<MorphStereoGenerator, VOICES> SynthVoices;
 #endif
+
+// typedef StereoPhaserProcessor FxProcessor;
+// typedef StereoChorusProcessor FxProcessor;
+typedef OverdriveProcessor FxProcessor;
+// typedef StereoOverdriveProcessor FxProcessor;
 
 class WaveBankPatch : public Patch {
 private:
@@ -33,7 +38,9 @@ private:
   TapTempoSineOscillator* lfo1;
   TapTempoAgnesiOscillator* lfo2;
   CvNoteProcessor* cvnote;
-  OverdriveProcessor overdrive;
+  FxProcessor* fx;
+  AudioBuffer* buffer;
+  static constexpr float cvrange = 5;
 
   FloatArray createWavebank(const char* name){
     Resource* resource = getResource(name);
@@ -49,7 +56,7 @@ public:
     registerParameter(PARAMETER_A, "Frequency");
     registerParameter(PARAMETER_B, "Morph X");
     registerParameter(PARAMETER_C, "Morph Y");
-    registerParameter(PARAMETER_E, "Overdrive");
+    registerParameter(PARAMETER_E, "Effect Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
     setParameterValue(PARAMETER_A, 0.8);
@@ -57,10 +64,12 @@ public:
     setParameterValue(PARAMETER_C, 0.5);
     setParameterValue(PARAMETER_D, 0.5);
 
-    registerParameter(PARAMETER_AA, "Decay");
-    registerParameter(PARAMETER_AB, "Sustain");
-    setParameterValue(PARAMETER_AA, 0.0);
-    setParameterValue(PARAMETER_AB, 0.9);
+    registerParameter(PARAMETER_AA, "FM Amount");
+    setParameterValue(PARAMETER_AA, 0.1);
+    // registerParameter(PARAMETER_AB, "Decay");
+    // registerParameter(PARAMETER_AC, "Sustain");
+    // setParameterValue(PARAMETER_AB, 0.0);
+    // setParameterValue(PARAMETER_AC, 0.9);
 
     FloatArray wt1 = createWavebank("wavetable1.wav");
     MorphBank* bank1 = MorphBank::create(wt1);
@@ -80,14 +89,20 @@ public:
     lfo1->setBeatsPerMinute(60);
     lfo2->setBeatsPerMinute(120);
 
-    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices);
-
 #ifdef USE_MPE
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
+    // send MPE Configuration Message RPN
     // send MPE Configuration Message RPN
     sendMidi(MidiMessage::cc(0, 100, 5));
     sendMidi(MidiMessage::cc(0, 101, 0));
     sendMidi(MidiMessage::cc(0, 6, VOICES));
+#else
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
+
+    // fx = FxProcessor::create(getSampleRate(), getBlockSize(), 0.240*getSampleRate());
+    fx = FxProcessor::create();
+    buffer = AudioBuffer::create(getNumberOfChannels(), getBlockSize());
   }
 
   ~WaveBankPatch(){
@@ -99,6 +114,8 @@ public:
     TapTempoSineOscillator::destroy(lfo1);
     TapTempoAgnesiOscillator::destroy(lfo2);
     CvNoteProcessor::destroy(cvnote);
+    FxProcessor::destroy(fx);
+    AudioBuffer::destroy(buffer);
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
@@ -108,21 +125,25 @@ public:
       break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
+      if(value)
+	lfo1->reset();
       break;
     case BUTTON_3:
       lfo2->trigger(value, samples);
+      if(value)
+	lfo2->reset();
       break;
     case BUTTON_4:
+#if VOICES > 1
       static bool sustain = false;
       if(value){
 	sustain = !sustain; // toggle
-#ifndef USE_MPE /// todo! MPE sustain
 	voices->setSustain(sustain);
-#endif
 	if(!sustain)
 	  voices->allNotesOff();
       }
       setButton(BUTTON_4, sustain);
+#endif
       break;
     }
   }
@@ -131,25 +152,36 @@ public:
     voices->process(msg);
   }
 
-  void processAudio(AudioBuffer &buffer) {
+  void processAudio(AudioBuffer& audio) {
     cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
 
     float x = getParameterValue(PARAMETER_B);  
     float y = getParameterValue(PARAMETER_C); 
     float env = getParameterValue(PARAMETER_D);
-    overdrive.setEffect(getParameterValue(PARAMETER_E));
+    fx->setEffect(getParameterValue(PARAMETER_E));
     voices->setParameter(MorphSynth::PARAMETER_ENV, env);
     voices->setParameter(MorphSynth::PARAMETER_X, x);
     voices->setParameter(MorphSynth::PARAMETER_Y, y);
-    voices->generate(buffer);
-    overdrive.process(buffer, buffer);
+
+    buffer->copyFrom(audio);
+    float fm_amount = getParameterValue(PARAMETER_AA);
+    buffer->multiply(fm_amount);
+    // audio.clear();
+#ifdef USE_MPE
+    float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;
+    buffer->add(fm);
+    voices->process(*buffer, audio);
+#else
+    voices->process(*buffer, audio);
+#endif
+    fx->process(audio, audio);
 
     // lfo
     lfo1->clock(getBlockSize());
     lfo2->clock(getBlockSize());
     float lfo = lfo1->generate()*0.5+0.5;
-    overdrive.setModulation(lfo);
+    fx->setModulation(lfo);
     setParameterValue(PARAMETER_F, lfo);
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
     setParameterValue(PARAMETER_G, lfo2->generate());
