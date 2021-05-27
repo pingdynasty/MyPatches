@@ -3,12 +3,12 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
-#define VOICES 2
+// #define USE_MPE
+#define VOICES 8
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
 
-#include "WitchPatch.hpp"
+#include "WitchFX.hpp"
 
 class SubSynth : public AbstractSynth, public SignalGenerator, public SignalProcessor {
 private:
@@ -152,23 +152,28 @@ public:
 typedef SubSynth SynthVoice;
 
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionSignalProcessor<SynthVoice, VOICES> SynthVoices;
+typedef MidiPolyphonicExpressionProcessor<SynthVoice, VOICES> Allocator;
 #elif VOICES == 1
-typedef MonophonicSignalProcessor<SynthVoice> SynthVoices;
+typedef MonophonicProcessor<SynthVoice> Allocator;
 #else
-typedef PolyphonicProcessor<SynthVoice, VOICES> SynthVoices;
+typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
 
-class PolySubPatch : public Patch {
-private:
-  SynthVoices* voices;
-  TapTempoSineOscillator* lfo1;
-  TapTempoAgnesiOscillator* lfo2;
+typedef VoiceAllocatorSignalProcessor<Allocator, SynthVoice, VOICES> SynthVoices;
+
+
+typedef OverdriveProcessor FxProcessor;
+// typedef StereoPhaserProcessor FxProcessor;
+// typedef StereoChorusProcessor FxProcessor;
   // StereoPhaserProcessor phaser;
   // WaveMultiplierProcessor overdrive;
-  OverdriveProcessor overdrive;
+  // OverdriveProcessor overdrive;
   // StereoSignalProcessor<ToneProcessor> overdrive;
-  CvNoteProcessor* cvnote;
+
+#include "WitchPatch.hpp"
+
+class PolySubPatch : public WitchPatch {
+private:
 public:
   PolySubPatch(){
     registerParameter(PARAMETER_A, "Pitch");
@@ -184,68 +189,25 @@ public:
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
 
+    fx = FxProcessor::create();
+
     // voices
     voices = SynthVoices::create(getBlockSize());
     for(int i=0; i<VOICES; ++i)
       voices->setVoice(i, SynthVoice::create(getSampleRate()));
 
-    // lfo
-    lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo1->setBeatsPerMinute(60);
-    lfo2->setBeatsPerMinute(120);
-
-    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices);
-
 #ifdef USE_MPE
-    // send MPE Configuration Message RPN
-    sendMidi(MidiMessage::cc(0, 100, 5));
-    sendMidi(MidiMessage::cc(0, 101, 0));
-    sendMidi(MidiMessage::cc(0, 6, VOICES));
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
+#else
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
   }
   ~PolySubPatch(){
+    CvNoteProcessor::destroy(cvnote);
     for(int i=0; i<VOICES; ++i)
       SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
-    TapTempoSineOscillator::destroy(lfo1);
-    TapTempoAgnesiOscillator::destroy(lfo2);
-    CvNoteProcessor::destroy(cvnote);
-  }
-
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    switch(bid){
-    case BUTTON_1:
-      cvnote->gate(value, samples);
-      break;
-    case BUTTON_2:
-      lfo1->trigger(value, samples);
-      if(value)
-	// lfo1->setPhase(M_PI/2);
-	lfo1->reset();
-      break;
-    case BUTTON_3:
-      lfo2->trigger(value, samples);
-      if(value)
-	lfo2->reset();
-      break;
-    case BUTTON_4:
-      static bool sustain = false;
-      if(value){
-	sustain = !sustain; // toggle
-#ifndef USE_MPE /// todo! MPE sustain
-	voices->setSustain(sustain);
-#endif
-	if(!sustain)
-	  voices->allNotesOff();
-      }
-      setButton(BUTTON_4, sustain);
-      break;
-    }
-  }
-  
-  void processMidi(MidiMessage msg){
-    voices->process(msg);
+    FxProcessor::destroy(fx);
   }
 
   void processAudio(AudioBuffer &buffer) {
@@ -255,29 +217,25 @@ public:
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
     voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
-    overdrive.setEffect(getParameterValue(PARAMETER_E));
+
+    fx->setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
 
-    float fm = 2 * exp2f(2*getParameterValue(PARAMETER_A) - 2) - 1;
-    // left.add(fm);
-    // debugMessage("fm", fm);
-    left.setAll(fm);
+    float fm_amount = getParameterValue(PARAMETER_AA);
+    left.multiply(fm_amount);
+#ifdef USE_MPE
+    // 2 * exp2f(2x - 2) : 0.5 to 2 (plus minus one octave modulation)
+    // 4 * exp2f(4x - 4) : 0.25 to 4 (plus minus two octaves modulation)
+    float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;    
+    left.add(fm);
+#endif
     voices->process(left, right);
-    // voices->generate(right);
     left.copyFrom(right);
-    overdrive.process(buffer, buffer);
+    fx->process(buffer, buffer);
 
-    // lfo
-    lfo1->clock(getBlockSize());
-    lfo2->clock(getBlockSize());
-    float lfo = lfo1->generate()*0.5+0.5;
-    overdrive.setModulation(lfo);
-    setParameterValue(PARAMETER_F, lfo);
-    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
-    setParameterValue(PARAMETER_G, lfo2->generate());
-    setButton(BUTTON_F, lfo2->getPhase() < M_PI);
+    dolfo();
   }
 };
 

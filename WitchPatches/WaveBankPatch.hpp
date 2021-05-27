@@ -10,37 +10,38 @@
 #define NOF_X_WF 8
 #define NOF_Y_WF 8
 #define NOF_Z_WF 7
-#include "WitchPatch.hpp"
+
+#include "WitchFX.hpp"
 #include "WaveBank.h"
 #include "WaveBankSynth.h"
 
 static const int TRIGGER_LIMIT = (1<<22);
 #define BUTTON_VELOCITY 100
 
+typedef MorphStereoGenerator SynthVoice;
+
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionMultiSignalProcessor<MorphStereoGenerator, VOICES> SynthVoices;
+typedef MidiPolyphonicExpressionProcessor<SynthVoice, VOICES> Allocator;
 #elif VOICES == 1
-typedef MonophonicMultiSignalGenerator<MorphStereoGenerator> SynthVoices;
+typedef MonophonicProcessor<SynthVoice> Allocator;
 #else
-typedef PolyphonicMultiSignalProcessor<MorphStereoGenerator, VOICES> SynthVoices;
+typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
+
+typedef VoiceAllocatorMultiSignalProcessor<Allocator, SynthVoice, VOICES> SynthVoices;
 
 // typedef StereoPhaserProcessor FxProcessor;
 // typedef StereoChorusProcessor FxProcessor;
 typedef OverdriveProcessor FxProcessor;
 // typedef StereoOverdriveProcessor FxProcessor;
 
-class WaveBankPatch : public Patch {
+#include "WitchPatch.hpp"
+
+class WaveBankPatch : public WitchPatch {
 private:
-  SynthVoices* voices;
   MorphBank* bank1;
   MorphBank* bank2;
-  TapTempoSineOscillator* lfo1;
-  TapTempoAgnesiOscillator* lfo2;
-  CvNoteProcessor* cvnote;
-  FxProcessor* fx;
   AudioBuffer* buffer;
-  static constexpr float cvrange = 5;
 
   FloatArray createWavebank(const char* name){
     Resource* resource = getResource(name);
@@ -82,20 +83,9 @@ public:
     voices = SynthVoices::create(2, getBlockSize());
     for(int i=0; i<VOICES; ++i)
       voices->setVoice(i, MorphStereoGenerator::create(bank1, bank2, getSampleRate(), getBlockSize()));
-    
-    // lfo
-    lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo1->setBeatsPerMinute(60);
-    lfo2->setBeatsPerMinute(120);
 
 #ifdef USE_MPE
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
-    // send MPE Configuration Message RPN
-    // send MPE Configuration Message RPN
-    sendMidi(MidiMessage::cc(0, 100, 5));
-    sendMidi(MidiMessage::cc(0, 101, 0));
-    sendMidi(MidiMessage::cc(0, 6, VOICES));
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
@@ -111,45 +101,9 @@ public:
     SynthVoices::destroy(voices);
     MorphBank::destroy(bank1);
     MorphBank::destroy(bank2);
-    TapTempoSineOscillator::destroy(lfo1);
-    TapTempoAgnesiOscillator::destroy(lfo2);
     CvNoteProcessor::destroy(cvnote);
     FxProcessor::destroy(fx);
     AudioBuffer::destroy(buffer);
-  }
-
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    switch(bid){
-    case BUTTON_1:
-      cvnote->gate(value, samples);
-      break;
-    case BUTTON_2:
-      lfo1->trigger(value, samples);
-      if(value)
-	lfo1->reset();
-      break;
-    case BUTTON_3:
-      lfo2->trigger(value, samples);
-      if(value)
-	lfo2->reset();
-      break;
-    case BUTTON_4:
-#if VOICES > 1
-      static bool sustain = false;
-      if(value){
-	sustain = !sustain; // toggle
-	voices->setSustain(sustain);
-	if(!sustain)
-	  voices->allNotesOff();
-      }
-      setButton(BUTTON_4, sustain);
-#endif
-      break;
-    }
-  }
-  
-  void processMidi(MidiMessage msg){
-    voices->process(msg);
   }
 
   void processAudio(AudioBuffer& audio) {
@@ -177,15 +131,7 @@ public:
 #endif
     fx->process(audio, audio);
 
-    // lfo
-    lfo1->clock(getBlockSize());
-    lfo2->clock(getBlockSize());
-    float lfo = lfo1->generate()*0.5+0.5;
-    fx->setModulation(lfo);
-    setParameterValue(PARAMETER_F, lfo);
-    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
-    setParameterValue(PARAMETER_G, lfo2->generate());
-    setButton(BUTTON_F, lfo2->getPhase() < M_PI);
+    dolfo();
   }
 };
 
