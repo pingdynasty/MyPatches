@@ -5,7 +5,7 @@
 
 static const int TRIGGER_LIMIT = (1<<17);
 
-#define POLYPHONY 4
+#define VOICES 4
 #define BUTTON_VELOCITY 100
 
 class StereoSamplerVoice : public AbstractSynth {
@@ -45,7 +45,7 @@ public:
     // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setDecay(float decay) {
-    decay = decay*oscL->getSampleLength()/480;
+    decay = decay*decay*oscL->getSampleLength()/240;
     env->setDecay(decay);
   }
   void setGain(float value) {
@@ -65,7 +65,7 @@ public:
     env->trigger();
   }
   void generate(AudioBuffer& output){
-    setDecay(decaytime*decaytime);
+    setDecay(decaytime);
     // oscL->setDuration(duration);
     // oscR->setDuration(duration);    
     FloatArray left = output.getSamples(LEFT_CHANNEL);
@@ -106,17 +106,21 @@ public:
   }
 };
 
+typedef StereoSamplerVoice SynthVoice;
+
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
-#elif POLYPHONY == 1
-typedef MonophonicMultiSignalGenerator<StereoSamplerVoice> VoiceProcessor;
+typedef MidiPolyphonicExpressionProcessor<SynthVoice, VOICES> Allocator;
+#elif VOICES == 1
+typedef MonophonicProcessor<SynthVoice> Allocator;
 #else
-typedef PolyphonicMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
+typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
+
+typedef VoiceAllocatorMultiSignalGenerator<Allocator, SynthVoice, VOICES> SynthVoices;
 
 class QuadSamplerPatch : public Patch {
 private:
-  VoiceProcessor* voices;
+  SynthVoices* voices;
   int basenote = 60;
   AgnesiOscillator* lfo1;
   ExponentialDecayEnvelope* env;
@@ -151,7 +155,7 @@ public:
     registerParameter(PARAMETER_D, "Decay");
 
     // create voices
-    voices = VoiceProcessor::create(2, getBlockSize());
+    voices = SynthVoices::create(2, getBlockSize());
     voices->setVoice(0, createVoice("sample1.wav"));
     voices->setVoice(1, createVoice("sample2.wav"));
     voices->setVoice(2, createVoice("sample3.wav"));
@@ -168,12 +172,13 @@ public:
 
   ~QuadSamplerPatch() {
     AgnesiOscillator::destroy(lfo1);
-    for(int i=0; i<POLYPHONY; ++i){
+    for(int i=0; i<VOICES; ++i){
       FloatArray::destroy(voices->getVoice(i)->getOscillator(LEFT_CHANNEL)->getSample());
       FloatArray::destroy(voices->getVoice(i)->getOscillator(RIGHT_CHANNEL)->getSample());
       StereoSamplerVoice::destroy(voices->getVoice(i));
     }
-    VoiceProcessor::destroy(voices);
+    SynthVoices::destroy(voices);
+    ExponentialDecayEnvelope::destroy(env);
   }
     
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){

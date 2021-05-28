@@ -308,7 +308,7 @@ public:
   void setModulation(float value){
     offset = value*(drive-1)*0.04;
   }
-  float nonlinear(float x){ // Overdrive curve
+  static float nonlinear(float x){ // Overdrive curve
     return x * ( 27 + x*x ) / ( 27 + 9*x*x );
   }
   float process(float input){

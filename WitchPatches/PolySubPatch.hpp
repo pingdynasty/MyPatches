@@ -3,8 +3,8 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
-#define VOICES 8
+#define USE_MPE
+#define VOICES 6
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
 
@@ -90,7 +90,7 @@ public:
     env->setRelease(release);
   }
   void setGain(float gain){
-    this->gain = gain*GAINFACTOR;
+    this->gain = gain*GAINFACTOR*0.6;
   }
   void trigger(){
     env->trigger();
@@ -213,16 +213,13 @@ public:
   void processAudio(AudioBuffer &buffer) {
     cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
-
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
     voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
-
     fx->setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-
     float fm_amount = getParameterValue(PARAMETER_AA);
     left.multiply(fm_amount);
 #ifdef USE_MPE

@@ -4,7 +4,7 @@
 #include "OpenWareLibrary.h"
 
 // #define USE_MPE
-#define VOICES 4
+#define VOICES 6
 #define BUTTON_VELOCITY 100
 #define TRIGGER_LIMIT (1<<22)
 

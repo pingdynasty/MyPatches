@@ -3,7 +3,7 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
+#define USE_MPE
 #define VOICES 4
 // #define DDS_INTERPOLATE
 #define SAMPLE_LEN 256
@@ -73,10 +73,10 @@ public:
     // setParameterValue(PARAMETER_AC, 0.9);
 
     FloatArray wt1 = createWavebank("wavetable1.wav");
-    MorphBank* bank1 = MorphBank::create(wt1);
+    bank1 = MorphBank::create(wt1);
     FloatArray::destroy(wt1);
     FloatArray wt2 = createWavebank("wavetable2.wav");
-    MorphBank* bank2 = MorphBank::create(wt2);
+    bank2 = MorphBank::create(wt2);
     FloatArray::destroy(wt2);
 
     // voices
