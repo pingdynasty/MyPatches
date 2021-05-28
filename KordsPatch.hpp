@@ -2,12 +2,12 @@
 #define __KordsPatch_hpp__
 
 #include "OpenWareLibrary.h"
-#include "TapTempo.hpp"
+#include "TapTempo.h"
 
-// #define USE_SVF
-#define VOICES 1
+#define USE_SVF // biquad filter is not stable at low frequencies (output drifts)
+#define VOICES 2
 
-// #define FRAC_DELAY
+#define FRAC_DELAY
 
 /**
  * Triple tone generator that produces a triad chord that tracks the frequency of the input audio signal.
@@ -79,7 +79,7 @@ public:
     sine = SineOscillator::create(sr);
   }
   ~ChordSignalGenerator(){
-    #ifdef USE_SVF
+#ifdef USE_SVF
     StateVariableFilter::destroy(vcf);
 #else
     BiquadFilter::destroy(vcf);
@@ -87,7 +87,7 @@ public:
     for(int i=0; i<3; ++i)
       PolyBlepOscillator::destroy(osc[i]);
     SineOscillator::destroy(sine);
-    FloatArray::destroy(buffer);
+    // FloatArray::destroy(buffer);
     ExponentialDecayEnvelope::destroy(env);
   }
   void setGain(float gain){
@@ -183,21 +183,34 @@ public:
   }
 };
 
-#if VOICES == 1
-typedef MonophonicSignalGenerator<ChordSignalGenerator> ChordVoices;
+typedef ChordSignalGenerator SynthVoice;
+
+#if defined USE_MPE
+typedef MidiPolyphonicExpressionProcessor<SynthVoice, VOICES> Allocator;
+#elif VOICES == 1
+typedef MonophonicProcessor<SynthVoice> Allocator;
 #else
-typedef PolyphonicSignalGenerator<ChordSignalGenerator, VOICES> ChordVoices;
+typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
 
+typedef VoiceAllocatorSignalGenerator<Allocator, SynthVoice, VOICES> SynthVoices;
+
 #ifdef FRAC_DELAY
-typedef FractionalDelayProcessor FracDelayProcessor;
+// typedef FractionalDelayProcessor<LINEAR_INTERPOLATION> FracDelayProcessor;
+// typedef FractionalDelayProcessor<COSINE_INTERPOLATION> FracDelayProcessor;
+// typedef FractionalDelayProcessor<CUBIC_3P_INTERPOLATION> FracDelayProcessor;
+// typedef FractionalDelayProcessor<CUBIC_4P_SMOOTH_INTERPOLATION> FracDelayProcessor;
+typedef FractionalDelayProcessor<HERMITE_INTERPOLATION> FracDelayProcessor;
 #else
 typedef CrossFadingDelayProcessor FracDelayProcessor;
 #endif
 
+typedef DryWetMultiSignalProcessor<PingPongFeedbackProcessor> MixProcessor;
+// typedef DryWetMultiSignalProcessor<StereoFeedbackProcessor> MixProcessor;
+
 class KordsPatch : public Patch {
 private:
-  ChordVoices* voices;
+  SynthVoices* voices;
   int basenote;
 
   // RampOscillator* lfo1;
@@ -205,7 +218,8 @@ private:
   SineOscillator* lfo2;
   FracDelayProcessor* left_delay;
   FracDelayProcessor* right_delay;
-  TapTempo<TRIGGER_LIMIT> tempo;
+  MixProcessor* delaymix;
+  AdjustableTapTempo* tempo;
 
   FloatArray left_mix;
   FloatArray right_mix;
@@ -216,10 +230,10 @@ private:
   VoltsPerOctave hz;
 
 public:
-  KordsPatch() : tempo(getSampleRate()*60/120) {
-    voices = ChordVoices::create(getBlockSize());
+  KordsPatch() {
+    voices = SynthVoices::create(getBlockSize());
     for(int i=0; i<VOICES; ++i)
-      voices->setVoice(i, ChordSignalGenerator::create(getBlockSize(), getSampleRate()));
+      voices->setVoice(i, SynthVoice::create(getBlockSize(), getSampleRate()));
     registerParameter(PARAMETER_A, "Decay");
     registerParameter(PARAMETER_B, "Tempo");
     registerParameter(PARAMETER_C, "Feedback");
@@ -241,6 +255,10 @@ public:
     setParameterValue(PARAMETER_AD, 0.0);
     setParameterValue(PARAMETER_AE, 0.5);
 
+    tempo = AdjustableTapTempo::create(getSampleRate(), TRIGGER_LIMIT);
+    tempo->setBeatsPerMinute(240);
+    tempo->resetAdjustment(getParameterValue(PARAMETER_B)*4096);
+
     // delay
 #ifdef FRAC_DELAY
     left_delay = FracDelayProcessor::create(TRIGGER_LIMIT);
@@ -249,12 +267,11 @@ public:
     left_delay = FracDelayProcessor::create(TRIGGER_LIMIT, getBlockSize());
     right_delay = FracDelayProcessor::create(TRIGGER_LIMIT*2, getBlockSize());
 #endif
-    left_mix = FloatArray::create(getBlockSize());
-    right_mix = FloatArray::create(getBlockSize());
-    left_fb = FloatArray::create(getBlockSize());
-    right_fb = FloatArray::create(getBlockSize());
-    left_delay->setDelay(getSampleRate()*0.25);
-    right_delay->setDelay(getSampleRate()*0.5);
+
+    delaymix = MixProcessor::create(getNumberOfChannels(), getBlockSize(), left_delay, right_delay,
+				    FloatArray::create(getBlockSize()), FloatArray::create(getBlockSize()));
+				    
+    
     delay_samples.lambda = 0.96;
 
     // lfos
@@ -266,14 +283,16 @@ public:
   }
   ~KordsPatch(){
     for(int i=0; i<VOICES; ++i)
-      ChordSignalGenerator::destroy(voices->getVoice(i));
-    ChordVoices::destroy(voices);
+      SynthVoice::destroy(voices->getVoice(i));
+    SynthVoices::destroy(voices);
     FloatArray::destroy(left_mix);
     FloatArray::destroy(right_mix);
     SineOscillator::destroy(lfo1);
     SineOscillator::destroy(lfo2);
     FracDelayProcessor::destroy(left_delay);
     FracDelayProcessor::destroy(right_delay);
+    MixProcessor::destroy(delaymix);
+    AdjustableTapTempo::destroy(tempo);
   }
   void processMidi(MidiMessage msg){
     voices->process(msg);
@@ -288,7 +307,7 @@ public:
       }
       break;
     case BUTTON_B:
-      tempo.trigger(value, samples);
+      tempo->trigger(value, samples);
       if(value)
       	lfo1->reset();
       break;
@@ -318,29 +337,23 @@ public:
     voices->setParameter(ChordSignalGenerator::PARAMETER_SUBOSC, getParameterValue(PARAMETER_AE));
     voices->setParameter(ChordSignalGenerator::PARAMETER_WAVESHAPE, getParameterValue(PARAMETER_AD));
     voices->generate(left);
-    left.tanh();
     right.copyFrom(left);
 
-    // delay
-    tempo.clock(getBlockSize());
-    tempo.setSpeed(getParameterValue(PARAMETER_B)*4096);
+    // delay and mix
+    tempo->clock(getBlockSize());
+    tempo->adjust(getParameterValue(PARAMETER_B)*4096);
     float feedback = getParameterValue(PARAMETER_C)*1.1;
     float mix = getParameterValue(PARAMETER_D);
-    delay_samples = tempo.getSamples();
-    left_fb.multiply(feedback);
-    right_fb.multiply(feedback);
-    left_fb.add(left);
-    right_fb.add(right);
-    left_delay->smooth(left_fb, left_mix, delay_samples);
-    right_delay->smooth(right_fb, right_mix, delay_samples*1.5);
-    left.multiply(1-mix);
-    right.multiply(1-mix);
-    left_fb.copyFrom(right_mix);
-    right_fb.copyFrom(left_mix);
-    left_mix.multiply(mix);
-    right_mix.multiply(mix);
-    left.add(left_mix);
-    right.add(right_mix);
+    delay_samples = tempo->getSamples();
+
+    left_delay->setDelay(delay_samples);
+    right_delay->setDelay(delay_samples*1.5);
+    delaymix->setFeedback(feedback);
+    delaymix->setMix(mix);
+    delaymix->process(buffer, buffer);
+
+    left.softclip();
+    right.softclip();
 
     // Tempo synced LFO
     float lfoFreq = getSampleRate()/delay_samples;
