@@ -4,9 +4,7 @@
 #include "OpenWareLibrary.h"
 
 // #define USE_MPE
-#define VOICES 6
-#define BUTTON_VELOCITY 100
-#define TRIGGER_LIMIT (1<<22)
+#define VOICES 2
 
 #include "WitchFX.hpp"
 
@@ -121,7 +119,6 @@ public:
   }
 };
 
-
 typedef VosimSignalProcessor SynthVoice;
 
 #if defined USE_MPE
@@ -133,9 +130,6 @@ typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
 
 typedef VoiceAllocatorSignalProcessor<Allocator, SynthVoice, VOICES> SynthVoices;
-
-typedef StereoPhaserProcessor FxProcessor;
-// typedef StereoChorusProcessor FxProcessor;
 
 #include "WitchPatch.hpp"
 
@@ -157,26 +151,21 @@ public:
 #ifdef USE_MPE
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
 #else
-    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
+    cvnote = CvNoteProcessor::create(getSampleRate(), 2, voices, 12*cvrange, 24);
 #endif
-    // fx = FxProcessor::create(getSampleRate(), getBlockSize(), 0.240*getSampleRate());
-    fx = FxProcessor::create();
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i)
       SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
     CvNoteProcessor::destroy(cvnote);
-    FxProcessor::destroy(fx);
   }
-
   void processAudio(AudioBuffer &buffer) {
-    cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
+    cvnote->cv(getParameterValue(PARAMETER_A));
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
-    fx->setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
@@ -194,10 +183,7 @@ public:
     voices->process(left, right);
 #endif
     left.copyFrom(right);
-    fx->process(buffer, buffer);
-    left.softclip();
-    right.softclip();
-
+    dofx(buffer);
     dolfo();
   }
 };

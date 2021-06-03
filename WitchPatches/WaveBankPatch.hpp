@@ -15,9 +15,6 @@
 #include "WaveBank.h"
 #include "WaveBankSynth.h"
 
-static const int TRIGGER_LIMIT = (1<<22);
-#define BUTTON_VELOCITY 100
-
 typedef MorphStereoGenerator SynthVoice;
 
 #if defined USE_MPE
@@ -29,11 +26,6 @@ typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 #endif
 
 typedef VoiceAllocatorMultiSignalProcessor<Allocator, SynthVoice, VOICES> SynthVoices;
-
-// typedef StereoPhaserProcessor FxProcessor;
-// typedef StereoChorusProcessor FxProcessor;
-typedef OverdriveProcessor FxProcessor;
-// typedef StereoOverdriveProcessor FxProcessor;
 
 #include "WitchPatch.hpp"
 
@@ -72,6 +64,8 @@ public:
     // setParameterValue(PARAMETER_AB, 0.0);
     // setParameterValue(PARAMETER_AC, 0.9);
 
+    setParameterValue(PARAMETER_AD, 0.5); // select Overdrive?
+
     FloatArray wt1 = createWavebank("wavetable1.wav");
     bank1 = MorphBank::create(wt1);
     FloatArray::destroy(wt1);
@@ -90,8 +84,6 @@ public:
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
 
-    // fx = FxProcessor::create(getSampleRate(), getBlockSize(), 0.240*getSampleRate());
-    fx = FxProcessor::create();
     buffer = AudioBuffer::create(getNumberOfChannels(), getBlockSize());
   }
 
@@ -102,18 +94,16 @@ public:
     MorphBank::destroy(bank1);
     MorphBank::destroy(bank2);
     CvNoteProcessor::destroy(cvnote);
-    FxProcessor::destroy(fx);
     AudioBuffer::destroy(buffer);
   }
 
   void processAudio(AudioBuffer& audio) {
-    cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
+    cvnote->cv(getParameterValue(PARAMETER_A));
 
     float x = getParameterValue(PARAMETER_B);  
     float y = getParameterValue(PARAMETER_C); 
     float env = getParameterValue(PARAMETER_D);
-    fx->setEffect(getParameterValue(PARAMETER_E));
     voices->setParameter(MorphSynth::PARAMETER_ENV, env);
     voices->setParameter(MorphSynth::PARAMETER_X, x);
     voices->setParameter(MorphSynth::PARAMETER_Y, y);
@@ -129,8 +119,7 @@ public:
 #else
     voices->process(*buffer, audio);
 #endif
-    fx->process(audio, audio);
-
+    dofx(audio);
     dolfo();
   }
 };

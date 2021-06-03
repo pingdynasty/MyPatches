@@ -8,10 +8,14 @@ static const int TRIGGER_LIMIT = (1<<17);
 #define VOICES 4
 #define BUTTON_VELOCITY 100
 
+// typedef SampleOscillator<LINEAR_INTERPOLATION> Sampler;
+typedef SampleOscillator<COSINE_INTERPOLATION> Sampler;
+// typedef SampleOscillator<CUBIC_4P_SMOOTH_INTERPOLATION> Sampler;
+
 class StereoSamplerVoice : public AbstractSynth {
 private:
-  SampleOscillator* oscL;
-  SampleOscillator* oscR;
+  Sampler* oscL;
+  Sampler* oscR;
   ExponentialDecayEnvelope* env;
   float gain;
   Control<PARAMETER_D> decaytime = 0.0f;
@@ -20,8 +24,8 @@ private:
 public:
   StereoSamplerVoice(float sr, size_t bs, FloatArray left, FloatArray right)
     : gain(1.0f) {
-    oscL = SampleOscillator::create(sr, left);
-    oscR = SampleOscillator::create(sr, right);
+    oscL = Sampler::create(sr, left);
+    oscR = Sampler::create(sr, right);
     env = ExponentialDecayEnvelope::create(sr);
     filter = StereoBiquadFilter::create(sr, 2);
     buffer = FloatArray::create(bs);
@@ -30,8 +34,8 @@ public:
     return new StereoSamplerVoice(sr, bs, left, right);
   }
   static void destroy(StereoSamplerVoice* obj) {
-    SampleOscillator::destroy(obj->oscL);
-    SampleOscillator::destroy(obj->oscR);
+    Sampler::destroy(obj->oscL);
+    Sampler::destroy(obj->oscR);
     FloatArray::destroy(obj->buffer);
     ExponentialDecayEnvelope::destroy(obj->env);
     StereoBiquadFilter::destroy(obj->filter);
@@ -97,7 +101,7 @@ public:
       break;
     }
   }
-  SampleOscillator* getOscillator(size_t channel){
+  Sampler* getOscillator(size_t channel){
     if(channel == 0)
       return oscL;
     else if(channel == 1)

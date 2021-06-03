@@ -13,11 +13,76 @@
 #define GAINFACTOR 0.25
 #endif
 
+#define TRIGGER_LIMIT (1<<22)
+#define BUTTON_VELOCITY 100
+
+class WitchFX : public TapTempo, public MultiSignalProcessor {
+  static constexpr int TAP_LIMIT = (1<<21);
+public:
+  WitchFX(float samplerate) : TapTempo(samplerate, TAP_LIMIT) {}
+  virtual ~WitchFX(){}
+  // virtual void trigger(bool on, int delay) = 0;
+  // virtual void clock(size_t steps) = 0;
+  virtual void setModulation(float value) = 0;
+  virtual void setEffect(float value) = 0;
+  virtual void process(AudioBuffer& input, AudioBuffer& output) = 0;
+  // calls TapTempo::clock()
+  // virtual static WitchFX* create(float samplerate, size_t blocksize) = 0;
+  // virtual static void destroy(WitchFX* obj) = 0;
+};
+
+class SmoothStereoDelayProcessor : public MultiSignalProcessor {
+// typedef FractionalDelayProcessor<HERMITE_INTERPOLATION> SmoothDelayProcessor;
+typedef CrossFadingDelayProcessor SmoothDelayProcessor;
+typedef DryWetMultiSignalProcessor<PingPongFeedbackProcessor> MixProcessor;
+// typedef DryWetMultiSignalProcessor<StereoFeedbackProcessor> MixProcessor;
+protected:
+  SmoothDelayProcessor* left_delay;
+  SmoothDelayProcessor* right_delay;
+  MixProcessor* delaymix;
+  // static constexpr int TRIGGER_LIMIT = (1<<17);
+public:
+  SmoothStereoDelayProcessor(size_t blocksize){
+    left_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT, blocksize);
+    right_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT*2, blocksize);
+    delaymix = MixProcessor::create(2, blocksize,
+				    left_delay, right_delay,
+				    FloatArray::create(blocksize),
+				    FloatArray::create(blocksize));
+  }
+  ~SmoothStereoDelayProcessor(){
+    SmoothDelayProcessor::destroy(left_delay);
+    SmoothDelayProcessor::destroy(right_delay);
+    MixProcessor::destroy(delaymix);
+  }
+  void setDelay(float delay_samples){
+    left_delay->setDelay(delay_samples);
+    right_delay->setDelay(delay_samples);
+  }
+  void setMix(float mix){
+    delaymix->setMix(mix);
+  }
+  void setFeedback(float feedback){
+    delaymix->setFeedback(feedback);
+  }    
+  void process(AudioBuffer& input, AudioBuffer& output){
+    delaymix->process(input, output);
+  }
+  // static SmoothStereoDelayProcessor* create(float sr, size_t bs, size_t delaysize){
+  //   AudioBuffer* buffer = AudioBuffer::create(2, bs);
+  //   return new SmoothStereoDelayProcessor(buffer, bufferL, bufferR, lfo);
+  // }
+  // static void destroy(SmoothStereoDelayProcessor* obj){
+  //   AudioBuffer::destroy(obj->buffer);
+  // }
+};
+
 class StereoChorusProcessor : public MultiSignalProcessor {
+  typedef InterpolatingCircularFloatBuffer<HERMITE_INTERPOLATION> CircularBufferType;
 protected:
   AudioBuffer* buffer;
-  CircularFloatBuffer* bufferL;
-  CircularFloatBuffer* bufferR;
+  CircularBufferType* bufferL;
+  CircularBufferType* bufferR;
   MultiBiquadFilter* filter;
   SineOscillator* lfo;
   float depth;
@@ -26,8 +91,8 @@ protected:
   SmoothFloat amount;
   static constexpr size_t taps = 4;
 public:
-  StereoChorusProcessor(AudioBuffer* buffer, CircularFloatBuffer* bufferL,
-			CircularFloatBuffer* bufferR, SineOscillator* lfo):
+  StereoChorusProcessor(AudioBuffer* buffer, CircularBufferType* bufferL,
+			CircularBufferType* bufferR, SineOscillator* lfo):
     buffer(buffer), bufferL(bufferL), bufferR(bufferR), lfo(lfo),
     depth(0), delay(0), spread(0), amount(0) {
     if(bufferL)
@@ -74,9 +139,9 @@ public:
       FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i);
       FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i);
       float index = delay + ph*depth + spread*i;
-      bufferL->interpolatedDelay(bufL.getData(), bufL.getSize(), index);
+      bufferL->delay(bufL.getData(), bufL.getSize(), index);
       index = delay + ph*depth - spread*(i+1);
-      bufferR->interpolatedDelay(bufR.getData(), bufR.getSize(), index);
+      bufferR->delay(bufR.getData(), bufR.getSize(), index);
     }
     filter->process(*buffer, *buffer);
     buffer->multiply(amount);
@@ -89,15 +154,15 @@ public:
   }
   static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
     AudioBuffer* buffer = AudioBuffer::create(2*taps, bs);
-    CircularFloatBuffer* bufferL = CircularFloatBuffer::create(delaysize);
-    CircularFloatBuffer* bufferR = CircularFloatBuffer::create(delaysize);
+    CircularBufferType* bufferL = CircularBufferType::create(delaysize);
+    CircularBufferType* bufferR = CircularBufferType::create(delaysize);
     SineOscillator* lfo = SineOscillator::create(sr);
     return new StereoChorusProcessor(buffer, bufferL, bufferR, lfo);
   }
   static void destroy(StereoChorusProcessor* obj){
     AudioBuffer::destroy(obj->buffer);
-    CircularFloatBuffer::destroy(obj->bufferL);
-    CircularFloatBuffer::destroy(obj->bufferR);
+    CircularBufferType::destroy(obj->bufferL);
+    CircularBufferType::destroy(obj->bufferR);
     SineOscillator::destroy(obj->lfo);
     delete obj;
   }
@@ -418,15 +483,6 @@ protected:
   PhaserSignalProcessor phaser_left;
   PhaserSignalProcessor phaser_right;
 public:
-  void setModulation(float value){
-    setDelay(value);
-  }
-  void setEffect(float value){
-    phaser_left.setDepth(min(1, value*2));
-    // phaser_left.setFeedback(max(0, value*1.25-0.4));
-    phaser_right.setDepth(min(1, value*2));
-    // phaser_right.setFeedback(max(0, value*1.25-0.4));
-  }
   void setDelay(float value){
       // phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
     phaser_left.setDelay(value*0.04+0.02);
@@ -442,4 +498,87 @@ public:
   static void destroy(StereoPhaserProcessor* obj){
     delete obj;
   }
+};
+
+class WitchDelay : public WitchFX {
+private:
+  SmoothStereoDelayProcessor* delay;
+public:
+  WitchDelay(float sr, SmoothStereoDelayProcessor* delay) : WitchFX(sr), delay(delay) {}
+  void setModulation(float value){
+  }
+  void setEffect(float value){
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    clock(input.getSize());
+    delay->setDelay(getPeriodInSamples());
+    delay->process(input, output);
+    output.getSamples(LEFT_CHANNEL).softclip();
+    output.getSamples(RIGHT_CHANNEL).softclip();
+  }
+  static WitchDelay* create(float samplerate, size_t blocksize){
+    return new WitchDelay(samplerate, new SmoothStereoDelayProcessor(blocksize));
+  }
+  static void destroy(WitchDelay* obj){
+    delete obj->delay;
+    delete obj;
+  }
+};
+
+class WitchPhaser : public WitchFX, public StereoPhaserProcessor {
+public:
+  WitchPhaser(float sr) : WitchFX(sr) {}
+  void setModulation(float value){
+    setDelay(value);
+  }
+  void setEffect(float value){
+    phaser_left.setDepth(min(1, value*2));
+    // phaser_left.setFeedback(max(0, value*1.25-0.4));
+    phaser_right.setDepth(min(1, value*2));
+    // phaser_right.setFeedback(max(0, value*1.25-0.4));
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    StereoPhaserProcessor::process(input, output);
+    output.getSamples(LEFT_CHANNEL).softclip();
+    output.getSamples(RIGHT_CHANNEL).softclip();
+  }
+  static WitchPhaser* create(float samplerate, size_t blocksize){
+    return new WitchPhaser(samplerate);
+  }
+  static void destroy(WitchPhaser* obj){
+    delete obj;
+  }
+};
+
+class WitchMultiEffect : public WitchFX {
+private:
+  WitchFX* fx[2];
+  size_t selected = 0;
+public:
+  WitchMultiEffect(float samplerate, size_t blocksize): WitchFX(samplerate) {}
+  // WitchMultiEffect(float samplerate, size_t blocksize){
+  // }
+  static WitchMultiEffect* create(float samplerate, size_t blocksize){
+    WitchMultiEffect* obj = new WitchMultiEffect(samplerate, blocksize);
+    obj->fx[0] = WitchPhaser::create(samplerate, blocksize);
+    // obj->fx[1] = WitchDelay::create(samplerate, blocksize);
+    return obj;
+  }
+  static void destroy(WitchMultiEffect* obj){
+    WitchPhaser::destroy((WitchPhaser*)obj->fx[0]);
+    // WitchDelay::destroy((WitchDelay*)obj->fx[1]);
+    delete obj;
+  }
+  void select(float value){
+    // selected = min(1, uint8_t(value*2));
+  }
+  void setModulation(float value){
+    fx[selected]->setModulation(value);
+  }
+  void setEffect(float value){
+    fx[selected]->setEffect(value);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    fx[selected]->process(input, output);
+  }    
 };

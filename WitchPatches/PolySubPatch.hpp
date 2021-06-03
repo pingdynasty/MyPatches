@@ -5,8 +5,6 @@
 
 #define USE_MPE
 #define VOICES 6
-#define BUTTON_VELOCITY 100
-#define TRIGGER_LIMIT (1<<22)
 
 #include "WitchFX.hpp"
 
@@ -161,15 +159,6 @@ typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 
 typedef VoiceAllocatorSignalProcessor<Allocator, SynthVoice, VOICES> SynthVoices;
 
-
-typedef OverdriveProcessor FxProcessor;
-// typedef StereoPhaserProcessor FxProcessor;
-// typedef StereoChorusProcessor FxProcessor;
-  // StereoPhaserProcessor phaser;
-  // WaveMultiplierProcessor overdrive;
-  // OverdriveProcessor overdrive;
-  // StereoSignalProcessor<ToneProcessor> overdrive;
-
 #include "WitchPatch.hpp"
 
 class PolySubPatch : public WitchPatch {
@@ -189,8 +178,6 @@ public:
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
 
-    fx = FxProcessor::create();
-
     // voices
     voices = SynthVoices::create(getBlockSize());
     for(int i=0; i<VOICES; ++i)
@@ -207,7 +194,6 @@ public:
     for(int i=0; i<VOICES; ++i)
       SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
-    FxProcessor::destroy(fx);
   }
 
   void processAudio(AudioBuffer &buffer) {
@@ -216,7 +202,6 @@ public:
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
     voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
-    fx->setEffect(getParameterValue(PARAMETER_E));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
@@ -230,8 +215,7 @@ public:
 #endif
     voices->process(left, right);
     left.copyFrom(right);
-    fx->process(buffer, buffer);
-
+    dofx(buffer);
     dolfo();
   }
 };

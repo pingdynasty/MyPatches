@@ -67,7 +67,7 @@ public:
     if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
       cv_ison = ison;
       cv_triggered = true;
-      cv_ticks = delay;
+      cv_ticks = -delay;
       if(ison)
 	cv_noteon = NO_NOTE;
     }
@@ -154,7 +154,7 @@ protected:
   TapTempoSineOscillator* lfo1;
   TapTempoAgnesiOscillator* lfo2;
   CvNoteProcessor* cvnote;
-  FxProcessor* fx;
+  WitchMultiEffect* fx;
   static constexpr float cvrange = 5;
 public:
   WitchPatch(){
@@ -169,12 +169,13 @@ public:
     sendMidi(MidiMessage::cc(0, 101, 0));
     sendMidi(MidiMessage::cc(0, 6, VOICES));
 #endif
+    fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
   }
   virtual ~WitchPatch(){
     TapTempoSineOscillator::destroy(lfo1);
     TapTempoAgnesiOscillator::destroy(lfo2);
+    WitchMultiEffect::destroy(fx);
   }
-  
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
     case BUTTON_1:
@@ -182,6 +183,7 @@ public:
       break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
+      fx->trigger(value, samples);
       if(value)
 	lfo1->reset();
       break;
@@ -204,12 +206,18 @@ public:
       break;
     }
   }
-  
+
   void processMidi(MidiMessage msg){
     voices->process(msg);
   }
 
-  void dolfo(){    
+  void dofx(AudioBuffer &buffer){
+    // fx->select(getParameterValue(PARAMETER_AD));
+    fx->setEffect(getParameterValue(PARAMETER_E));
+    fx->process(buffer, buffer);
+  }
+
+  void dolfo(){
     // lfo
     lfo1->clock(getBlockSize());
     lfo2->clock(getBlockSize());
