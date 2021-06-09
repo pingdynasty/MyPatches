@@ -642,9 +642,12 @@ public:
     return float(value+0.5)/NOF_EFFECTS;
   }
   void select(float value){
-    WitchFX* previous = fx[selected];
-    selected = clamp(value*NOF_EFFECTS, 0, NOF_EFFECTS-1);
-    fx[selected]->setPeriodInSamples(previous->getPeriodInSamples());
+    size_t next = clamp(value*NOF_EFFECTS, 0, NOF_EFFECTS-1);
+    if(selected != next){
+      debugMessage("FX", (int)next);
+      fx[next]->setPeriodInSamples(fx[selected]->getPeriodInSamples());
+      selected = next;
+    }
   }
   void setModulation(float value){
     fx[selected]->setModulation(value);
@@ -654,6 +657,5 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     fx[selected]->process(input, output);
-    debugMessage("fx", (int)selected);
   }    
 };
