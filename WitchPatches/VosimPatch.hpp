@@ -3,7 +3,7 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
+#define USE_MPE
 #define VOICES 8
 
 #include "WitchFX.hpp"
