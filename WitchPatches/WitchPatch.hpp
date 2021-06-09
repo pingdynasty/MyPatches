@@ -51,7 +51,7 @@ protected:
 public:
   CvNoteProcessor(MidiProcessor* processor, size_t delay, float range, float offset)
     : processor(processor), cv_delay(delay), note_range(range), note_offset(offset) {}
-  virtual uint8_t getNoteForCv(float cv){
+  uint8_t getNoteForCv(float cv){
     return round(cv*note_range + note_offset);
   }
   uint8_t getNote(){

@@ -3,8 +3,8 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
-#define VOICES 6
+#define USE_MPE
+#define VOICES 8
 
 #include "WitchFX.hpp"
 
@@ -177,6 +177,9 @@ public:
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
+
+    registerParameter(PARAMETER_AA, "FM Amount");
+    setParameterValue(PARAMETER_AA, 0.1);
     registerParameter(PARAMETER_AD, "FX Select");
     setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
 
@@ -192,15 +195,16 @@ public:
 #endif
   }
   ~PolySubPatch(){
-    CvNoteProcessor::destroy(cvnote);
     for(int i=0; i<VOICES; ++i)
       SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
+    CvNoteProcessor::destroy(cvnote);
   }
 
   void processAudio(AudioBuffer &buffer) {
-    cvnote->cv(getParameterValue(PARAMETER_A));
     cvnote->clock(getBlockSize());
+    cvnote->cv(getParameterValue(PARAMETER_A));
+
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
     voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));

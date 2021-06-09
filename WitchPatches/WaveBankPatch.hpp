@@ -78,22 +78,21 @@ public:
     for(int i=0; i<VOICES; ++i)
       voices->setVoice(i, MorphStereoGenerator::create(bank1, bank2, getSampleRate(), getBlockSize()));
 
+    buffer = AudioBuffer::create(getNumberOfChannels(), getBlockSize());
 #ifdef USE_MPE
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
-
-    buffer = AudioBuffer::create(getNumberOfChannels(), getBlockSize());
   }
 
   ~WaveBankPatch(){
     for(int i=0; i<VOICES; ++i)
-      MorphStereoGenerator::destroy(voices->getVoice(i));
+      SynthVoice::destroy(voices->getVoice(i));
     SynthVoices::destroy(voices);
+    CvNoteProcessor::destroy(cvnote);
     MorphBank::destroy(bank1);
     MorphBank::destroy(bank2);
-    CvNoteProcessor::destroy(cvnote);
     AudioBuffer::destroy(buffer);
   }
 

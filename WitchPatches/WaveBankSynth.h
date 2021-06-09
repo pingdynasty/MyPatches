@@ -17,7 +17,7 @@ public:
 		   PARAMETER_Y,
 		   PARAMETER_ENV
   };
-  MorphSynth(MorphOsc* osc, AdsrEnvelope* env): osc(osc), env(env) {}  
+  MorphSynth(MorphOsc* osc, AdsrEnvelope* env): osc(osc), env(env), gain(1), x(0), y(0) {}  
   void setFrequency(float freq){
     osc->setFrequency(freq);    
   }

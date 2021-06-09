@@ -247,7 +247,7 @@ protected:
   float multiplier;
 public:
   WaveMultiplierProcessor() {
-    for(int i=0; i<WAVETABLE_SIZE; ++i)
+    for(size_t i=0; i<WAVETABLE_SIZE; ++i)
       // wavetable[i] = 2.0f*i/WAVETABLE_SIZE - 1.0f; // tri
       wavetable[i] = sinf(2.0f*M_PI*i/WAVETABLE_SIZE); // sine
   }
@@ -306,25 +306,27 @@ public:
 
 class StereoOverdriveProcessor : public OverdriveProcessor {
 protected:
-  float previousOffset;
+  float previousOffset = 0;
 public:
-  StereoOverdriveProcessor(): previousOffset(0) {}
+  StereoOverdriveProcessor(){}
+  float process(float input, float offset){
+    return clamp(nonlinear(input*drive+offset), -1, 1);
+  }
   void process(AudioBuffer& input, AudioBuffer& output){
-    float targetOffset = offset;
+    float targetOffset = this->offset;
+    float currentOffset = previousOffset;
     size_t len = input.getSize();
-    float incr = (targetOffset-previousOffset)/len;
+    float incr = (targetOffset - currentOffset)/len;
     float* lin = input.getSamples(LEFT_CHANNEL);
     float* rin = input.getSamples(RIGHT_CHANNEL);
     float* lout = output.getSamples(LEFT_CHANNEL);
     float* rout = output.getSamples(RIGHT_CHANNEL);
     while(len--){
-      *lout = OverdriveProcessor::process(*lin++);
-      offset *= -1;
-      *rout = OverdriveProcessor::process(*rin++);
-      offset *= -1;
-      offset += incr;
+      *lout++ = process(*lin++, currentOffset);
+      *rout++ = process(*rin++, -currentOffset);
+      currentOffset += incr;
     }
-    previousOffset = targetOffset;
+    previousOffset = currentOffset;
   }
   static StereoOverdriveProcessor* create(){
     return new StereoOverdriveProcessor();
@@ -469,16 +471,16 @@ protected:
 public:
   WitchOverdrive(float samplerate): WitchFX(samplerate){}
   void setEffect(float value){
-    setDrive(value*8+1);
-    gain = 1-value*0.75;
+    setDrive(value*value*8+value*4+1);
+    gain = max(1-value, 0.5);
   }
   void setModulation(float value){
-    setOffset(value*(drive-1)*0.05);
+    setOffset(value*(drive-1)*0.1);
   }
   void process(AudioBuffer& input, AudioBuffer& output){
-    // StereoOverdriveProcessor::process(input, output);
-    OverdriveProcessor::process(input, output);
-    // output.multiply(gain);
+    StereoOverdriveProcessor::process(input, output);
+    // OverdriveProcessor::process(input, output);
+    output.multiply(gain);
   }
   static WitchOverdrive* create(float samplerate, size_t blocksize){
     return new WitchOverdrive(samplerate);
@@ -496,27 +498,28 @@ protected:
   CircularBufferType* bufferL;
   CircularBufferType* bufferR;
   MultiBiquadFilter* filter;
-  SineOscillator* lfo;
   float depth;
   SmoothFloat delay;
   SmoothFloat spread;
   SmoothFloat amount;
-  static constexpr size_t taps = 2;
+  static constexpr size_t taps = 3;
+  size_t delay_times[taps*2];
 public:
   StereoChorusProcessor(AudioBuffer* buffer, CircularBufferType* bufferL,
-			CircularBufferType* bufferR, SineOscillator* lfo):
-    buffer(buffer), bufferL(bufferL), bufferR(bufferR), lfo(lfo),
+			CircularBufferType* bufferR, MultiBiquadFilter* filter) :			
+    buffer(buffer), bufferL(bufferL), bufferR(bufferR), filter(filter),
     depth(0), delay(0), spread(0), amount(0) {
     if(bufferL)
-      delay = 0.75*bufferL->getSize();
-    filter = MultiBiquadFilter::create(48000, 2*taps, 4);
-    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+      delay = 0.5*bufferL->getSize();
+    for(size_t i=0; i<taps*2; ++i)
+      delay_times[i] = delay;
   }
   /**
    * @param value should be from 0 to 1
    */
   void setDelay(float value){
-    delay = value*bufferL->getSize();
+    delay = value*bufferL->getSize() - buffer->getSize();
+    // subtract one buffer length because we write before we read
   }
   void setDepth(float value){
     depth = value;
@@ -530,17 +533,13 @@ public:
   // void process(FloatArray input, FloatArray output){
   // }
   void process(AudioBuffer& input, AudioBuffer& output){
-    FloatArray inL = input.getSamples(LEFT_CHANNEL);
-    FloatArray inR = input.getSamples(RIGHT_CHANNEL);
     FloatArray bufL = buffer->getSamples(LEFT_CHANNEL);
     FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL);
     size_t len = input.getSize();
     filter->process(input, *buffer);
     bufferL->write(bufL.getData(), len);
     bufferR->write(bufR.getData(), len);
-    // float ph = lfo->generate();
     float ph = spread*0.25;
-    static size_t delay_times[taps*2] = {0};
     for(size_t i=0; i<taps; ++i){
       FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i*2);
       FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i*2);
@@ -566,18 +565,17 @@ public:
   }
   static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
     AudioBuffer* buffer = AudioBuffer::create(2*taps, bs);
-    // CircularBufferType* bufferL = CircularBufferType::create(delaysize);
-    // CircularBufferType* bufferR = CircularBufferType::create(delaysize);
     CircularBufferType* bufferL = CircularBufferType::create(delaysize, bs);
     CircularBufferType* bufferR = CircularBufferType::create(delaysize, bs);
-    SineOscillator* lfo = SineOscillator::create(sr);
-    return new StereoChorusProcessor(buffer, bufferL, bufferR, lfo);
+    MultiBiquadFilter* filter = MultiBiquadFilter::create(48000, 2*taps, 4);
+    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+    return new StereoChorusProcessor(buffer, bufferL, bufferR, filter);
   }
   static void destroy(StereoChorusProcessor* obj){
     AudioBuffer::destroy(obj->buffer);
     CircularBufferType::destroy(obj->bufferL);
     CircularBufferType::destroy(obj->bufferR);
-    SineOscillator::destroy(obj->lfo);
+    MultiBiquadFilter::destroy(obj->filter);
     delete obj;
   }
 };

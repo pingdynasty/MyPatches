@@ -4,7 +4,7 @@
 #include "OpenWareLibrary.h"
 
 // #define USE_MPE
-#define VOICES 2
+#define VOICES 8
 
 #include "WitchFX.hpp"
 
@@ -137,9 +137,6 @@ class VosimPatch : public WitchPatch {
 private:
 public:
   VosimPatch(){
-    voices = SynthVoices::create(getBlockSize());
-    for(int i=0; i<VOICES; ++i)
-      voices->setVoice(i, SynthVoice::create(getSampleRate()));
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Formant Low");
     registerParameter(PARAMETER_C, "Formant High");
@@ -148,13 +145,20 @@ public:
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
 
+    registerParameter(PARAMETER_AA, "FM Amount");
+    setParameterValue(PARAMETER_AA, 0.1);
     registerParameter(PARAMETER_AD, "FX Select");
     setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::CHORUS));
+
+    // voices
+    voices = SynthVoices::create(getBlockSize());
+    for(int i=0; i<VOICES; ++i)
+      voices->setVoice(i, SynthVoice::create(getSampleRate()));
 
 #ifdef USE_MPE
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
 #else
-    cvnote = CvNoteProcessor::create(getSampleRate(), 2, voices, 12*cvrange, 24);
+    cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
   }
   ~VosimPatch(){
@@ -166,6 +170,7 @@ public:
   void processAudio(AudioBuffer &buffer) {
     cvnote->clock(getBlockSize());
     cvnote->cv(getParameterValue(PARAMETER_A));
+
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
