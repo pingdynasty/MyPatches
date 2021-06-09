@@ -3,7 +3,7 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
+// #define USE_MPE
 #define VOICES 6
 
 #include "WitchFX.hpp"
@@ -169,7 +169,7 @@ public:
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "Overdrive");
+    registerParameter(PARAMETER_E, "FX Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
     setParameterValue(PARAMETER_A, 0.5);
@@ -177,6 +177,8 @@ public:
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
+    registerParameter(PARAMETER_AD, "FX Select");
+    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
 
     // voices
     voices = SynthVoices::create(getBlockSize());

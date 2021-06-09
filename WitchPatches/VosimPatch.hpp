@@ -148,6 +148,9 @@ public:
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
 
+    registerParameter(PARAMETER_AD, "FX Select");
+    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::CHORUS));
+
 #ifdef USE_MPE
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 0, 18+6*cvrange);
 #else

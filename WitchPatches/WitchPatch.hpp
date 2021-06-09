@@ -49,10 +49,6 @@ protected:
   static constexpr uint8_t NO_NOTE = 0xff;
   static constexpr uint8_t CV_VELOCITY = 100;
 public:
-  // enum State {
-  // 	      STATE_TRIGGERED,
-  // 	      STATE_PLAYING,
-  // };
   CvNoteProcessor(MidiProcessor* processor, size_t delay, float range, float offset)
     : processor(processor), cv_delay(delay), note_range(range), note_offset(offset) {}
   virtual uint8_t getNoteForCv(float cv){
@@ -170,6 +166,7 @@ public:
     sendMidi(MidiMessage::cc(0, 6, VOICES));
 #endif
     fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
+    fx->setBeatsPerMinute(60);
   }
   virtual ~WitchPatch(){
     TapTempoSineOscillator::destroy(lfo1);
@@ -212,7 +209,7 @@ public:
   }
 
   void dofx(AudioBuffer &buffer){
-    // fx->select(getParameterValue(PARAMETER_AD));
+    fx->select(getParameterValue(PARAMETER_AD));
     fx->setEffect(getParameterValue(PARAMETER_E));
     fx->process(buffer, buffer);
   }

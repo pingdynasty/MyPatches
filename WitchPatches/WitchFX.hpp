@@ -16,7 +16,9 @@
 #define TRIGGER_LIMIT (1<<22)
 #define BUTTON_VELOCITY 100
 
+
 class WitchFX : public TapTempo, public MultiSignalProcessor {
+protected:
   static constexpr int TAP_LIMIT = (1<<21);
 public:
   WitchFX(float samplerate) : TapTempo(samplerate, TAP_LIMIT) {}
@@ -33,8 +35,8 @@ public:
 
 class SmoothStereoDelayProcessor : public MultiSignalProcessor {
 // typedef FractionalDelayProcessor<HERMITE_INTERPOLATION> SmoothDelayProcessor;
-typedef CrossFadingDelayProcessor SmoothDelayProcessor;
-typedef DryWetMultiSignalProcessor<PingPongFeedbackProcessor> MixProcessor;
+  typedef CrossFadingDelayProcessor SmoothDelayProcessor;
+  typedef DryWetMultiSignalProcessor<PingPongFeedbackProcessor> MixProcessor;
 // typedef DryWetMultiSignalProcessor<StereoFeedbackProcessor> MixProcessor;
 protected:
   SmoothDelayProcessor* left_delay;
@@ -42,18 +44,9 @@ protected:
   MixProcessor* delaymix;
   // static constexpr int TRIGGER_LIMIT = (1<<17);
 public:
-  SmoothStereoDelayProcessor(size_t blocksize){
-    left_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT, blocksize);
-    right_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT*2, blocksize);
-    delaymix = MixProcessor::create(2, blocksize,
-				    left_delay, right_delay,
-				    FloatArray::create(blocksize),
-				    FloatArray::create(blocksize));
-  }
+  SmoothStereoDelayProcessor(SmoothDelayProcessor* left_delay, SmoothDelayProcessor* right_delay, MixProcessor* mix) :
+    left_delay(left_delay), right_delay(right_delay), delaymix(mix) {}
   ~SmoothStereoDelayProcessor(){
-    SmoothDelayProcessor::destroy(left_delay);
-    SmoothDelayProcessor::destroy(right_delay);
-    MixProcessor::destroy(delaymix);
   }
   void setDelay(float delay_samples){
     left_delay->setDelay(delay_samples);
@@ -64,106 +57,23 @@ public:
   }
   void setFeedback(float feedback){
     delaymix->setFeedback(feedback);
-  }    
+  }
   void process(AudioBuffer& input, AudioBuffer& output){
     delaymix->process(input, output);
   }
-  // static SmoothStereoDelayProcessor* create(float sr, size_t bs, size_t delaysize){
-  //   AudioBuffer* buffer = AudioBuffer::create(2, bs);
-  //   return new SmoothStereoDelayProcessor(buffer, bufferL, bufferR, lfo);
-  // }
-  // static void destroy(SmoothStereoDelayProcessor* obj){
-  //   AudioBuffer::destroy(obj->buffer);
-  // }
-};
-
-class StereoChorusProcessor : public MultiSignalProcessor {
-  typedef InterpolatingCircularFloatBuffer<HERMITE_INTERPOLATION> CircularBufferType;
-protected:
-  AudioBuffer* buffer;
-  CircularBufferType* bufferL;
-  CircularBufferType* bufferR;
-  MultiBiquadFilter* filter;
-  SineOscillator* lfo;
-  float depth;
-  SmoothFloat delay;
-  SmoothFloat spread;
-  SmoothFloat amount;
-  static constexpr size_t taps = 4;
-public:
-  StereoChorusProcessor(AudioBuffer* buffer, CircularBufferType* bufferL,
-			CircularBufferType* bufferR, SineOscillator* lfo):
-    buffer(buffer), bufferL(bufferL), bufferR(bufferR), lfo(lfo),
-    depth(0), delay(0), spread(0), amount(0) {
-    if(bufferL)
-      delay = 0.75*bufferL->getSize();
-    filter = MultiBiquadFilter::create(48000, 2*taps, 4);
-    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+  static SmoothStereoDelayProcessor* create(size_t blocksize, size_t delaysize){
+    SmoothDelayProcessor* left_delay = SmoothDelayProcessor::create(delaysize, blocksize);
+    SmoothDelayProcessor* right_delay = SmoothDelayProcessor::create(delaysize*2, blocksize);
+    MixProcessor* delaymix = MixProcessor::create(2, blocksize,
+						  left_delay, right_delay,
+						  FloatArray::create(blocksize),
+						  FloatArray::create(blocksize));
+    return new SmoothStereoDelayProcessor(left_delay, right_delay, delaymix);
   }
-  void setDelay(float value){
-    delay = value;    
-  }
-  void setDepth(float value){
-    depth = value;
-  }
-  void setSpread(float value){
-    spread = value;
-  }
-  void setAmount(float value){
-    amount = value;
-  }
-  void setEffect(float value){
-    amount = value*0.6;
-    spread = 0.125*value*delay/taps;
-    delay = value*bufferL->getSize() - spread*taps;
-  }
-  void setModulation(float value){
-    depth = value;
-  }
-  // void process(FloatArray input, FloatArray output){
-  // }
-  void process(AudioBuffer& input, AudioBuffer& output){
-    FloatArray inL = input.getSamples(LEFT_CHANNEL);
-    FloatArray inR = input.getSamples(RIGHT_CHANNEL);
-    output.multiply(1-amount); // scale dry signal
-    FloatArray outL = output.getSamples(LEFT_CHANNEL);
-    FloatArray outR = output.getSamples(RIGHT_CHANNEL);
-    // outL.multiply(1-amount);
-    // outR.multiply(1-amount);
-    size_t len = input.getSize();
-    bufferL->write(inL.getData(), len);
-    bufferR->write(inR.getData(), len);
-    // float ph = lfo->generate();
-    float ph = spread*0.25;
-    for(size_t i=0; i<taps; ++i){
-      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i);
-      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i);
-      float index = delay + ph*depth + spread*i;
-      bufferL->delay(bufL.getData(), bufL.getSize(), index);
-      index = delay + ph*depth - spread*(i+1);
-      bufferR->delay(bufR.getData(), bufR.getSize(), index);
-    }
-    filter->process(*buffer, *buffer);
-    buffer->multiply(amount);
-    for(size_t i=0; i<taps; ++i){
-      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i);
-      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i);
-      outL.add(bufL);
-      outR.add(bufR);      
-    }
-  }
-  static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
-    AudioBuffer* buffer = AudioBuffer::create(2*taps, bs);
-    CircularBufferType* bufferL = CircularBufferType::create(delaysize);
-    CircularBufferType* bufferR = CircularBufferType::create(delaysize);
-    SineOscillator* lfo = SineOscillator::create(sr);
-    return new StereoChorusProcessor(buffer, bufferL, bufferR, lfo);
-  }
-  static void destroy(StereoChorusProcessor* obj){
-    AudioBuffer::destroy(obj->buffer);
-    CircularBufferType::destroy(obj->bufferL);
-    CircularBufferType::destroy(obj->bufferR);
-    SineOscillator::destroy(obj->lfo);
+  static void destroy(SmoothStereoDelayProcessor* obj){
+    SmoothDelayProcessor::destroy(obj->left_delay);
+    SmoothDelayProcessor::destroy(obj->right_delay);
+    MixProcessor::destroy(obj->delaymix);
     delete obj;
   }
 };
@@ -367,11 +277,11 @@ protected:
   float offset = 0;
   float drive = 1;
 public:
-  void setEffect(float value){
-    drive = value*8+1;
+  void setOffset(float value){
+    offset = value;
   }
-  void setModulation(float value){
-    offset = value*(drive-1)*0.04;
+  void setDrive(float value){
+    drive = value;
   }
   static float nonlinear(float x){ // Overdrive curve
     return x * ( 27 + x*x ) / ( 27 + 9*x*x );
@@ -508,19 +418,22 @@ public:
   void setModulation(float value){
   }
   void setEffect(float value){
+    delay->setFeedback(max(0, value*0.75f-0.5f));
+    delay->setMix(min(0.5, value));
   }
   void process(AudioBuffer& input, AudioBuffer& output){
-    clock(input.getSize());
-    delay->setDelay(getPeriodInSamples());
+    TapTempo::clock(input.getSize());
+    delay->setDelay(TapTempo::getPeriodInSamples());
     delay->process(input, output);
     output.getSamples(LEFT_CHANNEL).softclip();
     output.getSamples(RIGHT_CHANNEL).softclip();
   }
   static WitchDelay* create(float samplerate, size_t blocksize){
-    return new WitchDelay(samplerate, new SmoothStereoDelayProcessor(blocksize));
+    SmoothStereoDelayProcessor* delay = SmoothStereoDelayProcessor::create(blocksize, 48000*4);
+    return new WitchDelay(samplerate, delay);
   }
   static void destroy(WitchDelay* obj){
-    delete obj->delay;
+    SmoothStereoDelayProcessor::destroy(obj->delay);
     delete obj;
   }
 };
@@ -550,27 +463,190 @@ public:
   }
 };
 
-class WitchMultiEffect : public WitchFX {
+class WitchOverdrive : public WitchFX, public StereoOverdriveProcessor {
+protected:
+  float gain = 1;
+public:
+  WitchOverdrive(float samplerate): WitchFX(samplerate){}
+  void setEffect(float value){
+    setDrive(value*8+1);
+    gain = 1-value*0.75;
+  }
+  void setModulation(float value){
+    setOffset(value*(drive-1)*0.05);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    // StereoOverdriveProcessor::process(input, output);
+    OverdriveProcessor::process(input, output);
+    // output.multiply(gain);
+  }
+  static WitchOverdrive* create(float samplerate, size_t blocksize){
+    return new WitchOverdrive(samplerate);
+  }
+  static void destroy(WitchOverdrive* obj){
+    delete obj;
+  }
+};
+
+class StereoChorusProcessor : public MultiSignalProcessor {
+  // typedef InterpolatingCircularFloatBuffer<HERMITE_INTERPOLATION> CircularBufferType;
+  typedef CrossFadingCircularBuffer<float> CircularBufferType;
+protected:
+  AudioBuffer* buffer;
+  CircularBufferType* bufferL;
+  CircularBufferType* bufferR;
+  MultiBiquadFilter* filter;
+  SineOscillator* lfo;
+  float depth;
+  SmoothFloat delay;
+  SmoothFloat spread;
+  SmoothFloat amount;
+  static constexpr size_t taps = 2;
+public:
+  StereoChorusProcessor(AudioBuffer* buffer, CircularBufferType* bufferL,
+			CircularBufferType* bufferR, SineOscillator* lfo):
+    buffer(buffer), bufferL(bufferL), bufferR(bufferR), lfo(lfo),
+    depth(0), delay(0), spread(0), amount(0) {
+    if(bufferL)
+      delay = 0.75*bufferL->getSize();
+    filter = MultiBiquadFilter::create(48000, 2*taps, 4);
+    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+  }
+  /**
+   * @param value should be from 0 to 1
+   */
+  void setDelay(float value){
+    delay = value*bufferL->getSize();
+  }
+  void setDepth(float value){
+    depth = value;
+  }
+  void setSpread(float value){
+    spread = value*bufferL->getSize()/(taps*2);
+  }
+  void setAmount(float value){
+    amount = value;
+  }
+  // void process(FloatArray input, FloatArray output){
+  // }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    FloatArray inL = input.getSamples(LEFT_CHANNEL);
+    FloatArray inR = input.getSamples(RIGHT_CHANNEL);
+    FloatArray bufL = buffer->getSamples(LEFT_CHANNEL);
+    FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL);
+    size_t len = input.getSize();
+    filter->process(input, *buffer);
+    bufferL->write(bufL.getData(), len);
+    bufferR->write(bufR.getData(), len);
+    // float ph = lfo->generate();
+    float ph = spread*0.25;
+    static size_t delay_times[taps*2] = {0};
+    for(size_t i=0; i<taps; ++i){
+      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i*2);
+      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i*2);
+      float index = delay + ph*depth + spread*i*1.7;
+      bufferL->delay(bufL.getData(), bufL.getSize(), delay_times[i*2], index);
+      delay_times[i*2] = index;
+      index = delay + ph*depth - spread*(i*2.3);
+      bufferR->delay(bufR.getData(), bufR.getSize(), delay_times[i*2+1], index);
+      delay_times[i*2+1] = index;
+    }
+    // filter->process(*buffer, *buffer);
+    buffer->multiply(amount/taps);
+    output.copyFrom(input);
+    output.multiply(1-amount); // scale dry signal
+    FloatArray outL = output.getSamples(LEFT_CHANNEL);
+    FloatArray outR = output.getSamples(RIGHT_CHANNEL);
+    for(size_t i=0; i<taps; ++i){
+      FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i*2);
+      FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i*2);
+      outL.add(bufL);
+      outR.add(bufR);      
+    }
+  }
+  static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
+    AudioBuffer* buffer = AudioBuffer::create(2*taps, bs);
+    // CircularBufferType* bufferL = CircularBufferType::create(delaysize);
+    // CircularBufferType* bufferR = CircularBufferType::create(delaysize);
+    CircularBufferType* bufferL = CircularBufferType::create(delaysize, bs);
+    CircularBufferType* bufferR = CircularBufferType::create(delaysize, bs);
+    SineOscillator* lfo = SineOscillator::create(sr);
+    return new StereoChorusProcessor(buffer, bufferL, bufferR, lfo);
+  }
+  static void destroy(StereoChorusProcessor* obj){
+    AudioBuffer::destroy(obj->buffer);
+    CircularBufferType::destroy(obj->bufferL);
+    CircularBufferType::destroy(obj->bufferR);
+    SineOscillator::destroy(obj->lfo);
+    delete obj;
+  }
+};
+
+class WitchChorus : public WitchFX  {
+protected:
+  StereoChorusProcessor* processor;
+public:
+  WitchChorus(float samplerate, StereoChorusProcessor* processor):
+    WitchFX(samplerate), processor(processor) {
+    processor->setDelay(0.8);
+    processor->setSpread(0.2);
+  }
+  void setEffect(float value){
+    processor->setAmount(value*0.6);
+    processor->setSpread(0.4*value);
+    // processor->setDelay(value*0.8);
+  }
+  void setModulation(float value){
+    processor->setDepth(value);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    processor->process(input, output);
+  }
+  static WitchChorus* create(float samplerate, size_t blocksize){
+    return new WitchChorus(samplerate, StereoChorusProcessor::create(samplerate, blocksize, 0.120*samplerate));
+  }
+  static void destroy(WitchChorus* obj){
+    StereoChorusProcessor::destroy(obj->processor);
+    delete obj;
+  }
+};
+
+class WitchMultiEffect : public MultiSignalProcessor {
+public:
+  enum Effect { PHASER, DELAY, OVERDRIVE, CHORUS, NOF_EFFECTS };
 private:
-  WitchFX* fx[2];
+  WitchFX* fx[NOF_EFFECTS];
   size_t selected = 0;
 public:
-  WitchMultiEffect(float samplerate, size_t blocksize): WitchFX(samplerate) {}
-  // WitchMultiEffect(float samplerate, size_t blocksize){
-  // }
+  WitchMultiEffect() {}
   static WitchMultiEffect* create(float samplerate, size_t blocksize){
-    WitchMultiEffect* obj = new WitchMultiEffect(samplerate, blocksize);
+    WitchMultiEffect* obj = new WitchMultiEffect();
     obj->fx[0] = WitchPhaser::create(samplerate, blocksize);
-    // obj->fx[1] = WitchDelay::create(samplerate, blocksize);
+    obj->fx[1] = WitchDelay::create(samplerate, blocksize);
+    obj->fx[2] = WitchOverdrive::create(samplerate, blocksize);
+    obj->fx[3] = WitchChorus::create(samplerate, blocksize);
     return obj;
   }
   static void destroy(WitchMultiEffect* obj){
     WitchPhaser::destroy((WitchPhaser*)obj->fx[0]);
-    // WitchDelay::destroy((WitchDelay*)obj->fx[1]);
+    WitchDelay::destroy((WitchDelay*)obj->fx[1]);
+    WitchOverdrive::destroy((WitchOverdrive*)obj->fx[2]);
+    WitchChorus::destroy((WitchChorus*)obj->fx[3]);
     delete obj;
   }
+  void setBeatsPerMinute(float bpm){
+    fx[selected]->setBeatsPerMinute(bpm);
+  }
+  void trigger(bool on, int delay){
+    fx[selected]->trigger(on, delay);
+  }
+  float getParameterValueForEffect(Effect value){
+    return float(value+0.5)/NOF_EFFECTS;
+  }
   void select(float value){
-    // selected = min(1, uint8_t(value*2));
+    WitchFX* previous = fx[selected];
+    selected = clamp(value*NOF_EFFECTS, 0, NOF_EFFECTS-1);
+    fx[selected]->setPeriodInSamples(previous->getPeriodInSamples());
   }
   void setModulation(float value){
     fx[selected]->setModulation(value);
@@ -580,5 +656,6 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     fx[selected]->process(input, output);
+    debugMessage("fx", (int)selected);
   }    
 };

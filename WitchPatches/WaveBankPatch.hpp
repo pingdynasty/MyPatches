@@ -63,8 +63,8 @@ public:
     // registerParameter(PARAMETER_AC, "Sustain");
     // setParameterValue(PARAMETER_AB, 0.0);
     // setParameterValue(PARAMETER_AC, 0.9);
-
-    setParameterValue(PARAMETER_AD, 0.5); // select Overdrive?
+    registerParameter(PARAMETER_AD, "FX Select");
+    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
 
     FloatArray wt1 = createWavebank("wavetable1.wav");
     bank1 = MorphBank::create(wt1);
