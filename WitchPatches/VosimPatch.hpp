@@ -3,15 +3,23 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
+// #define USE_MPE
 #define VOICES 6
 
 #include "WitchFX.hpp"
 
+/**
+ * Get a frequency multiplier that scales a given number of octaves up and down, 
+ * for 0<=x<=1, where x=0.5 equals unity
+ */
+float getFrequencyScalar(float x, float octaves){
+  return exp2f(2*octaves*x - octaves);
+}
+			 
 class VosimSynth : public AbstractSynth {
 protected:
   VosimOscillator* osc;
-  AdsrEnvelope* env;
+  WitchEnvelope* env;
   float gain;
   float mod1 = 0;
   float mod2 = 0;
@@ -21,7 +29,7 @@ public:
 		   PARAMETER_F2,
 		   PARAMETER_ENVELOPE
   };
-  VosimSynth(VosimOscillator* osc, AdsrEnvelope* env) : osc(osc), env(env), gain(0) {}
+  VosimSynth(VosimOscillator* osc, WitchEnvelope* env) : osc(osc), env(env), gain(0) {}
   void setFrequency(float freq){
     osc->setFrequency(freq);
   }
@@ -34,46 +42,33 @@ public:
   void gate(bool state){
     env->gate(state);
   }
-  void setEnvelope(float df){
-    constexpr float tmin = 0.002;
-    int di = (int)df;
-    df = df - di;
-    float attack, release;
-    switch(di){
-      // a/d
-    case 0: // l/s
-      attack = 1- df + tmin;
-      release = tmin;
-      break;
-    case 1: // s/s
-      attack = tmin;
-      release = df + tmin;
-      break;
-    case 2: // s/l
-      attack = df*df*2 + tmin;
-      release = 1.0 + df*df; // allow extra-long decays
-      break;
-      // l/l
-    }
-    env->setAttack(attack);
-    env->setRelease(release);
-  }
   void setModulation(float modulation) override {
-    mod2 = modulation*24;
+    mod2 = modulation*0.2;
   }
   void setPressure(float modulation) override {
-    mod1 = modulation*24;
+    mod1 = modulation*0.2;
   }
   void setParameter(uint8_t parameter_id, float value){
+    static constexpr float f1range = 3;
+    static constexpr float f2range = 4;
     switch(parameter_id){
+#if 0
+    case PARAMETER_F1:
+      osc->setFormant1(osc->getFrequency()*getFrequencyScalar(value+mod1, f1range));
+      break;
+    case PARAMETER_F2:
+      osc->setFormant2(osc->getFrequency()*getFrequencyScalar(value+mod2, f2range));
+      break;
+#else
     case PARAMETER_F1:
       osc->setFormant1(osc->getFrequency()+noteToFrequency(value*12*8+mod1));
       break;
     case PARAMETER_F2:
       osc->setFormant2(osc->getFrequency()+noteToFrequency(value*12*8+mod2+12));
       break;
+#endif
     case PARAMETER_ENVELOPE:
-      setEnvelope(value*3);
+      env->adjust(value);
       break;
     }
   }
@@ -81,26 +76,26 @@ public:
 
 class VosimSignalGenerator : public VosimSynth, public SignalGenerator  {
 public:
-  VosimSignalGenerator(VosimOscillator* osc, AdsrEnvelope* env) : VosimSynth(osc, env){}
+  VosimSignalGenerator(VosimOscillator* osc, WitchEnvelope* env) : VosimSynth(osc, env){}
   using SignalGenerator::generate;
   float generate(){
     return osc->generate()*env->generate()*gain;
   }
   static VosimSignalGenerator* create(float sr){
     VosimOscillator* osc = VosimOscillator::create(sr);
-    AdsrEnvelope* env = AdsrEnvelope::create(sr);
+    WitchEnvelope* env = WitchEnvelope::create(sr);
     return new VosimSignalGenerator(osc, env);
   }
   static void destroy(VosimSignalGenerator* obj){
     VosimOscillator::destroy(obj->osc);
-    AdsrEnvelope::destroy(obj->env);
+    WitchEnvelope::destroy(obj->env);
     delete obj;
   }
 };
 
 class VosimSignalProcessor : public VosimSynth, public SignalProcessor {
 public:
-  VosimSignalProcessor(VosimOscillator* osc, AdsrEnvelope* env) : VosimSynth(osc, env){}
+  VosimSignalProcessor(VosimOscillator* osc, WitchEnvelope* env) : VosimSynth(osc, env){}
   using SignalProcessor::process;
   using MidiProcessor::process;
   float process(float input){
@@ -109,12 +104,12 @@ public:
   }
   static VosimSignalProcessor* create(float sr){
     VosimOscillator* osc = VosimOscillator::create(sr);
-    AdsrEnvelope* env = AdsrEnvelope::create(sr);
+    WitchEnvelope* env = WitchEnvelope::create(sr);
     return new VosimSignalProcessor(osc, env);
   }
   static void destroy(VosimSignalProcessor* obj){
     VosimOscillator::destroy(obj->osc);
-    AdsrEnvelope::destroy(obj->env);
+    WitchEnvelope::destroy(obj->env);
     delete obj;
   }
 };
@@ -141,14 +136,11 @@ public:
     registerParameter(PARAMETER_B, "Formant Low");
     registerParameter(PARAMETER_C, "Formant High");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "Effect Amount");
+    registerParameter(PARAMETER_E, "FX Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
 
-    registerParameter(PARAMETER_AA, "FM Amount");
-    setParameterValue(PARAMETER_AA, 0.1);
-    registerParameter(PARAMETER_AD, "FX Select");
-    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::CHORUS));
+    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::PHASER));
 
     // voices
     voices = SynthVoices::create(getBlockSize());
@@ -168,28 +160,21 @@ public:
     CvNoteProcessor::destroy(cvnote);
   }
   void processAudio(AudioBuffer &buffer) {
-    cvnote->clock(getBlockSize());
-    cvnote->cv(getParameterValue(PARAMETER_A));
-
+    doprocess(buffer);
+    
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    float fm_amount = getParameterValue(PARAMETER_AA);
-    left.multiply(fm_amount);
 #ifdef USE_MPE
     // 2 * exp2f(2x - 2) : 0.5 to 2 (plus minus one octave modulation)
     // 4 * exp2f(4x - 4) : 0.25 to 4 (plus minus two octaves modulation)
-    float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;    
+    float fm = getFrequencyScalar(getParameterValue(PARAMETER_A), cvrange*0.5) - 1;
     left.add(fm);
-    voices->process(left, right);
-#elif VOICES == 1
-    voices->generate(right);
-#else
-    voices->process(left, right);
 #endif
+    voices->process(left, right);
     left.copyFrom(right);
     dofx(buffer);
     dolfo();

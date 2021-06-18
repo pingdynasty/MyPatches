@@ -24,6 +24,7 @@
 //   }
 // };
 
+
 float constexpr sqrtfNewtonRaphson(float x, float curr, float prev){
   return curr == prev ? curr : sqrtfNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
 }
@@ -167,6 +168,17 @@ public:
 #endif
     fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
     fx->setBeatsPerMinute(60);
+
+    registerParameter(PARAMETER_FX_AMOUNT, "FX Amount");
+    setParameterValue(PARAMETER_FX_AMOUNT, 0.0);
+    registerParameter(PARAMETER_FM_AMOUNT, "FM Amount");
+    setParameterValue(PARAMETER_FM_AMOUNT, 0.5);
+
+    registerParameter(PARAMETER_ATTACK, "Attack");
+    registerParameter(PARAMETER_DECAY, "Decay");
+    registerParameter(PARAMETER_SUSTAIN, "Sustain");
+    registerParameter(PARAMETER_RELEASE, "Release");
+    registerParameter(PARAMETER_FX_SELECT, "FX Select");
   }
   virtual ~WitchPatch(){
     TapTempoSineOscillator::destroy(lfo1);
@@ -208,9 +220,16 @@ public:
     voices->process(msg);
   }
 
+  void doprocess(AudioBuffer &buffer){
+    cvnote->clock(getBlockSize());
+    cvnote->cv(getParameterValue(PARAMETER_A));
+    float fm_amount = getParameterValue(PARAMETER_FM_AMOUNT)*0.2;
+    buffer.multiply(fm_amount);
+  }
+  
   void dofx(AudioBuffer &buffer){
-    fx->select(getParameterValue(PARAMETER_AD));
-    fx->setEffect(getParameterValue(PARAMETER_E));
+    fx->select(getParameterValue(PARAMETER_FX_SELECT));
+    fx->setEffect(getParameterValue(PARAMETER_FX_AMOUNT));
     fx->process(buffer, buffer);
   }
 

@@ -57,14 +57,7 @@ public:
     setParameterValue(PARAMETER_C, 0.5);
     setParameterValue(PARAMETER_D, 0.5);
 
-    registerParameter(PARAMETER_AA, "FM Amount");
-    setParameterValue(PARAMETER_AA, 0.1);
-    // registerParameter(PARAMETER_AB, "Decay");
-    // registerParameter(PARAMETER_AC, "Sustain");
-    // setParameterValue(PARAMETER_AB, 0.0);
-    // setParameterValue(PARAMETER_AC, 0.9);
-    registerParameter(PARAMETER_AD, "FX Select");
-    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
+    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
 
     FloatArray wt1 = createWavebank("wavetable1.wav");
     bank1 = MorphBank::create(wt1);
@@ -97,27 +90,19 @@ public:
   }
 
   void processAudio(AudioBuffer& audio) {
-    cvnote->clock(getBlockSize());
-    cvnote->cv(getParameterValue(PARAMETER_A));
+    doprocess(audio);
 
-    float x = getParameterValue(PARAMETER_B);  
-    float y = getParameterValue(PARAMETER_C); 
-    float env = getParameterValue(PARAMETER_D);
-    voices->setParameter(MorphSynth::PARAMETER_ENV, env);
-    voices->setParameter(MorphSynth::PARAMETER_X, x);
-    voices->setParameter(MorphSynth::PARAMETER_Y, y);
+    voices->setParameter(MorphSynth::PARAMETER_ENV, getParameterValue(PARAMETER_D));
+    voices->setParameter(MorphSynth::PARAMETER_X, getParameterValue(PARAMETER_B));
+    voices->setParameter(MorphSynth::PARAMETER_Y, getParameterValue(PARAMETER_C));
 
     buffer->copyFrom(audio);
-    float fm_amount = getParameterValue(PARAMETER_AA);
-    buffer->multiply(fm_amount);
-    // audio.clear();
+    audio.clear();
 #ifdef USE_MPE
     float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;
     buffer->add(fm);
-    voices->process(*buffer, audio);
-#else
-    voices->process(*buffer, audio);
 #endif
+    voices->process(*buffer, audio);
     dofx(audio);
     dolfo();
   }

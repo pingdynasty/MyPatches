@@ -5,7 +5,7 @@ typedef WaveBankOscillator<NOF_X_WF, NOF_Y_WF, NOF_Z_WF, SAMPLE_LEN> MorphOsc;
 class MorphSynth : public AbstractSynth {
 protected:
   MorphOsc* osc;
-  AdsrEnvelope* env;
+  WitchEnvelope* env;
   float gain;
   SmoothFloat x;
   SmoothFloat y;
@@ -17,7 +17,7 @@ public:
 		   PARAMETER_Y,
 		   PARAMETER_ENV
   };
-  MorphSynth(MorphOsc* osc, AdsrEnvelope* env): osc(osc), env(env), gain(1), x(0), y(0) {}  
+  MorphSynth(MorphOsc* osc, WitchEnvelope* env): osc(osc), env(env), gain(1), x(0), y(0) {}  
   void setFrequency(float freq){
     osc->setFrequency(freq);    
   }
@@ -33,32 +33,8 @@ public:
   MorphOsc* getOscillator(){
     return osc;
   }
-  AdsrEnvelope* getEnvelope(){
+  WitchEnvelope* getEnvelope(){
     return env;
-  }
-  void setEnvelope(float df){
-    constexpr float tmin = 0.001;
-    int di = (int)df;
-    df = df - di;
-    float attack, release;
-    switch(di){
-      // a/d
-    case 0: // l/s
-      attack = 1- df + tmin;
-      release = tmin;
-      break;
-    case 1: // s/s
-      attack = tmin;
-      release = df + tmin;
-      break;
-    case 2: // s/l
-      attack = df*df*2 + tmin;
-      release = 1.0 + df*df; // allow extra-long decays
-      break;
-      // l/l
-    }
-    env->setAttack(attack);
-    env->setRelease(release);
   }
   void setModulation(float modulation) override {
     xmod = modulation*0.5;
@@ -77,7 +53,7 @@ public:
       osc->setMorphY(y);
       break;
     case PARAMETER_ENV:
-      setEnvelope(value*3);
+      env->adjust(value);
       break;
     }
   }
@@ -85,7 +61,7 @@ public:
 
 class MorphMonoGenerator : public MorphSynth, public SignalGenerator, public SignalProcessor {
 public:
-  MorphMonoGenerator(MorphOsc* osc, AdsrEnvelope* env): MorphSynth(osc, env) {}
+  MorphMonoGenerator(MorphOsc* osc, WitchEnvelope* env): MorphSynth(osc, env) {}
   float generate(){
     return osc->generate()*env->generate()*gain;
   }
@@ -97,12 +73,12 @@ public:
   using SignalProcessor::process;
   static MorphMonoGenerator* create(MorphBank* bank, float sr){
     MorphOsc* osc = MorphOsc::create(bank, sr);
-    AdsrEnvelope* env = AdsrEnvelope::create(sr);
+    WitchEnvelope* env = WitchEnvelope::create(sr);
     return new MorphMonoGenerator(osc, env);
   }
   static void destroy(MorphMonoGenerator* obj){
     MorphOsc::destroy(obj->osc);
-    AdsrEnvelope::destroy(obj->env);
+    WitchEnvelope::destroy(obj->env);
     delete obj;
   }
 };
@@ -112,7 +88,7 @@ private:
   MorphOsc* osc2;
   FloatArray buffer;
 public:
-  MorphStereoGenerator(MorphOsc* left, MorphOsc* right, AdsrEnvelope* env, FloatArray buffer)
+  MorphStereoGenerator(MorphOsc* left, MorphOsc* right, WitchEnvelope* env, FloatArray buffer)
     : MorphSynth(left, env), osc2(right), buffer(buffer) {}
   void generate(AudioBuffer& output){
     osc2->setFrequency(osc->getFrequency());
@@ -146,14 +122,14 @@ public:
     FloatArray buffer = FloatArray::create(bs);
     MorphOsc* osc1 = MorphOsc::create(bank1, sr);
     MorphOsc* osc2 = MorphOsc::create(bank2, sr);
-    AdsrEnvelope* env = AdsrEnvelope::create(sr);
+    WitchEnvelope* env = WitchEnvelope::create(sr);
     return new MorphStereoGenerator(osc1, osc2, env, buffer);
   }
   static void destroy(MorphStereoGenerator* obj){
     MorphOsc::destroy(obj->osc);
     MorphOsc::destroy(obj->osc2);
     FloatArray::destroy(obj->buffer);
-    AdsrEnvelope::destroy(obj->env);
+    WitchEnvelope::destroy(obj->env);
     delete obj;
   }
 };

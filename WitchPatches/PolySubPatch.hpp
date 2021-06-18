@@ -12,7 +12,7 @@ class SubSynth : public AbstractSynth, public SignalGenerator, public SignalProc
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope* env;
+  WitchEnvelope* env;
   SmoothFloat fc, q;
   float gain;
   float mod1 = 0;
@@ -24,7 +24,7 @@ public:
 		   PARAMETER_FILTER_RESONANCE,
 		   PARAMETER_ENVELOPE,
   };
-  SubSynth(float sr, BiquadFilter* f, AdsrEnvelope* env) : 
+  SubSynth(float sr, BiquadFilter* f, WitchEnvelope* env) : 
     osc(sr), filter(f), env(env), fc(0.25), q(0.77), gain(1.0f) {
     env->setSustain(1.0);
     env->setDecay(0.0);
@@ -32,11 +32,11 @@ public:
   static SubSynth* create(float sr){
     // 8-pole filter 48dB
     BiquadFilter* filter = BiquadFilter::create(sr, 4);
-    AdsrEnvelope* env = AdsrEnvelope::create(sr);
+    WitchEnvelope* env = WitchEnvelope::create(sr);
     return new SubSynth(sr, filter, env);
   }
   static void destroy(SubSynth* obj){
-    AdsrEnvelope::destroy(obj->env);    
+    WitchEnvelope::destroy(obj->env);    
     BiquadFilter::destroy(obj->filter);
     delete obj;
   }
@@ -62,30 +62,6 @@ public:
     }
     osc.setShape(shape);
     osc.setPulseWidth(pw);
-  }
-  void setEnvelope(float df){
-    constexpr float tmin = 0.002;
-    int di = (int)df;
-    df = df - di;
-    float attack, release;
-    switch(di){
-      // a/d
-    case 0: // l/s
-      attack = 1- df + tmin;
-      release = tmin;
-      break;
-    case 1: // s/s
-      attack = tmin;
-      release = df + tmin;
-      break;
-    case 2: // s/l
-      attack = df*df*2 + tmin;
-      release = 1.0 + df*df; // allow extra-long decays
-      break;
-      // l/l
-    }
-    env->setAttack(attack);
-    env->setRelease(release);
   }
   void setGain(float gain){
     this->gain = gain*GAINFACTOR*0.6;
@@ -141,7 +117,7 @@ public:
       q = value*3+0.75;
       break;
     case PARAMETER_ENVELOPE:
-      setEnvelope(value*3);
+      env->adjust(value);
       break;
     }
   }
@@ -169,19 +145,14 @@ public:
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "FX Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
     setParameterValue(PARAMETER_A, 0.5);
     setParameterValue(PARAMETER_B, 0.8);
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
-    setParameterValue(PARAMETER_E, 0.5);
 
-    registerParameter(PARAMETER_AA, "FM Amount");
-    setParameterValue(PARAMETER_AA, 0.1);
-    registerParameter(PARAMETER_AD, "FX Select");
-    setParameterValue(PARAMETER_AD, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
+    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
 
     // voices
     voices = SynthVoices::create(getBlockSize());
@@ -202,8 +173,7 @@ public:
   }
 
   void processAudio(AudioBuffer &buffer) {
-    cvnote->clock(getBlockSize());
-    cvnote->cv(getParameterValue(PARAMETER_A));
+    doprocess(buffer);
 
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
@@ -211,8 +181,9 @@ public:
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    float fm_amount = getParameterValue(PARAMETER_AA);
-    left.multiply(fm_amount);
+    // float fm_amount = getParameterValue(PARAMETER_FM_AMOUNT)*0.2;
+    // left.multiply(fm_amount);
+    // right.clear(); // todo: mic amount?
 #ifdef USE_MPE
     // 2 * exp2f(2x - 2) : 0.5 to 2 (plus minus one octave modulation)
     // 4 * exp2f(4x - 4) : 0.25 to 4 (plus minus two octaves modulation)

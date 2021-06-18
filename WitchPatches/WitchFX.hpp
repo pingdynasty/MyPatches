@@ -16,6 +16,78 @@
 #define TRIGGER_LIMIT (1<<22)
 #define BUTTON_VELOCITY 100
 
+#define PARAMETER_ATTACK    PARAMETER_AA
+#define PARAMETER_DECAY     PARAMETER_AB
+#define PARAMETER_SUSTAIN   PARAMETER_AC
+#define PARAMETER_RELEASE   PARAMETER_AD
+#define PARAMETER_FM_AMOUNT PARAMETER_AE
+#define PARAMETER_FX_SELECT PARAMETER_AF
+#define PARAMETER_FX_AMOUNT PARAMETER_E
+
+class WitchEnvelope : public AdsrEnvelope {
+protected:
+  static constexpr float tmin = 0.002;
+  static constexpr float tmax = 2;
+  Control<PARAMETER_ATTACK> ctrlattack;
+  Control<PARAMETER_DECAY> ctrldecay;
+  Control<PARAMETER_SUSTAIN> ctrlsustain;
+  Control<PARAMETER_RELEASE> ctrlrelease;
+public:
+  WitchEnvelope(float sr): AdsrEnvelope(sr){
+    ctrlsustain = 1;
+  }
+
+  /**
+   * Adjust the attack and release
+   * @param shape: value between 0 and 1
+   */
+  void adjust(float shape){
+    // shape *= 3;
+    // int di = (int)shape;
+    // float df = shape - di;
+    int di;
+    float df;
+    if(shape < 0.3){
+      di = 0;
+      df = shape/0.3;
+    }else if(shape >= 0.7){
+      di = 2;
+      df = (shape - 0.7)/0.3;
+    }else{
+      di = 1;
+      df = (shape - 0.3)/(0.7 - 0.3);
+    }
+    float attack, release;
+    switch(di){
+      // a/d
+    case 0:
+      // l/s
+      df = 1 - df;
+      attack = df*df*tmax + tmin;
+      release = tmin;
+      break;
+    case 1:
+      // s/s
+      attack = tmin;
+      release = df*df*tmax + tmin;
+      break;
+    case 2:
+      // s/l
+      attack = df*df*tmax + tmin;
+      release = tmax + df*df; // allow extra-long decays
+      break;
+      // l/l
+    }
+    setAttack(attack + ctrlattack*tmax);
+    setDecay(ctrldecay*tmax + tmin);
+    setSustain(ctrlsustain);
+    setRelease(release + ctrlrelease*tmax);
+  }
+
+  static WitchEnvelope* create(float sr){
+    return new WitchEnvelope(sr);
+  }
+};
 
 class WitchFX : public TapTempo, public MultiSignalProcessor {
 protected:
@@ -546,7 +618,7 @@ public:
       float index = delay + ph*depth + spread*i*1.7;
       bufferL->delay(bufL.getData(), bufL.getSize(), delay_times[i*2], index);
       delay_times[i*2] = index;
-      index = delay + ph*depth - spread*(i*2.3);
+      index = delay + ph*depth - spread*i*2.3;
       bufferR->delay(bufR.getData(), bufR.getSize(), delay_times[i*2+1], index);
       delay_times[i*2+1] = index;
     }
@@ -560,7 +632,7 @@ public:
       FloatArray bufL = buffer->getSamples(LEFT_CHANNEL+i*2);
       FloatArray bufR = buffer->getSamples(RIGHT_CHANNEL+i*2);
       outL.add(bufL);
-      outR.add(bufR);      
+      outR.add(bufR);
     }
   }
   static StereoChorusProcessor* create(float sr, size_t bs, size_t delaysize){
@@ -586,7 +658,7 @@ protected:
 public:
   WitchChorus(float samplerate, StereoChorusProcessor* processor):
     WitchFX(samplerate), processor(processor) {
-    processor->setDelay(0.8);
+    processor->setDelay(0.5);
     processor->setSpread(0.2);
   }
   void setEffect(float value){
@@ -599,9 +671,11 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     processor->process(input, output);
+    output.getSamples(LEFT_CHANNEL).softclip();
+    output.getSamples(RIGHT_CHANNEL).softclip();
   }
   static WitchChorus* create(float samplerate, size_t blocksize){
-    return new WitchChorus(samplerate, StereoChorusProcessor::create(samplerate, blocksize, 0.120*samplerate));
+    return new WitchChorus(samplerate, StereoChorusProcessor::create(samplerate, blocksize, 0.20*samplerate));
   }
   static void destroy(WitchChorus* obj){
     StereoChorusProcessor::destroy(obj->processor);
