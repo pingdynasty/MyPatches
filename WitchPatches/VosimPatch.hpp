@@ -3,8 +3,9 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
+#define USE_MPE
 #define VOICES 6
+#define FORMANT_ABSOLUTE // undefine to modulate formant frequency as ratio of oscillator frequency
 
 #include "WitchFX.hpp"
 
@@ -43,28 +44,38 @@ public:
     env->gate(state);
   }
   void setModulation(float modulation) override {
+#ifdef FORMANT_ABSOLUTE
+    mod2 = modulation*24;
+#else
     mod2 = modulation*0.2;
+#endif
   }
   void setPressure(float modulation) override {
+#ifdef FORMANT_ABSOLUTE
+    mod1 = modulation*24;
+#else
     mod1 = modulation*0.2;
+#endif
   }
   void setParameter(uint8_t parameter_id, float value){
+#ifndef FORMANT_ABSOLUTE
     static constexpr float f1range = 3;
     static constexpr float f2range = 4;
+#endif
     switch(parameter_id){
-#if 0
-    case PARAMETER_F1:
-      osc->setFormant1(osc->getFrequency()*getFrequencyScalar(value+mod1, f1range));
-      break;
-    case PARAMETER_F2:
-      osc->setFormant2(osc->getFrequency()*getFrequencyScalar(value+mod2, f2range));
-      break;
-#else
+#ifdef FORMANT_ABSOLUTE
     case PARAMETER_F1:
       osc->setFormant1(osc->getFrequency()+noteToFrequency(value*12*8+mod1));
       break;
     case PARAMETER_F2:
       osc->setFormant2(osc->getFrequency()+noteToFrequency(value*12*8+mod2+12));
+      break;
+#else
+    case PARAMETER_F1:
+      osc->setFormant1(osc->getFrequency()*getFrequencyScalar(value+mod1, f1range));
+      break;
+    case PARAMETER_F2:
+      osc->setFormant2(osc->getFrequency()*getFrequencyScalar(value+mod2, f2range));
       break;
 #endif
     case PARAMETER_ENVELOPE:
@@ -136,7 +147,6 @@ public:
     registerParameter(PARAMETER_B, "Formant Low");
     registerParameter(PARAMETER_C, "Formant High");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_E, "FX Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
 

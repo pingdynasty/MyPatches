@@ -3,7 +3,7 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
+// #define USE_MPE
 #define VOICES 8
 
 #include "WitchFX.hpp"
@@ -14,6 +14,7 @@ private:
   BiquadFilter* filter;
   WitchEnvelope* env;
   SmoothFloat fc, q;
+  SmoothFloat waveshape = 0;
   float gain;
   float mod1 = 0;
   float mod2 = 0;
@@ -44,7 +45,7 @@ public:
     mod1 = modulation;
   }
   void setPressure(float modulation){
-    mod2 = modulation;
+    mod2 = modulation*0.5;
   }
   void setFrequency(float freq){
     osc.setFrequency(freq);
@@ -75,13 +76,13 @@ public:
   
   // SignalGenerator
   float generate(){
-    filter->setLowPass(fc+mod1*fc, q);
-    osc.setShape(mod2);
+    filter->setLowPass(fc, q);
+    osc.setShape(waveshape);
     return filter->process(osc.generate())*gain*(1-q*0.2)*env->generate();
   }
   void generate(FloatArray samples){
-    filter->setLowPass(fc+mod1*fc, q);
-    osc.setShape(mod2);
+    filter->setLowPass(fc, q);
+    osc.setShape(waveshape);
     osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(1-q*0.2)); // gain compensation for high q
@@ -91,13 +92,13 @@ public:
   // SignalProcessor
   using MidiProcessor::process;
   float process(float input){
-    filter->setLowPass(fc+mod1*fc, q);
-    osc.setShape(mod2);
+    filter->setLowPass(fc, q);
+    osc.setShape(waveshape);
     return filter->process(osc.generate(input))*gain*(1-q*0.2)*env->generate();
   }
   void process(FloatArray fm, FloatArray output){
-    filter->setLowPass(fc+mod1*fc, q);
-    osc.setShape(mod2);
+    filter->setLowPass(fc, q);
+    osc.setShape(waveshape);
     // osc.generate(output);
     osc.generate(output, fm);
     filter->process(output);
@@ -108,13 +109,13 @@ public:
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
     case PARAMETER_WAVESHAPE:
-      mod2 = value;
+      waveshape = min(1, value + mod2);
       break;
     case PARAMETER_FILTER_CUTOFF:
-      fc = value*value*8000+400;
+      fc = (value*value*8000+400)*(1+mod1);
       break;
     case PARAMETER_FILTER_RESONANCE:
-      q = value*3+0.75;
+      q = value*3+0.707;
       break;
     case PARAMETER_ENVELOPE:
       env->adjust(value);
@@ -164,6 +165,8 @@ public:
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
+    registerParameter("Waveshape", PARAMETER_WAVESHAPE);
+    setParameterValue(PARAMETER_WAVESHAPE);
   }
   ~PolySubPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -178,6 +181,8 @@ public:
     voices->setParameter(SynthVoice::PARAMETER_FILTER_CUTOFF, getParameterValue(PARAMETER_B));
     voices->setParameter(SynthVoice::PARAMETER_FILTER_RESONANCE, getParameterValue(PARAMETER_C));
     voices->setParameter(SynthVoice::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
+
+    voices->setParameter(SynthVoice::PARAMETER_WAVESHAPE, getParameterValue(PARAMETER_WAVESHAPE));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);

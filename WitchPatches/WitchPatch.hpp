@@ -1,3 +1,4 @@
+#include "MorphingOscillator.h"
 
 // template<class BaseOscillator>
 // class BlepTemplate {
@@ -119,6 +120,9 @@ public:
   static TapTempoOscillator* create(float sr, size_t limit, Oscillator* osc){
     return new TapTempoOscillator(sr, limit, osc);
   }
+  static void destroy(TapTempoOscillator* obj){
+    delete obj;
+  }
 };
 
 class TapTempoSineOscillator : public TapTempoOscillator {
@@ -145,20 +149,56 @@ public:
   }
 };
 
+// class MorphingTapTempoOscillator : public TapTempoOscillator {
+class WitchLFO : public TapTempoOscillator {
+public:
+  enum Shape { AGNESI, SINE, TRIANGLE, RAMP, SQUARE, NOF_SHAPES };
+public:
+  WitchLFO(float sr, size_t limit, MorphingOscillator* osc): TapTempoOscillator(sr, limit, osc) {}
+  void select(Shape shape){
+    select(shape / NOF_SHAPES);
+  }
+  void select(float value){
+    static_cast<MorphingOscillator*>(oscillator)->select(value);
+  }
+  void reset(){
+    oscillator->reset();
+  }
+  static WitchLFO* create(float sample_rate, size_t limit, float block_rate){
+    float rate = block_rate;
+    MorphingOscillator* morph = MorphingOscillator::create(NOF_SHAPES);
+    morph->setOscillator(0, AgnesiOscillator::create(rate));
+    morph->setOscillator(1, SineOscillator::create(rate));
+    morph->setOscillator(2, TriangleOscillator::create(rate));
+    morph->setOscillator(3, RampOscillator::create(rate));
+    morph->setOscillator(4, InvertedSquareOscillator::create(rate));
+    return new WitchLFO(sample_rate, limit, morph);
+  }
+  static void destroy(WitchLFO* obj){
+    MorphingOscillator* morph = (MorphingOscillator*)obj->oscillator;
+    for(size_t i=0; i<morph->getNumberOfOscillators(); ++i)
+      delete morph->getOscillator(i);
+    MorphingOscillator::destroy(morph);
+    delete obj;
+  }
+};
+
 class WitchPatch : public Patch {
 protected:
   SynthVoices* voices;
-  TapTempoSineOscillator* lfo1;
-  TapTempoAgnesiOscillator* lfo2;
+  WitchLFO* lfo1;
+  WitchLFO* lfo2;
   CvNoteProcessor* cvnote;
   WitchMultiEffect* fx;
   static constexpr float cvrange = 5;
 public:
   WitchPatch(){
     // lfo
-    lfo1 = TapTempoSineOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo2 = TapTempoAgnesiOscillator::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo2 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1->select(WitchLFO::SINE);
     lfo1->setBeatsPerMinute(60);
+    lfo2->select(WitchLFO::AGNESI);
     lfo2->setBeatsPerMinute(120);
 #ifdef USE_MPE
     // send MPE Configuration Message RPN
@@ -171,18 +211,25 @@ public:
 
     registerParameter(PARAMETER_FX_AMOUNT, "FX Amount");
     setParameterValue(PARAMETER_FX_AMOUNT, 0.0);
-    registerParameter(PARAMETER_FM_AMOUNT, "FM Amount");
-    setParameterValue(PARAMETER_FM_AMOUNT, 0.5);
+    registerParameter(PARAMETER_EXTL_AMOUNT, "Ext L Amount");
+    setParameterValue(PARAMETER_EXTL_AMOUNT, 0.2);
+    registerParameter(PARAMETER_EXTR_AMOUNT, "Ext R Amount");
+    setParameterValue(PARAMETER_EXTR_AMOUNT, 0.2);
 
     registerParameter(PARAMETER_ATTACK, "Attack");
     registerParameter(PARAMETER_DECAY, "Decay");
     registerParameter(PARAMETER_SUSTAIN, "Sustain");
     registerParameter(PARAMETER_RELEASE, "Release");
     registerParameter(PARAMETER_FX_SELECT, "FX Select");
+
+    // sendMidi(MidiMessage::cc(0, OpenWareMidiControl::PATCH_PARAMETER_AA, 0));
+    // sendMidi(MidiMessage::cc(0, OpenWareMidiControl::PATCH_PARAMETER_AB, 0));
+    // sendMidi(MidiMessage::cc(0, OpenWareMidiControl::PATCH_PARAMETER_AC, 127));
+    // sendMidi(MidiMessage::cc(0, OpenWareMidiControl::PATCH_PARAMETER_AD, 0));
   }
   virtual ~WitchPatch(){
-    TapTempoSineOscillator::destroy(lfo1);
-    TapTempoAgnesiOscillator::destroy(lfo2);
+    WitchLFO::destroy(lfo1);
+    WitchLFO::destroy(lfo2);
     WitchMultiEffect::destroy(fx);
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
@@ -192,9 +239,9 @@ public:
       break;
     case BUTTON_2:
       lfo1->trigger(value, samples);
-      fx->trigger(value, samples);
       if(value)
 	lfo1->reset();
+      fx->trigger(value, samples);
       break;
     case BUTTON_3:
       lfo2->trigger(value, samples);
@@ -218,13 +265,31 @@ public:
 
   void processMidi(MidiMessage msg){
     voices->process(msg);
+    if(msg.isControlChange()){
+      switch(msg.getControllerNumber()){
+      case PATCH_PARAMETER_ATTENUATE_A:
+	setParameterValue(PARAMETER_BA, msg.getControllerValue()/128.0f);
+	// set these by sysex instead?
+	break;
+      case PATCH_PARAMETER_LFO1_SHAPE:
+	lfo1->select(msg.getControllerValue()/128.0f);
+	break;
+      case PATCH_PARAMETER_LFO2_SHAPE:
+	lfo2->select(msg.getControllerValue()/128.0f);
+	break;
+      }
+    }
   }
 
   void doprocess(AudioBuffer &buffer){
     cvnote->clock(getBlockSize());
     cvnote->cv(getParameterValue(PARAMETER_A));
-    float fm_amount = getParameterValue(PARAMETER_FM_AMOUNT)*0.2;
-    buffer.multiply(fm_amount);
+    float amount = getParameterValue(PARAMETER_EXTL_AMOUNT);
+    amount *= amount;
+    buffer.getSamples(LEFT_CHANNEL).multiply(amount);
+    amount = getParameterValue(PARAMETER_EXTR_AMOUNT);
+    amount *= amount;
+    buffer.getSamples(RIGHT_CHANNEL).multiply(amount);
   }
   
   void dofx(AudioBuffer &buffer){
@@ -235,13 +300,16 @@ public:
 
   void dolfo(){
     // lfo
+    // lfo1->select(getParameterValue(PARAMETER_LFO1_SHAPE));
+    // lfo2->select(getParameterValue(PARAMETER_LFO2_SHAPE));
     lfo1->clock(getBlockSize());
     lfo2->clock(getBlockSize());
     float lfo = lfo1->generate()*0.5+0.5;
     fx->setModulation(lfo);
     setParameterValue(PARAMETER_F, lfo*0.86+0.02);
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
-    setParameterValue(PARAMETER_G, lfo2->generate()*0.86+0.02);
+    lfo = lfo2->generate()*0.5+0.5;
+    setParameterValue(PARAMETER_G, lfo*0.86+0.02);
     setButton(BUTTON_F, lfo2->getPhase() < M_PI);
   }
 };

@@ -16,13 +16,23 @@
 #define TRIGGER_LIMIT (1<<22)
 #define BUTTON_VELOCITY 100
 
-#define PARAMETER_ATTACK    PARAMETER_AA
-#define PARAMETER_DECAY     PARAMETER_AB
-#define PARAMETER_SUSTAIN   PARAMETER_AC
-#define PARAMETER_RELEASE   PARAMETER_AD
-#define PARAMETER_FM_AMOUNT PARAMETER_AE
-#define PARAMETER_FX_SELECT PARAMETER_AF
-#define PARAMETER_FX_AMOUNT PARAMETER_E
+#define PARAMETER_FX_AMOUNT               PARAMETER_E
+#define PARAMETER_WAVESHAPE               PARAMETER_H
+#define PARAMETER_ATTACK                  PARAMETER_AA
+#define PARAMETER_DECAY                   PARAMETER_AB
+#define PARAMETER_SUSTAIN                 PARAMETER_AC
+#define PARAMETER_RELEASE                 PARAMETER_AD
+#define PARAMETER_EXTL_AMOUNT             PARAMETER_AE
+#define PARAMETER_EXTR_AMOUNT             PARAMETER_AF
+
+#define PATCH_PARAMETER_ATTENUATE_A PATCH_PARAMETER_BA
+
+#define PATCH_PARAMETER_LFO1_SHAPE  PATCH_PARAMETER_AG
+#define PATCH_PARAMETER_LFO2_SHAPE  PATCH_PARAMETER_AH
+
+#define PARAMETER_FX_SELECT               PARAMETER_BA
+
+
 
 class WitchEnvelope : public AdsrEnvelope {
 protected:
@@ -80,7 +90,7 @@ public:
     }
     setAttack(attack + ctrlattack*tmax);
     setDecay(ctrldecay*tmax + tmin);
-    setSustain(ctrlsustain);
+    setSustain(ctrlsustain*ctrlsustain);
     setRelease(release + ctrlrelease*tmax);
   }
 
@@ -103,6 +113,7 @@ public:
   // calls TapTempo::clock()
   // virtual static WitchFX* create(float samplerate, size_t blocksize) = 0;
   // virtual static void destroy(WitchFX* obj) = 0;
+  virtual void reset(){}
 };
 
 class SmoothStereoDelayProcessor : public MultiSignalProcessor {
@@ -132,6 +143,10 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     delaymix->process(input, output);
+  }
+  void reset(){
+    left_delay->clear();
+    right_delay->clear();
   }
   static SmoothStereoDelayProcessor* create(size_t blocksize, size_t delaysize){
     SmoothDelayProcessor* left_delay = SmoothDelayProcessor::create(delaysize, blocksize);
@@ -195,7 +210,7 @@ class SoftClipProcessor : public AbstractStatelessProcessor {
    */
 public:
   float process(float x){
-    return clamp((3*x/2)*(1-x*x/3), -1, 1); // cubic nonlinearity
+    return clamp((3*x/2)*(1-x*x/3), -1.0f, 1.0f); // cubic nonlinearity
     // return clamp(3*(x-x*x*x/3)/2, -1, 1); // cubic nonlinearity
   }
   using AbstractStatelessProcessor::process;
@@ -359,7 +374,7 @@ public:
     return x * ( 27 + x*x ) / ( 27 + 9*x*x );
   }
   float process(float input){
-    return clamp(nonlinear(input*drive+offset), -1, 1);
+    return clamp(nonlinear(input*drive+offset), -1.0f, 1.0f);
   }
   using SignalProcessor::process;
   void process(AudioBuffer& input, AudioBuffer& output){
@@ -382,7 +397,7 @@ protected:
 public:
   StereoOverdriveProcessor(){}
   float process(float input, float offset){
-    return clamp(nonlinear(input*drive+offset), -1, 1);
+    return clamp(nonlinear(input*drive+offset), -1.0f, 1.0f);
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     float targetOffset = this->offset;
@@ -457,7 +472,7 @@ public:
     }
     z = x; // save for feedback
     input += x * depth;
-    return clamp(input, -1, 1);
+    return clamp(input, -1.0f, 1.0f);
   }
   using SignalProcessor::process;
 };
@@ -492,8 +507,8 @@ public:
   void setModulation(float value){
   }
   void setEffect(float value){
-    delay->setFeedback(max(0, value*0.75f-0.5f));
-    delay->setMix(min(0.5, value));
+    delay->setFeedback(max(0.0f, value*0.75f-0.5f));
+    delay->setMix(min(0.5f, value));
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     TapTempo::clock(input.getSize());
@@ -501,6 +516,9 @@ public:
     delay->process(input, output);
     output.getSamples(LEFT_CHANNEL).softclip();
     output.getSamples(RIGHT_CHANNEL).softclip();
+  }
+  void reset(){
+    delay->reset();
   }
   static WitchDelay* create(float samplerate, size_t blocksize){
     SmoothStereoDelayProcessor* delay = SmoothStereoDelayProcessor::create(blocksize, 48000*4);
@@ -519,10 +537,10 @@ public:
     setDelay(value);
   }
   void setEffect(float value){
-    phaser_left.setDepth(min(1, value*2));
-    // phaser_left.setFeedback(max(0, value*1.25-0.4));
-    phaser_right.setDepth(min(1, value*2));
-    // phaser_right.setFeedback(max(0, value*1.25-0.4));
+    phaser_left.setDepth(min(1.0f, value*2));
+    // phaser_left.setFeedback(max(0.0f, value*1.25-0.4));
+    phaser_right.setDepth(min(1.0f, value*2));
+    // phaser_right.setFeedback(max(0.0f, value*1.25-0.4));
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     StereoPhaserProcessor::process(input, output);
@@ -544,7 +562,7 @@ public:
   WitchOverdrive(float samplerate): WitchFX(samplerate){}
   void setEffect(float value){
     setDrive(value*value*8+value*4+1);
-    gain = max(1-value, 0.5);
+    gain = max(1-value, 0.5f);
   }
   void setModulation(float value){
     setOffset(value*(drive-1)*0.1);
@@ -716,9 +734,10 @@ public:
     return float(value+0.5)/NOF_EFFECTS;
   }
   void select(float value){
-    size_t next = clamp(value*NOF_EFFECTS, 0, NOF_EFFECTS-1);
+    size_t next = clamp(int(value*NOF_EFFECTS), 0, NOF_EFFECTS-1);
     if(selected != next){
       debugMessage("FX", (int)next);
+      fx[next]->reset();
       fx[next]->setPeriodInSamples(fx[selected]->getPeriodInSamples());
       selected = next;
     }
