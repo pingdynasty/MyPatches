@@ -88,7 +88,7 @@ public:
     // base frequency: incr=1 (incr=0 up to 187.5 Hz at SIZE=256, incr=6 up to 1312.5 Hz )
     // incr=64 up to 12kHz, log2(64) == 6
     // z = min(Z-1, log2f(incr+1));
-    z = max(0, min(Z-1, log2f(freq/SIZE+1)));
+    z = max(0.0f, min(Z-1.0f, log2f(freq/SIZE+1)));
     // debugMessage("freq/incr/z/", freq, incr, z);
   }
   float getFrequency(){
@@ -99,6 +99,9 @@ public:
   }
   float getPhase(){
     return phase*2*M_PI/SIZE;
+  }
+  void reset(){
+    phase = 0;
   }
   void set(float x, float y){
     this->x = x;
