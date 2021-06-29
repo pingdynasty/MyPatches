@@ -8,6 +8,8 @@ static const int TRIGGER_LIMIT = (1<<17);
 #define VOICES 4
 #define BUTTON_VELOCITY 100
 
+#include "common.h"
+
 // typedef SampleOscillator<LINEAR_INTERPOLATION> Sampler;
 typedef SampleOscillator<COSINE_INTERPOLATION> Sampler;
 // typedef SampleOscillator<CUBIC_4P_SMOOTH_INTERPOLATION> Sampler;
@@ -18,7 +20,7 @@ private:
   Sampler* oscR;
   ExponentialDecayEnvelope* env;
   float gain;
-  Control<PARAMETER_D> decaytime = 0.0f;
+  SmoothFloat decaytime;
   StereoBiquadFilter* filter;
   FloatArray buffer;
 public:
@@ -45,7 +47,7 @@ public:
     oscL->setFrequency(freq);
     oscR->setFrequency(freq);
     freq *= 30;
-    freq = min(18000, freq);
+    freq = min(18000.0f, freq);
     // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setDecay(float decay) {
@@ -69,7 +71,6 @@ public:
     env->trigger();
   }
   void generate(AudioBuffer& output){
-    setDecay(decaytime);
     // oscL->setDuration(duration);
     // oscR->setDuration(duration);    
     FloatArray left = output.getSamples(LEFT_CHANNEL);
@@ -98,6 +99,9 @@ public:
       break;
     case 3:
       filter_gain = value;
+      break;
+    case 4:
+      setDecay(value);
       break;
     }
   }
@@ -138,24 +142,27 @@ public:
       error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
     FloatArray sampleL = wav.createFloatArray(0);
     FloatArray sampleR = wav.createFloatArray(1);
-    debugMessage("wav", (int)wav.getNumberOfChannels(), wav.getNumberOfSamples(), wav.getSize());
+    // debugMessage("wav", (int)wav.getNumberOfChannels(), wav.getNumberOfSamples(), wav.getSize());
     Resource::destroy(resource);
-        // filter sample
+    // filter sample
     DcBlockingFilter* filter = DcBlockingFilter::create();
     filter->process(sampleL, sampleL);
     filter->reset();
     filter->process(sampleR, sampleR);
     DcBlockingFilter::destroy(filter);
+    // normalise levels
+    float pkL = max(sampleL.getMaxValue(), -sampleL.getMinValue());
+    float pkR = max(sampleR.getMaxValue(), -sampleR.getMinValue());
+    float pk = max(pkL, pkR);
+    sampleL.multiply(1/pk);
+    // debugMessage("rms", sampleR.getRms(), sampleL.getRms());
+    sampleR.multiply(1/pk);
     return StereoSamplerVoice::create(getSampleRate(), getBlockSize(), sampleL, sampleR);
   }
-
   QuadSamplerPatch() {
     registerParameter(PARAMETER_A, "Frequency");
-    setParameterValue(PARAMETER_A, 0.8);
     registerParameter(PARAMETER_B, "Cutoff");
-    setParameterValue(PARAMETER_B, 0.5);
     registerParameter(PARAMETER_C, "Peak");
-    setParameterValue(PARAMETER_C, 0.5);
     registerParameter(PARAMETER_D, "Decay");
 
     // create voices
@@ -224,6 +231,7 @@ public:
     float gain = getParameterValue(PARAMETER_C)*24-12;
     voices->setParameter(3, gain);
     voices->setParameter(1, cutoff);
+    voices->setParameter(4, getParameterValue(PARAMETER_D));
     
     voices->generate(buffer);
 

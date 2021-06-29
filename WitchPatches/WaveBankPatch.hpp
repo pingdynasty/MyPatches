@@ -3,7 +3,7 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
+// #define USE_MPE
 #define VOICES 4
 // #define USE_STEREO_MIX
 // #define DDS_INTERPOLATE
@@ -53,10 +53,6 @@ public:
     registerParameter(PARAMETER_E, "Effect Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
-    setParameterValue(PARAMETER_A, 0.8);
-    setParameterValue(PARAMETER_B, 0.5);
-    setParameterValue(PARAMETER_C, 0.5);
-    setParameterValue(PARAMETER_D, 0.5);
 
     setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
 

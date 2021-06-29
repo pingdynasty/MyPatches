@@ -1,3 +1,4 @@
+#include "common.h"
 
 #if VOICES == 1
 #define GAINFACTOR 1

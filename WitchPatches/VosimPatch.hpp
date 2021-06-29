@@ -3,7 +3,6 @@
 
 #include "OpenWareLibrary.h"
 
-#define USE_MPE
 #define VOICES 6
 #define FORMANT_ABSOLUTE // undefine to modulate formant frequency as ratio of oscillator frequency
 

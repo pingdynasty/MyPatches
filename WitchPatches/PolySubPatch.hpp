@@ -3,7 +3,6 @@
 
 #include "OpenWareLibrary.h"
 
-// #define USE_MPE
 #define VOICES 8
 
 #include "WitchFX.hpp"
@@ -109,7 +108,7 @@ public:
   void setParameter(uint8_t parameter_id, float value){
     switch(parameter_id){
     case PARAMETER_WAVESHAPE:
-      waveshape = min(1, value + mod2);
+      waveshape = min(1.0f, value + mod2);
       break;
     case PARAMETER_FILTER_CUTOFF:
       fc = (value*value*8000+400)*(1+mod1);
@@ -148,10 +147,6 @@ public:
     registerParameter(PARAMETER_D, "Envelope");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
-    setParameterValue(PARAMETER_A, 0.5);
-    setParameterValue(PARAMETER_B, 0.8);
-    setParameterValue(PARAMETER_C, 0.2);
-    setParameterValue(PARAMETER_D, 0.4);
 
     setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
 
@@ -165,8 +160,8 @@ public:
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
-    registerParameter("Waveshape", PARAMETER_WAVESHAPE);
-    setParameterValue(PARAMETER_WAVESHAPE);
+    registerParameter(PARAMETER_WAVESHAPE, "Waveshape");
+    setParameterValue(PARAMETER_WAVESHAPE, 0);
   }
   ~PolySubPatch(){
     for(int i=0; i<VOICES; ++i)
