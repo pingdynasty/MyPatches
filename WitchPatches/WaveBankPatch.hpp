@@ -5,6 +5,7 @@
 
 #define USE_MPE
 #define VOICES 4
+// #define USE_STEREO_MIX
 // #define DDS_INTERPOLATE
 #define SAMPLE_LEN 256
 #define NOF_X_WF 8
@@ -88,7 +89,7 @@ public:
     MorphBank::destroy(bank2);
     AudioBuffer::destroy(buffer);
   }
-
+  
   void processAudio(AudioBuffer& audio) {
     doprocess(audio);
 
@@ -105,6 +106,13 @@ public:
     voices->process(*buffer, audio);
     dofx(audio);
     dolfo();
+
+#ifdef USE_STEREO_MIX
+    static StereoMixProcessor mix;
+    mix.setMixAmount(getParameterValue(PARAMETER_STEREO_MIX)*2-1);
+    mix.process(audio, *buffer);
+    buffer->copyTo(audio);
+#endif
   }
 };
 

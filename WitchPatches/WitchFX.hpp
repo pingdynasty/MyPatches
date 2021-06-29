@@ -17,7 +17,7 @@
 #define BUTTON_VELOCITY 100
 
 #define PARAMETER_FX_AMOUNT               PARAMETER_E
-#define PARAMETER_WAVESHAPE               PARAMETER_H
+#define PARAMETER_FX_SELECT               PARAMETER_H
 #define PARAMETER_ATTACK                  PARAMETER_AA
 #define PARAMETER_DECAY                   PARAMETER_AB
 #define PARAMETER_SUSTAIN                 PARAMETER_AC
@@ -26,12 +26,61 @@
 #define PARAMETER_EXTR_AMOUNT             PARAMETER_AF
 
 #define PATCH_PARAMETER_ATTENUATE_A PATCH_PARAMETER_BA
+#define PATCH_PARAMETER_ATTENUATE_B PATCH_PARAMETER_BB
+#define PATCH_PARAMETER_ATTENUATE_C PATCH_PARAMETER_BC
+#define PATCH_PARAMETER_ATTENUATE_D PATCH_PARAMETER_BD
 
 #define PATCH_PARAMETER_LFO1_SHAPE  PATCH_PARAMETER_AG
 #define PATCH_PARAMETER_LFO2_SHAPE  PATCH_PARAMETER_AH
 
-#define PARAMETER_FX_SELECT               PARAMETER_BA
+#define PARAMETER_WAVESHAPE               PARAMETER_H
+#define PARAMETER_STEREO_MIX              PARAMETER_H
 
+#define PATCH_PARAMETER_MODULATION_AMOUNT 
+#define PATCH_PARAMETER_PRESSURE_AMOUNT
+
+class StereoMixProcessor : public MultiSignalProcessor {
+protected:
+  float a = 2.424; // default pan law -3dB
+  float amount = 0; // -1 to 1
+public:
+  /**
+   * Set pan law (typically between -3 and -6 dB)
+   */
+  void setPanLaw(float db){
+    float y = exp10f(db/20);
+    a = - y/(y-1);
+  }
+  /** 
+   * Set the stereo mix to a value between -1 and 1.
+   * At 0 there is full separation, at 1 there is full mix.
+   * Positive values add an amount of the opposite channel, 
+   * while negative values subtract.
+   */
+  void setMixAmount(float value){
+    amount = value < 0 ? -value*value : value*value;
+  }
+  void mix(FloatArray left, FloatArray right, FloatArray out){
+    right.multiply(amount, out);
+    out.add(left);
+    out.multiply(a/(a+abs(amount)));
+    // curve is a/(a+x*x) + a*x*x/(a+x*x)
+    // https://www.desmos.com/calculator/gn7et5o2mz
+    // with a=1, sum is unity for any amount, at full mix each side is 0.5, pan law -6dB
+    // with a=2.424, sum is unity at 0 amount, at full mix each side is 0.707, pan law -3dB
+    // with amplitude at edges 1.4125, 3dB
+  }
+    
+  // note: in-place processing won't work
+  void process(AudioBuffer& input, AudioBuffer& output){
+    FloatArray lin = input.getSamples(LEFT_CHANNEL);
+    FloatArray rin = input.getSamples(RIGHT_CHANNEL);
+    FloatArray lout = output.getSamples(LEFT_CHANNEL);
+    FloatArray rout = output.getSamples(RIGHT_CHANNEL);
+    mix(lin, rin, lout);
+    mix(rin, lin, rout);
+  }
+};
 
 
 class WitchEnvelope : public AdsrEnvelope {
@@ -736,7 +785,7 @@ public:
   void select(float value){
     size_t next = clamp(int(value*NOF_EFFECTS), 0, NOF_EFFECTS-1);
     if(selected != next){
-      debugMessage("FX", (int)next);
+      // debugMessage("FX", (int)next);
       fx[next]->reset();
       fx[next]->setPeriodInSamples(fx[selected]->getPeriodInSamples());
       selected = next;

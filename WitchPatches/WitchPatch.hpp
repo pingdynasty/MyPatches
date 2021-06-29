@@ -1,5 +1,6 @@
 #include "MorphingOscillator.h"
 
+
 // template<class BaseOscillator>
 // class BlepTemplate {
 // // ref: http://www.martin-finke.de/blog/articles/audio-plugins-018-polyblep-oscillator/
@@ -210,7 +211,7 @@ public:
     fx->setBeatsPerMinute(60);
 
     registerParameter(PARAMETER_FX_AMOUNT, "FX Amount");
-    setParameterValue(PARAMETER_FX_AMOUNT, 0.0);
+    // setParameterValue(PARAMETER_FX_AMOUNT, 0.0);
     registerParameter(PARAMETER_EXTL_AMOUNT, "Ext L Amount");
     setParameterValue(PARAMETER_EXTL_AMOUNT, 0.2);
     registerParameter(PARAMETER_EXTR_AMOUNT, "Ext R Amount");
@@ -232,6 +233,7 @@ public:
     WitchLFO::destroy(lfo2);
     WitchMultiEffect::destroy(fx);
   }
+
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
     case BUTTON_1:
@@ -266,16 +268,33 @@ public:
   void processMidi(MidiMessage msg){
     voices->process(msg);
     if(msg.isControlChange()){
+      float value = msg.getControllerValue()/128.0f;
       switch(msg.getControllerNumber()){
       case PATCH_PARAMETER_ATTENUATE_A:
-	setParameterValue(PARAMETER_BA, msg.getControllerValue()/128.0f);
-	// set these by sysex instead?
+	value = 2 * value - 1;
+	value = value < 0 ? -2*value*value : 2*value*value;
+	setParameterValue(PARAMETER_BA, value);
+	break;
+      case PATCH_PARAMETER_ATTENUATE_B:
+	value = 2 * value - 1;
+	value = value < 0 ? -2*value*value : 2*value*value;
+	setParameterValue(PARAMETER_BB, value);
+	break;
+      case PATCH_PARAMETER_ATTENUATE_C:
+	value = 2 * value - 1;
+	value = value < 0 ? -2*value*value : 2*value*value;
+	setParameterValue(PARAMETER_BC, value);
+	break;
+      case PATCH_PARAMETER_ATTENUATE_D:
+	value = 2 * value - 1;
+	value = value < 0 ? -2*value*value : 2*value*value;
+	setParameterValue(PARAMETER_BD, value);
 	break;
       case PATCH_PARAMETER_LFO1_SHAPE:
-	lfo1->select(msg.getControllerValue()/128.0f);
+	lfo1->select(value);
 	break;
       case PATCH_PARAMETER_LFO2_SHAPE:
-	lfo2->select(msg.getControllerValue()/128.0f);
+	lfo2->select(value);
 	break;
       }
     }
