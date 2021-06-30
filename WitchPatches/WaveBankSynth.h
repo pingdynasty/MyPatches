@@ -69,8 +69,16 @@ public:
   float process(float input){
     return osc->generate(input)*env->generate()*gain;
   }
+  void process(FloatArray input, FloatArray output){
+    osc->generate(input, output);
+    output.multiply(gain);
+    // env->generate(output);
+    for(size_t i=0; i<output.getSize(); ++i)
+      output[i] *= env->generate();
+      // output[i] *= gain*env->generate();
+  }
+  // using SignalProcessor::process;
   using MidiProcessor::process;
-  using SignalProcessor::process;
   static MorphMonoGenerator* create(MorphBank* bank, float sr){
     MorphOsc* osc = MorphOsc::create(bank, sr);
     WitchEnvelope* env = WitchEnvelope::create(sr);
@@ -106,7 +114,7 @@ public:
   void process(AudioBuffer& input, AudioBuffer& output){
     osc2->setFrequency(osc->getFrequency());
     osc2->setMorphX(osc->getMorphX());
-    osc2->setMorphY(osc->getMorphY());    
+    osc2->setMorphY(osc->getMorphY());
     FloatArray lin = input.getSamples(LEFT_CHANNEL);
     FloatArray rin = input.getSamples(RIGHT_CHANNEL);
     FloatArray lout = output.getSamples(LEFT_CHANNEL);

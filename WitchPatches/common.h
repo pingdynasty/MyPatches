@@ -1,6 +1,6 @@
-#define PATCH_PERFORMANCE
+#define PATCH_EXPRESSION
 
-#ifdef PATCH_PERFORMANCE
+#ifdef PATCH_EXPRESSION
 #define USE_MPE
 #warning Building Expression patch
 #else

@@ -5,7 +5,7 @@
 
 // #define USE_MPE
 #define VOICES 4
-// #define USE_STEREO_MIX
+#define USE_STEREO_MIX
 // #define DDS_INTERPOLATE
 #define SAMPLE_LEN 256
 #define NOF_X_WF 8
@@ -53,7 +53,9 @@ public:
     registerParameter(PARAMETER_E, "Effect Amount");
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
+    registerParameter(PARAMETER_STEREO_MIX, "Stereo Mix");
 
+    setParameterValue(PARAMETER_STEREO_MIX, 0.8);
     setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
 
     FloatArray wt1 = createWavebank("wavetable1.wav");

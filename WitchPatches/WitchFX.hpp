@@ -34,8 +34,8 @@
 #define PATCH_PARAMETER_LFO1_SHAPE  PATCH_PARAMETER_AG
 #define PATCH_PARAMETER_LFO2_SHAPE  PATCH_PARAMETER_AH
 
-#define PARAMETER_WAVESHAPE               PARAMETER_H
-#define PARAMETER_STEREO_MIX              PARAMETER_H
+#define PARAMETER_WAVESHAPE               PARAMETER_AG
+#define PARAMETER_STEREO_MIX              PARAMETER_AG
 
 #define PATCH_PARAMETER_MODULATION_AMOUNT 
 #define PATCH_PARAMETER_PRESSURE_AMOUNT
@@ -66,7 +66,7 @@ public:
     out.add(left);
     out.multiply(a/(a+abs(amount)));
     // curve is a/(a+x*x) + a*x*x/(a+x*x)
-    // https://www.desmos.com/calculator/gn7et5o2mz
+    // https://www.desmos.com/calculator/62xrspfgff
     // with a=1, sum is unity for any amount, at full mix each side is 0.5, pan law -6dB
     // with a=2.424, sum is unity at 0 amount, at full mix each side is 0.707, pan law -3dB
     // with amplitude at edges 1.4125, 3dB
@@ -219,7 +219,7 @@ class AbstractStatelessProcessor : public SignalProcessor, public MultiSignalPro
 public:
   using SignalProcessor::process;
   void process(AudioBuffer& input, AudioBuffer& output){
-    for(size_t ch=0; ch<input.getChannels(); ++ch)
+    for(int ch=0; ch<input.getChannels(); ++ch)
       SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
   }
 };
@@ -404,7 +404,7 @@ public:
     return wavetable[index & (WAVETABLE_SIZE-1)];
   }
   void process(AudioBuffer& input, AudioBuffer& output){
-    for(size_t ch=0; ch<input.getChannels(); ++ch)
+    for(int ch=0; ch<input.getChannels(); ++ch)
       SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
   }
 };
@@ -428,7 +428,7 @@ public:
   }
   using SignalProcessor::process;
   void process(AudioBuffer& input, AudioBuffer& output){
-    for(size_t ch=0; ch<input.getChannels(); ++ch){
+    for(int ch=0; ch<input.getChannels(); ++ch){
       SignalProcessor::process(input.getSamples(ch), output.getSamples(ch));
       offset *= -1;
     }

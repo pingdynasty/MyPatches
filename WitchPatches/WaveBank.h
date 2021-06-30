@@ -119,23 +119,8 @@ public:
   float getMorphY() {
     return y/Y;
   }
-  float generate(float fm){
-    float sample = generate();
-    phase += fm*incr;
-    if(phase >= SIZE)
-      phase -= SIZE;
-    return sample;
-  }
-  float generate(){
-    size_t xi = x;
-    float xf = x-xi;
-    size_t yi = y;
-    float yf = y-yi;
-    size_t zi = z; // just use bottom bandwidth-limited wavetable
-    float* wave00 = waves->getWave(xi, yi, zi);
-    float* wave01 = waves->getWave(xi+1, yi, zi);
-    float* wave10 = waves->getWave(xi, yi+1, zi);
-    float* wave11 = waves->getWave(xi+1, yi+1, zi);
+  inline static float compute(float* wave00, float* wave01, float* wave10, float* wave11,
+			      float phase, float xf, float yf){
     size_t phi0 = phase; // phase goes from 0.0 to SIZE
 #ifdef DDS_INTERPOLATE
     // interpolating samples
@@ -155,13 +140,34 @@ public:
     s00 += (s10 - s00)*yf;
     s01 += (s11 - s01)*yf;
     s00 += (s01 - s00)*xf;
+    return s00;
+  }
+  float generate(){
+    size_t xi = x;
+    float xf = x-xi;
+    size_t yi = y;
+    float yf = y-yi;
+    size_t zi = z; // just use bottom bandwidth-limited wavetable
+    float* wave00 = waves->getWave(xi, yi, zi);
+    float* wave01 = waves->getWave(xi+1, yi, zi);
+    float* wave10 = waves->getWave(xi, yi+1, zi);
+    float* wave11 = waves->getWave(xi+1, yi+1, zi);
+    float s00 = compute(wave00, wave01, wave10, wave11, phase, xf, yf);
     phase += incr;
     if(phase >= SIZE)
       phase -= SIZE;
     return s00;
   }
-  using Oscillator::generate;
+  float generate(float fm){
+    float sample = generate();
+    phase += fm*incr;
+    if(phase >= SIZE)
+      phase -= SIZE;
+    return sample;
+  }
 #if 0
+  using Oscillator::generate;
+#else
   void generate(FloatArray output){
     float* out = output.getData();
     size_t len = output.getSize();
@@ -171,36 +177,38 @@ public:
     float yf = y-yi;
     size_t zi = z; // just use bottom bandwidth-limited wavetable
     float* wave00 = waves->getWave(xi, yi, zi);
-    float* wave01 = waves->getWave(xi, yi+1, zi);
-    float* wave10 = waves->getWave(xi+1, yi, zi);
+    float* wave01 = waves->getWave(xi+1, yi, zi);
+    float* wave10 = waves->getWave(xi, yi+1, zi);
     float* wave11 = waves->getWave(xi+1, yi+1, zi);
     while(len--){
-      size_t zi0 = phase; // z is phase and goes from 0 to Z
-#ifdef DDS_INTERPOLATE
-      // interpolating samples
-      size_t zi1 = zi0+1;
-      float zf1 = phase-zi0; // fractional part
-      float zf0 = 1-zf1;
-      float s00 = wave00[zi0]*zf0 + wave00[zi1]*zf1;
-      float s01 = wave01[zi0]*zf0 + wave01[zi1]*zf1;
-      float s10 = wave10[zi0]*zf0 + wave10[zi1]*zf1;
-      float s11 = wave11[zi0]*zf0 + wave11[zi1]*zf1;
-#else
-      float s00 = wave00[zi0];
-      float s01 = wave01[zi0];
-      float s10 = wave10[zi0];
-      float s11 = wave11[zi0];
-#endif
-      s00 += (s10 - s00)*yf;
-      s01 += (s11 - s01)*yf;
-      s00 += (s01 - s00)*xf;
-      *out++ = s00;
-
+      *out++ = compute(wave00, wave01, wave10, wave11, phase, xf, yf);
       phase += incr;
       if(phase >= SIZE)
 	phase -= SIZE;
     }
   }
+  void generate(FloatArray output, FloatArray input){
+    float* fm = input.getData();
+    float* out = output.getData();
+    size_t len = output.getSize();
+    size_t xi = x;
+    float xf = x-xi;
+    size_t yi = y;
+    float yf = y-yi;
+    size_t zi = z; // just use bottom bandwidth-limited wavetable
+    float* wave00 = waves->getWave(xi, yi, zi);
+    float* wave01 = waves->getWave(xi+1, yi, zi);
+    float* wave10 = waves->getWave(xi, yi+1, zi);
+    float* wave11 = waves->getWave(xi+1, yi+1, zi);
+    while(len--){
+      *out++ = compute(wave00, wave01, wave10, wave11, phase, xf, yf);
+      phase += incr * (1 + *fm++);
+      if(phase >= SIZE)
+    	phase -= SIZE;
+    }
+  }
+#endif
+#if 0
   void generate(float newx, float newy, float newz, float* out, size_t len){
     // must be called with abs(newN-N)<1 for x, y, z
     // ie change less than one table in one block

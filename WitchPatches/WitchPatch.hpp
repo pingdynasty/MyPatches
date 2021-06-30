@@ -326,9 +326,13 @@ public:
     float lfo = lfo1->generate()*0.5+0.5;
     fx->setModulation(lfo);
     setParameterValue(PARAMETER_F, lfo*0.86+0.02);
-    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
+    bool gate = lfo1->getPhase() < M_PI;
+    setButton(BUTTON_B, gate);
+    setButton(BUTTON_E, gate);
     lfo = lfo2->generate()*0.5+0.5;
     setParameterValue(PARAMETER_G, lfo*0.86+0.02);
-    setButton(BUTTON_F, lfo2->getPhase() < M_PI);
+    gate = lfo2->getPhase() < M_PI;
+    setButton(BUTTON_C, gate);
+    setButton(BUTTON_F, gate);
   }
 };
