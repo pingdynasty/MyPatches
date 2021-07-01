@@ -9,6 +9,7 @@ static const int TRIGGER_LIMIT = (1<<17);
 #define BUTTON_VELOCITY 100
 
 #include "common.h"
+#include "WitchFX.hpp"
 
 // typedef SampleOscillator<LINEAR_INTERPOLATION> Sampler;
 typedef SampleOscillator<COSINE_INTERPOLATION> Sampler;
@@ -130,8 +131,9 @@ class QuadSamplerPatch : public Patch {
 private:
   SynthVoices* voices;
   int basenote = 60;
-  AgnesiOscillator* lfo1;
+  WitchLFO* lfo1;
   ExponentialDecayEnvelope* env;
+  WitchMultiEffect* fx;
 public:
 
   StereoSamplerVoice* createVoice(const char* name){
@@ -173,16 +175,24 @@ public:
     voices->setVoice(3, createVoice("sample4.wav"));
     
     // lfo
-    lfo1 = AgnesiOscillator::create(getBlockRate(), 0.5, 10);
+    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1->select(WitchLFO::AGNESI);
     registerParameter(PARAMETER_E, "LFO");
     registerParameter(PARAMETER_F, "LFO>");
     registerParameter(PARAMETER_G, "Envelope>");
 
     env = ExponentialDecayEnvelope::create(getBlockRate());
+
+    // fx
+    fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
+    fx->setBeatsPerMinute(60);
+    registerParameter(PARAMETER_H, "FX Amount");
+    setParameterValue(PARAMETER_H, 0.0);
+    registerParameter(PARAMETER_FX_SELECT, "FX Select");
   }
 
   ~QuadSamplerPatch() {
-    AgnesiOscillator::destroy(lfo1);
+    WitchLFO::destroy(lfo1);
     for(int i=0; i<VOICES; ++i){
       FloatArray::destroy(voices->getVoice(i)->getOscillator(LEFT_CHANNEL)->getSample());
       FloatArray::destroy(voices->getVoice(i)->getOscillator(RIGHT_CHANNEL)->getSample());
@@ -219,8 +229,32 @@ public:
       env->trigger();
   }
 
+  static float attenuvertion(float value){
+    value = 4 * value - 2;
+    return value < 0 ? -value*value : value*value;
+  }    
   void processMidi(MidiMessage msg){
     voices->process(msg);
+    if(msg.isControlChange()){
+      float value = msg.getControllerValue()/128.0f;
+      switch(msg.getControllerNumber()){
+      case PATCH_PARAMETER_ATTENUATE_A:
+	setParameterValue(PARAMETER_BA, attenuvertion(value));
+	break;
+      case PATCH_PARAMETER_ATTENUATE_B:
+	setParameterValue(PARAMETER_BB, attenuvertion(value));
+	break;
+      case PATCH_PARAMETER_ATTENUATE_C:
+	setParameterValue(PARAMETER_BC, attenuvertion(value));
+	break;
+      case PATCH_PARAMETER_ATTENUATE_D:
+	setParameterValue(PARAMETER_BD, attenuvertion(value));
+	break;
+      case PATCH_PARAMETER_LFO1_SHAPE:
+	lfo1->select(value);
+	break;
+      }
+    }
   }    
 
   void processAudio(AudioBuffer& buffer) {
@@ -235,16 +269,27 @@ public:
     
     voices->generate(buffer);
 
+    // decay envelope
     float decay = getParameterValue(PARAMETER_D);
     env->setDecay(decay*decay*40);
 
     // lfo
-    lfo1->setFrequency(getParameterValue(PARAMETER_E)*2);
-    setParameterValue(PARAMETER_F, lfo1->generate());
-    setButton(BUTTON_E, lfo1->getPhase() < M_PI);
+    float freq = getParameterValue(PARAMETER_E);
+    freq = freq*freq*7.9+0.1; // 0.1 to 8 Hz
+    lfo1->setFrequency(freq);
+    float lfo = lfo1->generate()*0.5+0.5;
+    float phase = lfo1->getPhase();
+    setParameterValue(PARAMETER_F, lfo*0.86+0.02);
+    setButton(BUTTON_E, phase < M_PI);
     setParameterValue(PARAMETER_G, env->generate());
-    setButton(BUTTON_F, fmodf(lfo1->getPhase(), M_PI/2) < M_PI/4);
-  }
+    setButton(BUTTON_F, fmodf(phase, M_PI/2) < M_PI/4);
+
+    // fx
+    fx->setFrequency(freq);
+    fx->select(getParameterValue(PARAMETER_FX_SELECT));
+    fx->setEffect(getParameterValue(PARAMETER_WAVESHAPE));
+    fx->process(buffer, buffer);
+}
 };
 
 #endif // __StereoSamplerPatch_hpp__

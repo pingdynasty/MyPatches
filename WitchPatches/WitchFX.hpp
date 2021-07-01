@@ -1,44 +1,7 @@
 #include "common.h"
-
-#if VOICES == 1
-#define GAINFACTOR 1
-#elif VOICES == 2
-#define GAINFACTOR 0.70
-#elif VOICES <= 4
-#define GAINFACTOR 0.5
-#elif VOICES <= 6
-#define GAINFACTOR 0.4
-#elif VOICES <= 8
-#define GAINFACTOR 0.35
-#else
-#define GAINFACTOR 0.25
-#endif
+#include "WitchLFO.h"
 
 #define TRIGGER_LIMIT (1<<22)
-#define BUTTON_VELOCITY 100
-
-#define PARAMETER_FX_AMOUNT               PARAMETER_E
-#define PARAMETER_FX_SELECT               PARAMETER_H
-#define PARAMETER_ATTACK                  PARAMETER_AA
-#define PARAMETER_DECAY                   PARAMETER_AB
-#define PARAMETER_SUSTAIN                 PARAMETER_AC
-#define PARAMETER_RELEASE                 PARAMETER_AD
-#define PARAMETER_EXTL_AMOUNT             PARAMETER_AE
-#define PARAMETER_EXTR_AMOUNT             PARAMETER_AF
-
-#define PATCH_PARAMETER_ATTENUATE_A PATCH_PARAMETER_BA
-#define PATCH_PARAMETER_ATTENUATE_B PATCH_PARAMETER_BB
-#define PATCH_PARAMETER_ATTENUATE_C PATCH_PARAMETER_BC
-#define PATCH_PARAMETER_ATTENUATE_D PATCH_PARAMETER_BD
-
-#define PATCH_PARAMETER_LFO1_SHAPE  PATCH_PARAMETER_AG
-#define PATCH_PARAMETER_LFO2_SHAPE  PATCH_PARAMETER_AH
-
-#define PARAMETER_WAVESHAPE               PARAMETER_AG
-#define PARAMETER_STEREO_MIX              PARAMETER_AG
-
-#define PATCH_PARAMETER_MODULATION_AMOUNT 
-#define PATCH_PARAMETER_PRESSURE_AMOUNT
 
 class StereoMixProcessor : public MultiSignalProcessor {
 protected:
@@ -792,6 +755,9 @@ public:
       selected = next;
     }
   }
+  void setFrequency(float freq){
+    fx[selected]->setFrequency(freq);
+  }
   void setModulation(float value){
     fx[selected]->setModulation(value);
   }
@@ -802,3 +768,63 @@ public:
     fx[selected]->process(input, output);
   }    
 };
+
+
+class CvNoteProcessor {
+protected:
+  MidiProcessor* processor;
+  size_t cv_delay;
+  float note_range;
+  float note_offset;
+  uint8_t note_channel = 1;
+  size_t cv_ticks = 0;
+  bool cv_triggered = false;
+  bool cv_ison = false;
+  uint8_t cv_noteon = NO_NOTE;
+  static constexpr uint8_t NO_NOTE = 0xff;
+  static constexpr uint8_t CV_VELOCITY = 100;
+public:
+  CvNoteProcessor(MidiProcessor* processor, size_t delay, float range, float offset)
+    : processor(processor), cv_delay(delay), note_range(range), note_offset(offset) {}
+  uint8_t getNoteForCv(float cv){
+    return round(cv*note_range + note_offset);
+  }
+  uint8_t getNote(){
+    if(cv_noteon == NO_NOTE)
+      return 0;
+    return cv_noteon;
+  }
+  void gate(bool ison, size_t delay){
+    if(ison != cv_ison && !cv_triggered){ // prevent re-triggers during delay
+      cv_ison = ison;
+      cv_triggered = true;
+      cv_ticks = -delay;
+      if(ison)
+	cv_noteon = NO_NOTE;
+    }
+  }
+  void cv(float value){
+    if(cv_triggered && cv_ticks >= cv_delay){
+      cv_triggered = false;
+      if(cv_noteon == NO_NOTE){
+	cv_noteon = getNoteForCv(value);
+	processor->noteOn(MidiMessage::note(note_channel, cv_noteon, CV_VELOCITY));
+      }else{
+	processor->noteOff(MidiMessage::note(note_channel, cv_noteon, 0));
+	cv_noteon = NO_NOTE;
+      }
+    }
+  }
+  void clock(size_t ticks){
+    if(cv_ticks < cv_delay)
+      cv_ticks += ticks;
+  }
+  static CvNoteProcessor* create(float sr, float delay_milliseconds, MidiProcessor* processor,
+				 float range=12*5, float offset=30){
+    return new CvNoteProcessor(processor, sr*delay_milliseconds/1000, range, offset);
+  }
+  static void destroy(CvNoteProcessor* obj){
+    delete obj;
+  }
+};
+
