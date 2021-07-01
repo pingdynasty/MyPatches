@@ -118,13 +118,13 @@ public:
   }
 
   static float attenuvertion(float value){
-    value = 4 * value - 2;
+    value = 4 * value/128.0f - 2;
     return value < 0 ? -value*value : value*value;
   }    
   void processMidi(MidiMessage msg){
     voices->process(msg);
     if(msg.isControlChange()){
-      float value = msg.getControllerValue()/128.0f;
+      uint8_t value = msg.getControllerValue();
       switch(msg.getControllerNumber()){
       case PATCH_PARAMETER_ATTENUATE_A:
 	setParameterValue(PARAMETER_BA, attenuvertion(value));
@@ -139,14 +139,22 @@ public:
 	setParameterValue(PARAMETER_BD, attenuvertion(value));
 	break;
       case PATCH_PARAMETER_LFO1_SHAPE:
-	lfo1->select(value);
+	lfo1->select(value/128.0f);
 	break;
       case PATCH_PARAMETER_LFO2_SHAPE:
-	lfo2->select(value);
+	lfo2->select(value/128.0f);
+	break;
+      case PATCH_BUTTON_ON:
+	if(value > 3 && value < 8)
+	  setButton((PatchButtonId)value, true);
+	break;
+      case PATCH_BUTTON_OFF:
+	if(value > 3 && value < 8)
+	  setButton((PatchButtonId)value, false);
 	break;
       }
     }
-  }
+  }    
 
   void doprocess(AudioBuffer &buffer){
     cvnote->clock(getBlockSize());

@@ -185,10 +185,10 @@ public:
 
     // fx
     fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
-    fx->setBeatsPerMinute(60);
     registerParameter(PARAMETER_H, "FX Amount");
     setParameterValue(PARAMETER_H, 0.0);
     registerParameter(PARAMETER_FX_SELECT, "FX Select");
+    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
   }
 
   ~QuadSamplerPatch() {
@@ -200,6 +200,7 @@ public:
     }
     SynthVoices::destroy(voices);
     ExponentialDecayEnvelope::destroy(env);
+    WitchMultiEffect::destroy(fx);
   }
     
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
@@ -230,13 +231,13 @@ public:
   }
 
   static float attenuvertion(float value){
-    value = 4 * value - 2;
+    value = 4 * value/128.0f - 2;
     return value < 0 ? -value*value : value*value;
   }    
   void processMidi(MidiMessage msg){
     voices->process(msg);
     if(msg.isControlChange()){
-      float value = msg.getControllerValue()/128.0f;
+      uint8_t value = msg.getControllerValue();
       switch(msg.getControllerNumber()){
       case PATCH_PARAMETER_ATTENUATE_A:
 	setParameterValue(PARAMETER_BA, attenuvertion(value));
@@ -251,7 +252,15 @@ public:
 	setParameterValue(PARAMETER_BD, attenuvertion(value));
 	break;
       case PATCH_PARAMETER_LFO1_SHAPE:
-	lfo1->select(value);
+	lfo1->select(value/128.0f);
+	break;
+      case PATCH_BUTTON_ON:
+	if(value > 3 && value < 8)
+	  setButton((PatchButtonId)value, true);
+	break;
+      case PATCH_BUTTON_OFF:
+	if(value > 3 && value < 8)
+	  setButton((PatchButtonId)value, false);
 	break;
       }
     }
