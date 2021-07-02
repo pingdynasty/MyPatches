@@ -288,7 +288,7 @@ public:
     lfo1->setFrequency(freq);
     float lfo = lfo1->generate()*0.5+0.5;
     float phase = lfo1->getPhase();
-    setParameterValue(PARAMETER_F, lfo*0.86+0.02);
+    setParameterValue(PARAMETER_F, lfo);
     setButton(BUTTON_E, phase < M_PI);
     setParameterValue(PARAMETER_G, env->generate());
     setButton(BUTTON_F, fmodf(phase, M_PI/2) < M_PI/4);
