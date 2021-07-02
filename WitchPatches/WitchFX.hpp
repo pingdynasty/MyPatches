@@ -47,7 +47,13 @@ public:
 };
 
 
-class WitchEnvelope : public AdsrEnvelope {
+#define LINEAR_ADSR
+#ifdef LINEAR_ADSR
+typedef LinearAdsrEnvelope MyAdsrEnvelope;
+#else
+typedef AdsrEnvelope MyAdsrEnvelope;
+#endif
+class WitchEnvelope : public MyAdsrEnvelope {
 protected:
   static constexpr float tmin = 0.002;
   static constexpr float tmax = 2;
@@ -55,8 +61,10 @@ protected:
   Control<PARAMETER_DECAY> ctrldecay;
   Control<PARAMETER_SUSTAIN> ctrlsustain;
   Control<PARAMETER_RELEASE> ctrlrelease;
+  Control<PARAMETER_ATTACK_CURVE> ctrlattackcurve;
+  Control<PARAMETER_RELEASE_CURVE> ctrlreleasecurve;
 public:
-  WitchEnvelope(float sr): AdsrEnvelope(sr){
+  WitchEnvelope(float sr): MyAdsrEnvelope(sr){
     ctrlsustain = 1;
   }
 
@@ -101,6 +109,10 @@ public:
       break;
       // l/l
     }
+#ifndef LINEAR_ADSR
+    setTargetRatioA(0.001 * (expf(12*ctrlattackcurve)-1));
+    setTargetRatioDR(0.001 * (expf(12*ctrlreleasecurve)-1));
+#endif
     setAttack(attack + ctrlattack*tmax);
     setDecay(ctrldecay*tmax + tmin);
     setSustain(ctrlsustain*ctrlsustain);
