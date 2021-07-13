@@ -131,7 +131,8 @@ public:
     MorphOsc* osc1 = MorphOsc::create(bank1, sr);
     MorphOsc* osc2 = MorphOsc::create(bank2, sr);
     WitchEnvelope* env = WitchEnvelope::create(sr);
-    return new MorphStereoGenerator(osc1, osc2, env, buffer);
+    MorphStereoGenerator* morph = new MorphStereoGenerator(osc1, osc2, env, buffer);
+    return morph;
   }
   static void destroy(MorphStereoGenerator* obj){
     MorphOsc::destroy(obj->osc);

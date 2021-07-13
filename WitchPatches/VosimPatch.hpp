@@ -27,6 +27,7 @@ public:
   enum Parameters {
 		   PARAMETER_F1,
 		   PARAMETER_F2,
+		   PARAMETER_WAVESHAPE,
 		   PARAMETER_ENVELOPE
   };
   VosimSynth(VosimOscillator* osc, WitchEnvelope* env) : osc(osc), env(env), gain(0) {}
@@ -77,6 +78,9 @@ public:
       osc->setFormant2(osc->getFrequency()*getFrequencyScalar(value+mod2, f2range));
       break;
 #endif
+    case PARAMETER_WAVESHAPE:
+      osc->setWaveshape(value);
+      break;
     case PARAMETER_ENVELOPE:
       env->adjust(value);
       break;
@@ -104,6 +108,8 @@ public:
 };
 
 class VosimSignalProcessor : public VosimSynth, public SignalProcessor {
+protected:
+  // FloatArray buffer;
 public:
   VosimSignalProcessor(VosimOscillator* osc, WitchEnvelope* env) : VosimSynth(osc, env){}
   using SignalProcessor::process;
@@ -111,6 +117,11 @@ public:
   float process(float input){
     // use input as a frequency scaler
     return osc->generate(input)*env->generate()*gain;
+  }
+  void process(FloatArray input, FloatArray output){
+    osc->generate(output, input);
+    env->process(output, output);
+    output.multiply(gain);
   }
   static VosimSignalProcessor* create(float sr){
     VosimOscillator* osc = VosimOscillator::create(sr);
@@ -161,6 +172,8 @@ public:
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
+    registerParameter(PARAMETER_WAVESHAPE, "Waveshape");
+    setParameterValue(PARAMETER_WAVESHAPE, 0);
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i)
@@ -174,6 +187,7 @@ public:
     voices->setParameter(VosimSynth::PARAMETER_F1, getParameterValue(PARAMETER_B));
     voices->setParameter(VosimSynth::PARAMETER_F2, getParameterValue(PARAMETER_C));
     voices->setParameter(VosimSynth::PARAMETER_ENVELOPE, getParameterValue(PARAMETER_D));
+    voices->setParameter(SynthVoice::PARAMETER_WAVESHAPE, getParameterValue(PARAMETER_WAVESHAPE));
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);

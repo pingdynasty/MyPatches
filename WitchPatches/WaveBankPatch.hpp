@@ -68,7 +68,7 @@ public:
     // voices
     voices = SynthVoices::create(2, getBlockSize());
     for(int i=0; i<VOICES; ++i)
-      voices->setVoice(i, MorphStereoGenerator::create(bank1, bank2, getSampleRate(), getBlockSize()));
+      voices->setVoice(i, SynthVoice::create(bank1, bank2, getSampleRate(), getBlockSize()));
 
     buffer = AudioBuffer::create(getNumberOfChannels(), getBlockSize());
 #ifdef USE_MPE

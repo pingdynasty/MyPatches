@@ -49,7 +49,8 @@ public:
 
 #define LINEAR_ADSR
 #ifdef LINEAR_ADSR
-typedef LinearAdsrEnvelope MyAdsrEnvelope;
+// typedef LinearAdsrEnvelope MyAdsrEnvelope;
+typedef ExponentialAdsrEnvelope MyAdsrEnvelope;
 #else
 typedef AdsrEnvelope MyAdsrEnvelope;
 #endif
@@ -158,7 +159,7 @@ public:
   }
   void setDelay(float delay_samples){
     left_delay->setDelay(delay_samples);
-    right_delay->setDelay(delay_samples);
+    right_delay->setDelay(delay_samples*1.5);
   }
   void setMix(float mix){
     delaymix->setMix(mix);
@@ -175,7 +176,7 @@ public:
   }
   static SmoothStereoDelayProcessor* create(size_t blocksize, size_t delaysize){
     SmoothDelayProcessor* left_delay = SmoothDelayProcessor::create(delaysize, blocksize);
-    SmoothDelayProcessor* right_delay = SmoothDelayProcessor::create(delaysize*2, blocksize);
+    SmoothDelayProcessor* right_delay = SmoothDelayProcessor::create(delaysize*1.5, blocksize);
     MixProcessor* delaymix = MixProcessor::create(2, blocksize,
 						  left_delay, right_delay,
 						  FloatArray::create(blocksize),
@@ -527,6 +528,7 @@ public:
 class WitchDelay : public WitchFX {
 private:
   SmoothStereoDelayProcessor* delay;
+  static constexpr float MAX_DELAY = 48000*4;
 public:
   WitchDelay(float sr, SmoothStereoDelayProcessor* delay) : WitchFX(sr), delay(delay) {}
   void setModulation(float value){
@@ -537,7 +539,10 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     TapTempo::clock(input.getSize());
-    delay->setDelay(TapTempo::getPeriodInSamples());
+    size_t period = TapTempo::getPeriodInSamples();
+    while(period > MAX_DELAY)
+      period /= 2;
+    delay->setDelay(period);
     delay->process(input, output);
     output.getSamples(LEFT_CHANNEL).softclip();
     output.getSamples(RIGHT_CHANNEL).softclip();
@@ -546,7 +551,7 @@ public:
     delay->reset();
   }
   static WitchDelay* create(float samplerate, size_t blocksize){
-    SmoothStereoDelayProcessor* delay = SmoothStereoDelayProcessor::create(blocksize, 48000*4);
+    SmoothStereoDelayProcessor* delay = SmoothStereoDelayProcessor::create(blocksize, MAX_DELAY);
     return new WitchDelay(samplerate, delay);
   }
   static void destroy(WitchDelay* obj){

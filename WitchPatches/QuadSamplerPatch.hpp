@@ -29,6 +29,8 @@ public:
     : gain(1.0f) {
     oscL = Sampler::create(sr, left);
     oscR = Sampler::create(sr, right);
+    // oscL->setRepeatMode(Sampler::REPEAT_FORWARD);
+    // oscR->setRepeatMode(Sampler::REPEAT_FORWARD);
     env = ExponentialDecayEnvelope::create(sr);
     filter = StereoBiquadFilter::create(sr, 2);
     buffer = FloatArray::create(bs);
@@ -52,8 +54,8 @@ public:
     // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setDecay(float decay) {
-    decay = decay*decay*oscL->getSampleLength()/240;
-    env->setDecay(decay);
+    decay = decay*decay*oscL->getSampleLength()*2 + 200;
+    env->setDecaySamples(decay);
   }
   void setGain(float value) {
     gain = value;
@@ -83,8 +85,6 @@ public:
     left.multiply(buffer);
     right.multiply(buffer);
     filter->process(output, output);    
-    // left.tanh();
-    // right.tanh();
   }
   float filter_fc = 8000;
   float filter_q = 4;
@@ -145,6 +145,8 @@ public:
     FloatArray sampleL = wav.createFloatArray(0);
     FloatArray sampleR = wav.createFloatArray(1);
     // debugMessage("wav", (int)wav.getNumberOfChannels(), wav.getNumberOfSamples(), wav.getSize());
+    // debugMessage("wav", (int)wav.getAudioFormat(), wav.getBitsPerSample());
+    // debugMessage("wav", (int)sampleL.getSize(), sampleR.getSize()));
     Resource::destroy(resource);
     // filter sample
     DcBlockingFilter* filter = DcBlockingFilter::create();
@@ -152,7 +154,7 @@ public:
     filter->reset();
     filter->process(sampleR, sampleR);
     DcBlockingFilter::destroy(filter);
-    // normalise levels
+    // // normalise levels
     float pkL = max(sampleL.getMaxValue(), -sampleL.getMinValue());
     float pkR = max(sampleR.getMaxValue(), -sampleR.getMinValue());
     float pk = max(pkL, pkR);
@@ -229,7 +231,6 @@ public:
     if(value)
       env->trigger();
   }
-
   static float attenuvertion(float value){
     value = 4 * value/128.0f - 2;
     return value < 0 ? -value*value : value*value;
@@ -280,7 +281,7 @@ public:
 
     // decay envelope
     float decay = getParameterValue(PARAMETER_D);
-    env->setDecay(decay*decay*40);
+    env->setDecay(decay*decay*4);
 
     // lfo
     float freq = getParameterValue(PARAMETER_E);

@@ -108,6 +108,7 @@ public:
       if(value){
 	sustain = !sustain; // toggle
 	voices->setSustain(sustain);
+	// voices->sustain(MidiMessage::cc(0, MIDI_CC_SUSTAIN, sustain ? 127 : 0));
 	if(!sustain)
 	  voices->allNotesOff();
       }
@@ -143,6 +144,9 @@ public:
 	break;
       case PATCH_PARAMETER_LFO2_SHAPE:
 	lfo2->select(value/128.0f);
+	break;
+      case PARAMETER_DYNAMIC_RANGE:
+	voices->setDynamicRange(value);
 	break;
       case PATCH_BUTTON_ON:
 	if(value > 3 && value < 8)
