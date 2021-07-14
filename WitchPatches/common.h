@@ -41,10 +41,14 @@
 #define PATCH_PARAMETER_LFO1_SHAPE  PATCH_PARAMETER_BE
 #define PATCH_PARAMETER_LFO2_SHAPE  PATCH_PARAMETER_BF
 
-#define PARAMETER_FX_SELECT               PARAMETER_BG
+#define PARAMETER_FX_SELECT         PATCH_PARAMETER_BG
 
 #define PARAMETER_DYNAMIC_RANGE     PATCH_PARAMETER_BH
 
 #define PATCH_PARAMETER_MODULATION_AMOUNT RPN
 #define PATCH_PARAMETER_PRESSURE_AMOUNT
 
+#define FX_PHASER                                   15
+#define FX_DELAY                                    47
+#define FX_OVERDRIVE                                79
+#define FX_CHORUS                                  111

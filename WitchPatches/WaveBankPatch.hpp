@@ -11,6 +11,7 @@
 #define NOF_X_WF 8
 #define NOF_Y_WF 8
 #define NOF_Z_WF 7
+#define FX_SELECT FX_DELAY
 
 #include "WitchFX.hpp"
 #include "WaveBank.h"
@@ -55,9 +56,6 @@ public:
     registerParameter(PARAMETER_G, "Witch LFO>");
     registerParameter(PARAMETER_STEREO_MIX, "Stereo Mix");
 
-    setParameterValue(PARAMETER_STEREO_MIX, 0.8);
-    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
-
     FloatArray wt1 = createWavebank("wavetable1.wav");
     bank1 = MorphBank::create(wt1);
     FloatArray::destroy(wt1);
@@ -76,6 +74,7 @@ public:
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
+    restore();
   }
 
   ~WaveBankPatch(){

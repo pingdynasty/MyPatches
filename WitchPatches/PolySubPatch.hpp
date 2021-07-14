@@ -4,6 +4,7 @@
 #include "OpenWareLibrary.h"
 
 #define VOICES 8
+#define FX_SELECT FX_DELAY
 
 #include "WitchFX.hpp"
 
@@ -148,8 +149,6 @@ public:
     registerParameter(PARAMETER_F, "Sine LFO>");
     registerParameter(PARAMETER_G, "Witch LFO>");
 
-    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::OVERDRIVE));
-
     // voices
     voices = SynthVoices::create(getBlockSize());
     for(int i=0; i<VOICES; ++i)
@@ -161,7 +160,7 @@ public:
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
     registerParameter(PARAMETER_WAVESHAPE, "Waveshape");
-    setParameterValue(PARAMETER_WAVESHAPE, 0);
+    restore();
   }
   ~PolySubPatch(){
     for(int i=0; i<VOICES; ++i)

@@ -47,13 +47,7 @@ public:
 };
 
 
-#define LINEAR_ADSR
-#ifdef LINEAR_ADSR
-// typedef LinearAdsrEnvelope MyAdsrEnvelope;
 typedef ExponentialAdsrEnvelope MyAdsrEnvelope;
-#else
-typedef AdsrEnvelope MyAdsrEnvelope;
-#endif
 class WitchEnvelope : public MyAdsrEnvelope {
 protected:
   static constexpr float tmin = 0.002;
@@ -62,12 +56,12 @@ protected:
   Control<PARAMETER_DECAY> ctrldecay;
   Control<PARAMETER_SUSTAIN> ctrlsustain;
   Control<PARAMETER_RELEASE> ctrlrelease;
+#ifdef SKEW_ADSR
   Control<PARAMETER_ATTACK_CURVE> ctrlattackcurve;
   Control<PARAMETER_RELEASE_CURVE> ctrlreleasecurve;
+#endif
 public:
-  WitchEnvelope(float sr): MyAdsrEnvelope(sr){
-    ctrlsustain = 1;
-  }
+  WitchEnvelope(float sr): MyAdsrEnvelope(sr){}
 
   /**
    * Adjust the attack and release
@@ -110,7 +104,7 @@ public:
       break;
       // l/l
     }
-#ifndef LINEAR_ADSR
+#ifdef SKEW_ADSR
     setTargetRatioA(0.001 * (expf(12*ctrlattackcurve)-1));
     setTargetRatioDR(0.001 * (expf(12*ctrlreleasecurve)-1));
 #endif

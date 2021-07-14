@@ -7,6 +7,7 @@ static const int TRIGGER_LIMIT = (1<<17);
 
 #define VOICES 4
 #define BUTTON_VELOCITY 100
+#define FX_SELECT FX_DELAY
 
 #include "common.h"
 #include "WitchFX.hpp"
@@ -127,7 +128,9 @@ typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 
 typedef VoiceAllocatorMultiSignalGenerator<Allocator, SynthVoice, VOICES> SynthVoices;
 
-class QuadSamplerPatch : public Patch {
+#include "WitchPatch.hpp"
+
+class QuadSamplerPatch : public AbstractWitchPatch {
 private:
   SynthVoices* voices;
   int basenote = 60;
@@ -148,7 +151,7 @@ public:
     // debugMessage("wav", (int)wav.getAudioFormat(), wav.getBitsPerSample());
     // debugMessage("wav", (int)sampleL.getSize(), sampleR.getSize()));
     Resource::destroy(resource);
-    // filter sample
+    // filter sample to remove DC offset
     DcBlockingFilter* filter = DcBlockingFilter::create();
     filter->process(sampleL, sampleL);
     filter->reset();
@@ -159,7 +162,6 @@ public:
     float pkR = max(sampleR.getMaxValue(), -sampleR.getMinValue());
     float pk = max(pkL, pkR);
     sampleL.multiply(1/pk);
-    // debugMessage("rms", sampleR.getRms(), sampleL.getRms());
     sampleR.multiply(1/pk);
     return StereoSamplerVoice::create(getSampleRate(), getBlockSize(), sampleL, sampleR);
   }
@@ -178,7 +180,6 @@ public:
     
     // lfo
     lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo1->select(WitchLFO::AGNESI);
     registerParameter(PARAMETER_E, "LFO");
     registerParameter(PARAMETER_F, "LFO>");
     registerParameter(PARAMETER_G, "Envelope>");
@@ -188,9 +189,7 @@ public:
     // fx
     fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
     registerParameter(PARAMETER_H, "FX Amount");
-    setParameterValue(PARAMETER_H, 0.0);
-    registerParameter(PARAMETER_FX_SELECT, "FX Select");
-    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::DELAY));
+    restore();
   }
 
   ~QuadSamplerPatch() {
@@ -231,41 +230,26 @@ public:
     if(value)
       env->trigger();
   }
-  static float attenuvertion(float value){
-    value = 4 * value/128.0f - 2;
-    return value < 0 ? -value*value : value*value;
-  }    
   void processMidi(MidiMessage msg){
     voices->process(msg);
     if(msg.isControlChange()){
       uint8_t value = msg.getControllerValue();
       switch(msg.getControllerNumber()){
-      case PATCH_PARAMETER_ATTENUATE_A:
-	setParameterValue(PARAMETER_BA, attenuvertion(value));
-	break;
-      case PATCH_PARAMETER_ATTENUATE_B:
-	setParameterValue(PARAMETER_BB, attenuvertion(value));
-	break;
-      case PATCH_PARAMETER_ATTENUATE_C:
-	setParameterValue(PARAMETER_BC, attenuvertion(value));
-	break;
-      case PATCH_PARAMETER_ATTENUATE_D:
-	setParameterValue(PARAMETER_BD, attenuvertion(value));
-	break;
       case PATCH_PARAMETER_LFO1_SHAPE:
 	lfo1->select(value/128.0f);
 	break;
-      case PATCH_BUTTON_ON:
-	if(value > 3 && value < 8)
-	  setButton((PatchButtonId)value, true);
+      case PARAMETER_DYNAMIC_RANGE:
+	voices->setDynamicRange(value);
 	break;
-      case PATCH_BUTTON_OFF:
-	if(value > 3 && value < 8)
-	  setButton((PatchButtonId)value, false);
+      case PARAMETER_FX_SELECT:
+	fx->select(value/128.0f);
+	break;
+      default:
+	AbstractWitchPatch::processMidi(msg);
 	break;
       }
     }
-  }    
+  }
 
   void processAudio(AudioBuffer& buffer) {
     basenote = getParameterValue(PARAMETER_A)*48+40;
@@ -296,10 +280,9 @@ public:
 
     // fx
     fx->setFrequency(freq);
-    fx->select(getParameterValue(PARAMETER_FX_SELECT));
     fx->setEffect(getParameterValue(PARAMETER_WAVESHAPE));
     fx->process(buffer, buffer);
 }
 };
 
-#endif // __StereoSamplerPatch_hpp__
+#endif // __QuadSamplerPatch_hpp__

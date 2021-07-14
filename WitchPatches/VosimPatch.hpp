@@ -5,6 +5,7 @@
 
 #define VOICES 6
 #define FORMANT_ABSOLUTE // undefine to modulate formant frequency as ratio of oscillator frequency
+#define FX_SELECT FX_PHASER
 
 #include "WitchFX.hpp"
 
@@ -31,16 +32,16 @@ public:
 		   PARAMETER_ENVELOPE
   };
   VosimSynth(VosimOscillator* osc, WitchEnvelope* env) : osc(osc), env(env), gain(0) {}
-  void setFrequency(float freq){
+  void setFrequency(float freq) override {
     osc->setFrequency(freq);
   }
-  void setGain(float gain){
+  void setGain(float gain) override {
     this->gain = gain*GAINFACTOR;
   }
-  void trigger(){
+  void trigger() override {
     env->trigger();
   }
-  void gate(bool state){
+  void gate(bool state) override {
     env->gate(state);
   }
   void setModulation(float modulation) override {
@@ -57,7 +58,7 @@ public:
     mod1 = modulation*0.2;
 #endif
   }
-  void setParameter(uint8_t parameter_id, float value){
+  void setParameter(uint8_t parameter_id, float value) override {
 #ifndef FORMANT_ABSOLUTE
     static constexpr float f1range = 3;
     static constexpr float f2range = 4;
@@ -157,10 +158,9 @@ public:
     registerParameter(PARAMETER_B, "Formant Low");
     registerParameter(PARAMETER_C, "Formant High");
     registerParameter(PARAMETER_D, "Envelope");
-    registerParameter(PARAMETER_F, "Sine LFO>");
-    registerParameter(PARAMETER_G, "Witch LFO>");
-
-    setParameterValue(PARAMETER_FX_SELECT, fx->getParameterValueForEffect(WitchMultiEffect::PHASER));
+    registerParameter(PARAMETER_F, "LFO1>");
+    registerParameter(PARAMETER_G, "LFO2>");
+    registerParameter(PARAMETER_WAVESHAPE, "Waveshape");    
 
     // voices
     voices = SynthVoices::create(getBlockSize());
@@ -172,8 +172,7 @@ public:
 #else
     cvnote = CvNoteProcessor::create(getSampleRate(), 6, voices, 12*cvrange, 24);
 #endif
-    registerParameter(PARAMETER_WAVESHAPE, "Waveshape");
-    setParameterValue(PARAMETER_WAVESHAPE, 0);
+    restore();
   }
   ~VosimPatch(){
     for(int i=0; i<VOICES; ++i)
