@@ -12,12 +12,12 @@ public:
   }
   BusMessage(uint8_t ch, OpenWareMidiControl cc, uint8_t value){
     data[0] = USB_COMMAND_CONTROL_CHANGE;
-    data[1] = CONTROL_CHANGE | (ch & 0xf);
+    data[1] = CONTROL_CHANGE | (ch & MIDI_CHANNEL_MASK);
     data[2] = cc;
     data[3] = value;
   }
   bool isControlChange(){
-    return data[0] == USB_COMMAND_CONTROL_CHANGE && (data[1] & STATUS_BYTE) == CONTROL_CHANGE;
+    return data[0] == USB_COMMAND_CONTROL_CHANGE && (data[1] & MIDI_STATUS_MASK) == CONTROL_CHANGE;
   }
   bool isParameter(){
     return data[0] == OWL_COMMAND_PARAMETER;

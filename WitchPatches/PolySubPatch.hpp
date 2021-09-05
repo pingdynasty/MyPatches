@@ -3,8 +3,8 @@
 
 #include "OpenWareLibrary.h"
 
-#define VOICES 8
-#define FX_SELECT FX_DELAY
+#define VOICES 6
+#define FX_SELECT FX_OVERDRIVE
 
 #include "WitchFX.hpp"
 
@@ -180,9 +180,6 @@ public:
 
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    // float fm_amount = getParameterValue(PARAMETER_FM_AMOUNT)*0.2;
-    // left.multiply(fm_amount);
-    // right.clear(); // todo: mic amount?
 #ifdef USE_MPE
     // 2 * exp2f(2x - 2) : 0.5 to 2 (plus minus one octave modulation)
     // 4 * exp2f(4x - 4) : 0.25 to 4 (plus minus two octaves modulation)

@@ -528,7 +528,7 @@ public:
   void setModulation(float value){
   }
   void setEffect(float value){
-    delay->setFeedback(max(0.0f, value*0.75f-0.5f));
+    delay->setFeedback(max(0.0f, value - 0.25f));
     delay->setMix(min(0.5f, value));
   }
   void process(AudioBuffer& input, AudioBuffer& output){
@@ -664,7 +664,6 @@ public:
       bufferR->delay(bufR.getData(), bufR.getSize(), delay_times[i*2+1], index);
       delay_times[i*2+1] = index;
     }
-    // filter->process(*buffer, *buffer);
     buffer->multiply(amount/taps);
     output.copyFrom(input);
     output.multiply(1-amount); // scale dry signal
