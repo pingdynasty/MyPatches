@@ -14,8 +14,8 @@
 
 // #define NO_QSTR
 
-// #define HEAPSIZE (6*1024*1024) // bigger heap is slower
-#define HEAPSIZE (62*1024)
+#define HEAPSIZE (6*1024*1024) // bigger heap is slower
+// #define HEAPSIZE (256*1024)
 
 extern "C" {
 
@@ -64,20 +64,20 @@ extern "C" {
 #endif
   }
 
+  void NORETURN __fatal_error(const char *msg) {
+    error(PROGRAM_ERROR_STATUS, msg);
+    for(;;);
+  }
+
   // Handle uncaught exceptions (should never be reached in a correct C implementation).
   void nlr_jump_fail(void *val) {
-    error(PROGRAM_ERROR_STATUS, "uPy exc");
+    mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(val));
     for(;;);
+    // __fatal_error("uPy exc");
   }
 
   void abort(void) {
-    error(PROGRAM_ERROR_STATUS, "uPy abort");
-    for(;;);
-  }
-
-  void NORETURN __fatal_error(const char *msg) {
-    error(PROGRAM_ERROR_STATUS, "uPy fatal");
-    for(;;);
+    __fatal_error("uPy fatal");
   }
   
 };
@@ -88,24 +88,65 @@ public:
   mp_obj_t iterator_obj = NULL;
   void fill(FloatArray output){
     if(iterator_obj != NULL){
-      mp_obj_iter_buf_t iter_buf;
-      mp_obj_t iterable = mp_getiter(iterator_obj, &iter_buf);
-      for(int i=0; i<output.getSize(); ++i){
-	mp_obj_t item = mp_iternext(iterable);
-	if(item == MP_OBJ_STOP_ITERATION){
-	  iterator_obj = NULL;
-	  return;
+      // mp_buffer_info_t bufinfo;
+      // mp_get_buffer(iterator_obj, &bufinfo, MP_BUFFER_READ);
+      // mp_get_buffer_raise(iterator_obj, &bufinfo, MP_BUFFER_READ);
+
+      const mp_obj_type_t* type = mp_obj_get_type(iterator_obj);
+      if(type == &mp_type_bool || type == &mp_type_int){
+	int dcvalue = mp_obj_get_int(iterator_obj);
+	float val = dcvalue == 0 ? 0.0f : dcvalue > 0 ? 0.99f : -0.99f;
+	output.setAll(val);
+      }else if(type == &mp_type_float){
+	float dcvalue = mp_obj_get_float(iterator_obj);
+	output.setAll(dcvalue);
+      // }else if(type == &mp_type_list){ // could be a list
+      // }else if(type == &mp_type_array){
+      // 	mp_obj_list_t* list = MP_OBJ_TO_PTR(iterator_obj);
+      // 	list->len
+      // 	  list->items
+      // }else if(type == &mp_type_polymorph_iter){
+      // }else if(type == &mp_type_range){
+      // }else if(type == &mp_type_range_it){
+      // }else if(type == &mp_type_set_it){
+      }else if(type->getiter != NULL){ // check if __iter__ is available
+	mp_obj_iter_buf_t iter_buf;
+	mp_obj_t iterable = mp_getiter(iterator_obj, &iter_buf);
+	for(int i=0; i<output.getSize(); ++i){
+	  mp_obj_t item = mp_iternext(iterable); // could be a list
+	  if(item == MP_OBJ_STOP_ITERATION){
+	    iterator_obj = NULL;
+	    return;
+	  }
+	  if(mp_obj_is_float(item)){
+	    mp_float_t value = mp_obj_float_get(item);
+	    // float value = mp_obj_get_float(item);
+	    output[i] = value;
+	  }else{
+	    output[i] = 0;
+	  }	    
 	}
-	float value = mp_obj_get_float(item);
-	output[i] = value;
       }
     }
   }
 };
 
-static MicroPythonIterator ch0, ch1;
+static MicroPythonIterator ch0;
+static MicroPythonIterator ch1;
 
 extern "C" {
+  static void (*delay_callback)(size_t) = NULL;
+  void doDelay(size_t ms){
+    if(delay_callback == NULL){
+      void* args[] = {(void*)SYSTEM_FUNCTION_SLEEP, (void*)&delay_callback};
+      int ret = getProgramVector()->serviceCall(OWL_SERVICE_REQUEST_CALLBACK, args, 2);
+      if(ret != OWL_SERVICE_OK)
+	delay_callback = NULL;
+    }
+    if(delay_callback != NULL)
+      delay_callback(ms);
+  }
+
   void doSetOutput(uint8_t ch, mp_obj_t iterator){
     if(ch == 0){
       ch0.iterator_obj = iterator;
@@ -203,6 +244,7 @@ public:
 	const char* msg = mp_obj_str_get_str(ret);
 	debugMessage(msg);
       }else{
+	// mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(ret));
 	const char* msg = mp_obj_get_type_str(ret);
 	debugMessage(msg);
       }
