@@ -82,76 +82,126 @@ extern "C" {
   
 };
 
-class MicroPythonIterator {
+// class MicroPythonSetter {
+// private:
+// public:
+//   mp_obj_t setter_obj = NULL;
+//   void fill(FloatArray output){
+//     if(setter_obj != NULL){
+//       const mp_obj_type_t* type = mp_obj_get_type(setter_obj);
+//       if(type == &mp_type_bool || type == &mp_type_int){
+// 	int dcvalue = mp_obj_get_int(setter_obj);
+// 	float val = dcvalue == 0 ? 0.0f : dcvalue > 0 ? 0.99f : -0.99f;
+// 	output.setAll(val);
+//       }else{
+// 	float dcvalue = mp_obj_get_float(setter_obj);
+// 	output.setAll(dcvalue);
+//       }
+//     }
+//   }
+// };
+
+class AbstractIterator {
+public:
+  virtual void fill(FloatArray output) = 0;
+};
+
+class ConstantIterator : public AbstractIterator {
 private:
 public:
-  mp_obj_t iterator_obj = NULL;
+  float dcvalue = 0;
+  ConstantIterator(float value): dcvalue(value){}
   void fill(FloatArray output){
-    if(iterator_obj != NULL){
-      // mp_buffer_info_t bufinfo;
-      // mp_get_buffer(iterator_obj, &bufinfo, MP_BUFFER_READ);
-      // mp_get_buffer_raise(iterator_obj, &bufinfo, MP_BUFFER_READ);
+    output.setAll(dcvalue);
+  }
+};
 
-      const mp_obj_type_t* type = mp_obj_get_type(iterator_obj);
-      if(type == &mp_type_bool || type == &mp_type_int){
-	int dcvalue = mp_obj_get_int(iterator_obj);
-	float val = dcvalue == 0 ? 0.0f : dcvalue > 0 ? 0.99f : -0.99f;
-	output.setAll(val);
-      }else if(type == &mp_type_float){
-	float dcvalue = mp_obj_get_float(iterator_obj);
-	output.setAll(dcvalue);
-      // }else if(type == &mp_type_list){ // could be a list
-      // }else if(type == &mp_type_array){
-      // 	mp_obj_list_t* list = MP_OBJ_TO_PTR(iterator_obj);
-      // 	list->len
-      // 	  list->items
-      // }else if(type == &mp_type_polymorph_iter){
-      // }else if(type == &mp_type_range){
-      // }else if(type == &mp_type_range_it){
-      // }else if(type == &mp_type_set_it){
-      }else if(type->getiter != NULL){ // check if __iter__ is available
-	mp_obj_iter_buf_t iter_buf;
-	mp_obj_t iterable = mp_getiter(iterator_obj, &iter_buf);
-	for(int i=0; i<output.getSize(); ++i){
-	  mp_obj_t item = mp_iternext(iterable); // could be a list
-	  if(item == MP_OBJ_STOP_ITERATION){
-	    iterator_obj = NULL;
-	    return;
-	  }
-	  if(mp_obj_is_float(item)){
-	    mp_float_t value = mp_obj_float_get(item);
-	    // float value = mp_obj_get_float(item);
-	    output[i] = value;
-	  }else{
-	    output[i] = 0;
-	  }	    
+class IterableIterator : public AbstractIterator {
+public:
+  // typedef void *mp_obj_t;
+  // typedef struct _mp_obj_iter_buf_t {
+  //     mp_obj_base_t base;
+  //     mp_obj_t buf[3];
+  // } mp_obj_iter_buf_t;
+  mp_obj_iter_buf_t iter_buf;
+  mp_obj_t iterable;
+  IterableIterator(mp_obj_t iterator_obj) {
+    iterable = mp_getiter(iterator_obj, &iter_buf);    
+  }
+  void fill(FloatArray output){
+    if(iterable != NULL){
+      for(int i=0; i<output.getSize(); ++i){
+	mp_obj_t item = mp_iternext(iterable);
+	if(item == MP_OBJ_STOP_ITERATION){ // could be a list
+	  iterable = NULL;
+	  return;
 	}
+	if(mp_obj_is_float(item)){
+	  mp_float_t value = mp_obj_float_get(item);
+	  // float value = mp_obj_get_float(item);
+	  output[i] = value;
+	}else{
+	  output[i] = 0;
+	}	    
       }
     }
   }
 };
 
-static MicroPythonIterator ch0;
-static MicroPythonIterator ch1;
+static AbstractIterator* ch0 = NULL;
+static AbstractIterator* ch1 = NULL;
+
+// class ListIterator : public AbstractIterator {
+// public:
+    // mp_obj_tuple_get(iterator_obj, len, items)
+// };
+
+AbstractIterator* createIterator(mp_obj_t iterator_obj){
+  const mp_obj_type_t* type = mp_obj_get_type(iterator_obj);
+  if(type == &mp_type_bool || type == &mp_type_int){
+    float dcvalue = mp_obj_get_int(iterator_obj);
+    dcvalue = clamp(dcvalue, -0.99f, 0.99f);
+    return new ConstantIterator(dcvalue);
+  }else if(type == &mp_type_float){
+    float dcvalue = mp_obj_get_float(iterator_obj);
+    dcvalue = clamp(dcvalue, -0.99f, 0.99f);
+    return new ConstantIterator(dcvalue);
+    // void mp_obj_get_array(mp_obj_t o, size_t *len, mp_obj_t **items);
+
+    // if (mp_obj_is_type(o, &mp_type_tuple)) {
+    //     mp_obj_tuple_get(o, len, items);
+    // } else if (mp_obj_is_type(o, &mp_type_list)) {
+    //     mp_obj_list_get(o, len, items);
+
+    // }else if(type == &mp_type_tuple){
+    // }else if(type == &mp_type_list){ // could be a list
+      // return new ListIterator(iterator_obj);
+
+    // mp_obj_tuple_get(o, len, items);
+    // }else if(type == &mp_type_array){
+
+    // 	mp_obj_list_t* list = MP_OBJ_TO_PTR(iterator_obj);
+    // 	list->len
+    // 	  list->items
+    // }else if(type == &mp_type_polymorph_iter){
+    // }else if(type == &mp_type_range){
+    // }else if(type == &mp_type_range_it){
+    // }else if(type == &mp_type_set_it){
+  // }else if(type->getiter != NULL){ // check if __iter__ is available
+  }
+    return new IterableIterator(iterator_obj);
+  // }
+  // return NULL;
+}
 
 extern "C" {
-  static void (*delay_callback)(size_t) = NULL;
-  void doDelay(size_t ms){
-    if(delay_callback == NULL){
-      void* args[] = {(void*)SYSTEM_FUNCTION_SLEEP, (void*)&delay_callback};
-      int ret = getProgramVector()->serviceCall(OWL_SERVICE_REQUEST_CALLBACK, args, 2);
-      if(ret != OWL_SERVICE_OK)
-	delay_callback = NULL;
-    }
-    if(delay_callback != NULL)
-      delay_callback(ms);
-  }
-
   void doSetOutput(uint8_t ch, mp_obj_t iterator){
     if(ch == 0){
-      ch0.iterator_obj = iterator;
+      delete ch0;
+      ch0 = createIterator(iterator);
     }else if(ch == 1){
-      ch1.iterator_obj = iterator;
+      delete ch1;
+      ch1 = createIterator(iterator);
     }
   }
 }
@@ -170,9 +220,6 @@ public:
   MicroPythonPatch() {
 #endif
     debugMessage("sr/bs/ch", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
-    // void* args[] = {(void*)SYSTEM_FUNCTION_MSG, (void*)&onMessageCallback};
-    // int ret = getProgramVector()->serviceCall(OWL_SERVICE_REGISTER_CALLBACK, args, 2);
-    // debugMessage("reg msg", ret);
     mpmain();
   }
 
@@ -209,9 +256,9 @@ public:
     // mp_obj_list_init(MP_OBJ_TO_PTR(mp_sys_argv), 0);
 
     const char str[] = 
-      // "print('Hello world of easy embedding!')\n"
       "import owl\n" 
       "import math\n" 
+      // "print('Hello world of easy embedding!')\n"
       // "def sin_osc(freq, duration = 1, sample_rate = 48000):\n"
       // "  ph = 0\n"
       // "  samples = 0\n"
@@ -220,21 +267,23 @@ public:
       // "    yield math.sin(ph)\n"
       // "    ph = (ph + inc) % (2*math.pi)\n"
       // "    samples += 1\n"
-      // "osc0 = sin_osc(440, 0.5)\n"
-      // "osc1 = sin_osc(880, 0.5)\n"
+      // "osc0 = sin_osc(440, 2.5)\n"
+      // "osc1 = sin_osc(880, 2.5)\n"
       // "owl.setOutput(0, osc0)\n"
       // "owl.setOutput(1, osc1)"
       ;
     mp_obj_t ret = execute_from_str(str);
     if(ret)
       debugMessage("Err", (int)ret);
-
     return 0;
   }
 
   void processAudio(AudioBuffer &buffer) {
-    ch0.fill(buffer.getSamples(0));
-    ch1.fill(buffer.getSamples(1));
+    buffer.clear();
+    if(ch0 != NULL)
+      ch0->fill(buffer.getSamples(LEFT_CHANNEL));
+    if(ch1 != NULL)
+      ch1->fill(buffer.getSamples(RIGHT_CHANNEL));
   }
 
   void processMessage(const char* str, size_t len){
