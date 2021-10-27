@@ -8,7 +8,7 @@
    make CROSS=0 clean all
    cp build/libmicropython-i386.a ~/devel/OwlProgram/MyPatches/
  */
-#include "Patch.h"
+#include "MonochromeScreenPatch.h"
 #include "ServiceCall.h"
 #include "message.h"
 
@@ -104,6 +104,18 @@ extern "C" {
 class AbstractIterator {
 public:
   virtual void fill(FloatArray output) = 0;
+  virtual float next() = 0;
+  float getFloatValue(mp_obj_t item){
+    if(mp_obj_is_float(item)){
+      mp_float_t value = mp_obj_float_get(item);
+      // float value = mp_obj_get_float(item);
+      return value;
+    }else if(mp_obj_is_integer(item)){
+      return mp_obj_get_int(item);
+    }else{
+      return 0;
+    }
+  }
 };
 
 class ConstantIterator : public AbstractIterator {
@@ -113,6 +125,9 @@ public:
   ConstantIterator(float value): dcvalue(value){}
   void fill(FloatArray output){
     output.setAll(dcvalue);
+  }
+  float next(){
+    return dcvalue;
   }
 };
 
@@ -132,24 +147,27 @@ public:
     if(iterable != NULL){
       for(int i=0; i<output.getSize(); ++i){
 	mp_obj_t item = mp_iternext(iterable);
-	if(item == MP_OBJ_STOP_ITERATION){ // could be a list
+	if(item == MP_OBJ_STOP_ITERATION){
 	  iterable = NULL;
 	  return;
-	}
-	if(mp_obj_is_float(item)){
-	  mp_float_t value = mp_obj_float_get(item);
-	  // float value = mp_obj_get_float(item);
-	  output[i] = value;
 	}else{
-	  output[i] = 0;
-	}	    
+	  output[i] = getFloatValue(item);
+	}
       }
     }
   }
+  float next(){
+    if(iterable != NULL){
+      mp_obj_t item = mp_iternext(iterable);
+      if(item == MP_OBJ_STOP_ITERATION){
+	iterable = NULL;
+      }else{
+	return getFloatValue(item);
+      }
+    }
+    return 0;
+  }
 };
-
-static AbstractIterator* ch0 = NULL;
-static AbstractIterator* ch1 = NULL;
 
 // class ListIterator : public AbstractIterator {
 // public:
@@ -194,19 +212,39 @@ AbstractIterator* createIterator(mp_obj_t iterator_obj){
   // return NULL;
 }
 
+
+#define MP_NOF_CHANNELS 2
+#define MP_NOF_PARAMETERS 8
+
+static AbstractIterator* outputs[MP_NOF_CHANNELS] = {};
+static AbstractIterator* parameters[MP_NOF_PARAMETERS] = {};
+static MonochromeScreenBuffer* mp_screen = NULL;
+static const char* mp_message = NULL;
+
 extern "C" {
-  void doSetOutput(uint8_t ch, mp_obj_t iterator){
-    if(ch == 0){
-      delete ch0;
-      ch0 = createIterator(iterator);
-    }else if(ch == 1){
-      delete ch1;
-      ch1 = createIterator(iterator);
-    }
+  void doSetOutputIterator(uint8_t ch, mp_obj_t iterator){
+    if(ch < MP_NOF_CHANNELS)
+      outputs[ch] = createIterator(iterator);
+  }
+  void doSetParameterIterator(uint8_t id, mp_obj_t iterator){
+    if(id < MP_NOF_PARAMETERS)
+      parameters[id] = createIterator(iterator);
+  }
+  void doScreenPrint(int x, int y, const char* text){
+    if(mp_screen != NULL)
+      mp_screen->print(x, y, text);
+  }
+  void doScreenDraw(int x0, int y0, int x1, int y1, int c){
+    if(mp_screen != NULL)
+      mp_screen->drawLine(x0, y0, x1, y1, c);
+  }
+  void doScreenClear(){
+    mp_screen->clear();
+    mp_message = NULL;
   }
 }
 
-class MicroPythonPatch : public Patch {
+class MicroPythonPatch : public MonochromeScreenPatch {
 private:
 #if MICROPY_ENABLE_GC
   char heap[HEAPSIZE];
@@ -221,6 +259,17 @@ public:
 #endif
     debugMessage("sr/bs/ch", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
     mpmain();
+    mp_screen = new MonochromeScreenBuffer(getScreenWidth(), getScreenHeight());
+    mp_screen->setBuffer(new uint8_t[getScreenWidth()*getScreenHeight()/8]);
+    mp_message = "micropython";
+  }
+
+  void processScreen(MonochromeScreenBuffer& screen){
+    screen.copyFrom(*mp_screen);
+    if(mp_message != NULL){
+      screen.setTextSize(1);
+      screen.print(0, 40, mp_message);
+    }
   }
 
   mp_obj_t execute_from_str(const char *str) {
@@ -279,11 +328,15 @@ public:
   }
 
   void processAudio(AudioBuffer &buffer) {
+    for(size_t pid=0; pid<MP_NOF_PARAMETERS; ++pid){
+      if(parameters[pid] != NULL)
+	setParameterValue((PatchParameterId)pid, parameters[pid]->next());
+    }
     buffer.clear();
-    if(ch0 != NULL)
-      ch0->fill(buffer.getSamples(LEFT_CHANNEL));
-    if(ch1 != NULL)
-      ch1->fill(buffer.getSamples(RIGHT_CHANNEL));
+    for(size_t ch=0; ch<MP_NOF_CHANNELS; ++ch){
+      if(outputs[ch] != NULL)
+	outputs[ch]->fill(buffer.getSamples(ch));
+    }
   }
 
   void processMessage(const char* str, size_t len){
