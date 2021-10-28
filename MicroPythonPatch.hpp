@@ -9,7 +9,7 @@
    cp build/libmicropython-i386.a ~/devel/OwlProgram/MyPatches/
  */
 
-// #define USE_MP_SCREEN
+#define USE_MP_SCREEN
 #ifdef USE_MP_SCREEN
 #include "MonochromeScreenPatch.h"
 #else
@@ -305,7 +305,7 @@ public:
     screen.copyFrom(*mp_screen);
     if(mp_message != NULL){
       screen.setTextSize(1);
-      screen.print(0, 40, mp_message);
+      screen.print(0, 12, mp_message);
     }
   }
 #endif
@@ -344,8 +344,8 @@ public:
 
     const char str[] = 
       "import owl\n" 
-      "import math\n" 
-      // "print('Hello world of easy embedding!')\n"
+      "import math\n"
+      "print('hello embedded world!')\n"
       // "def sin_osc(freq, duration = 1, sample_rate = 48000):\n"
       // "  ph = 0\n"
       // "  samples = 0\n"
@@ -361,7 +361,7 @@ public:
       ;
     mp_obj_t ret = execute_from_str(str);
     if(ret)
-      debugMessage("Err", (int)ret);
+      output_string("error");
     return 0;
   }
 
