@@ -8,14 +8,20 @@
    make CROSS=0 clean all
    cp build/libmicropython-i386.a ~/devel/OwlProgram/MyPatches/
  */
+
+// #define USE_MP_SCREEN
+#ifdef USE_MP_SCREEN
 #include "MonochromeScreenPatch.h"
+#else
+#include "Patch.h"
+#endif
 #include "ServiceCall.h"
 #include "message.h"
 
 // #define NO_QSTR
 
-#define HEAPSIZE (6*1024*1024) // bigger heap is slower
-// #define HEAPSIZE (256*1024)
+// #define HEAPSIZE (6*1024*1024)
+#define HEAPSIZE (256*1024)
 
 extern "C" {
 
@@ -223,7 +229,10 @@ AbstractIterator* createIterator(mp_obj_t iterator_obj){
 
 static AbstractIterator* outputs[MP_NOF_CHANNELS] = {};
 static AbstractIterator* parameters[MP_NOF_PARAMETERS] = {};
+
+#ifdef USE_MP_SCREEN
 static MonochromeScreenBuffer* mp_screen = NULL;
+#endif
 
 extern "C" {
   void doSetOutputIterator(uint8_t ch, mp_obj_t iterator){
@@ -235,20 +244,31 @@ extern "C" {
       parameters[id] = createIterator(iterator);
   }
   void doScreenPrint(int x, int y, const char* text){
+#ifdef USE_MP_SCREEN
     if(mp_screen != NULL)
       mp_screen->print(x, y, text);
+#endif
   }
   void doScreenDraw(int x0, int y0, int x1, int y1, int c){
+#ifdef USE_MP_SCREEN
     if(mp_screen != NULL)
       mp_screen->drawLine(x0, y0, x1, y1, c);
+#endif
   }
   void doScreenClear(){
-    mp_screen->clear();
+#ifdef USE_MP_SCREEN
+    if(mp_screen != NULL)
+      mp_screen->clear();
     mp_message = NULL;
+#endif
   }
 }
 
+#ifdef USE_MP_SCREEN
 class MicroPythonPatch : public MonochromeScreenPatch {
+#else
+class MicroPythonPatch : public Patch {
+#endif
 private:
 #if MICROPY_ENABLE_GC
   char heap[HEAPSIZE];
@@ -262,20 +282,25 @@ public:
   MicroPythonPatch() {
 #endif
     debugMessage("sr/bs/ch", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
+#ifdef USE_MP_SCREEN
     mp_screen = new MonochromeScreenBuffer(getScreenWidth(), getScreenHeight());
     mp_screen->setBuffer(new uint8_t[getScreenWidth()*getScreenHeight()/8]);
-    mp_message = "micropython";
+#endif
     mpmain();
   }
+
   ~MicroPythonPatch() {
     for(size_t pid=0; pid<MP_NOF_PARAMETERS; ++pid)
       delete parameters[pid];
     for(size_t ch=0; ch<MP_NOF_CHANNELS; ++ch)
       delete outputs[ch];
+#ifdef USE_MP_SCREEN
     delete[] mp_screen->getBuffer();
     delete mp_screen;
+#endif
   }
 
+#ifdef USE_MP_SCREEN
   void processScreen(MonochromeScreenBuffer& screen){
     screen.copyFrom(*mp_screen);
     if(mp_message != NULL){
@@ -283,6 +308,7 @@ public:
       screen.print(0, 40, mp_message);
     }
   }
+#endif
 
   mp_obj_t execute_from_str(const char *str) {
     nlr_buf_t nlr;
