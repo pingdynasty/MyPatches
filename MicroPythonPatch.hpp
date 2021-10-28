@@ -19,6 +19,14 @@
 
 extern "C" {
 
+  static const char* mp_message = NULL;
+  void output_string(const char* str){
+    if(str != NULL && str[0] != 0 && str[0] != 13){ // ignore cr lf
+      debugMessage(str);
+      mp_message = str;
+    }
+  }
+	     
 #define MP_CONFIGFILE "ports/owl/mpconfigport.h"
 #include "py/compile.h"
 #include "py/runtime.h"
@@ -56,9 +64,7 @@ extern "C" {
   // Send string of given length
   void mp_hal_stdout_tx_strn(const char* str, mp_uint_t len) {
 #ifdef ARM_CORTEX
-    // if(len > 2) // ignore cr lf
-    if(len > 0 && str[0] != 13) // ignore cr lf
-      debugMessage(str);
+    output_string(str);
 #else
     write(STDOUT_FILENO, str, len);
 #endif
@@ -79,7 +85,6 @@ extern "C" {
   void abort(void) {
     __fatal_error("uPy fatal");
   }
-  
 };
 
 // class MicroPythonSetter {
@@ -145,7 +150,7 @@ public:
   }
   void fill(FloatArray output){
     if(iterable != NULL){
-      for(int i=0; i<output.getSize(); ++i){
+      for(size_t i=0; i<output.getSize(); ++i){
 	mp_obj_t item = mp_iternext(iterable);
 	if(item == MP_OBJ_STOP_ITERATION){
 	  iterable = NULL;
@@ -219,7 +224,6 @@ AbstractIterator* createIterator(mp_obj_t iterator_obj){
 static AbstractIterator* outputs[MP_NOF_CHANNELS] = {};
 static AbstractIterator* parameters[MP_NOF_PARAMETERS] = {};
 static MonochromeScreenBuffer* mp_screen = NULL;
-static const char* mp_message = NULL;
 
 extern "C" {
   void doSetOutputIterator(uint8_t ch, mp_obj_t iterator){
@@ -258,10 +262,18 @@ public:
   MicroPythonPatch() {
 #endif
     debugMessage("sr/bs/ch", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
-    mpmain();
     mp_screen = new MonochromeScreenBuffer(getScreenWidth(), getScreenHeight());
     mp_screen->setBuffer(new uint8_t[getScreenWidth()*getScreenHeight()/8]);
     mp_message = "micropython";
+    mpmain();
+  }
+  ~MicroPythonPatch() {
+    for(size_t pid=0; pid<MP_NOF_PARAMETERS; ++pid)
+      delete parameters[pid];
+    for(size_t ch=0; ch<MP_NOF_CHANNELS; ++ch)
+      delete outputs[ch];
+    delete[] mp_screen->getBuffer();
+    delete mp_screen;
   }
 
   void processScreen(MonochromeScreenBuffer& screen){
@@ -342,14 +354,14 @@ public:
   void processMessage(const char* str, size_t len){
     mp_obj_t ret = execute_from_str(str);
     if(ret){
+      const char* msg;
       if(mp_obj_is_str(ret)){
-	const char* msg = mp_obj_str_get_str(ret);
-	debugMessage(msg);
+	msg = mp_obj_str_get_str(ret);
       }else{
 	// mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(ret));
-	const char* msg = mp_obj_get_type_str(ret);
-	debugMessage(msg);
+	msg = mp_obj_get_type_str(ret);
       }
+      output_string(msg);
     }
   }
   
