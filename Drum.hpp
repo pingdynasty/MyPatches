@@ -4,7 +4,7 @@
 #include "Envelope.h"
 #include "Oscillator.h"
 
-class Drum : public Oscillator, public Envelope {
+class Drum : public Oscillator {
 public:
   virtual void setDecay(float amount){}
   virtual void setAccent(float accent){}
