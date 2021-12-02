@@ -2,7 +2,7 @@
 #define __Cymbal_hpp__
 
 #include "BiquadFilter.h"
-#include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "Oscillators.hpp"
 #include "Drum.hpp"
 
@@ -12,7 +12,7 @@ public:
   SquareFMOscillator* osc[3];
   BiquadFilter* bp;
   BiquadFilter* hp;
-  AdsrEnvelope* eg[2];
+  ExponentialAdsrEnvelope* eg[2];
   const float fs;
   float gain;
   float accent;
@@ -21,8 +21,8 @@ public:
     osc[0] = new SquareFMOscillator(sr);
     osc[1] = new SquareFMOscillator(sr);
     osc[2] = new SquareFMOscillator(sr);
-    eg[0] = new AdsrEnvelope(sr);
-    eg[1] = new AdsrEnvelope(sr);
+    eg[0] = ExponentialAdsrEnvelope::create(sr);
+    eg[1] = ExponentialAdsrEnvelope::create(sr);
     eg[0]->setAttack(0.0f);
     eg[0]->setDecay(0.4f);
     eg[0]->setSustain(0.0f);
@@ -55,8 +55,8 @@ public:
     osc[0]->setGain(2.5);
     osc[1]->setGain(1.5);
     osc[2]->setGain(1);
-    eg[0] = new AdsrEnvelope(sr);
-    eg[1] = new AdsrEnvelope(sr);
+    eg[0] = ExponentialAdsrEnvelope::create(sr);
+    eg[1] = ExponentialAdsrEnvelope::create(sr);
     eg[0]->setAttack(0.0f);
     eg[0]->setDecay(0.4f);
     eg[0]->setSustain(0.0f);
@@ -71,6 +71,16 @@ public:
     setFilter(filter);
     setFmAmount(fm);
   }
+  ~CymbalVoice(){
+    delete osc[0];
+    delete osc[1];
+    delete osc[2];
+    ExponentialAdsrEnvelope::destroy(eg[0]);
+    ExponentialAdsrEnvelope::destroy(eg[1]);
+    BiquadFilter::destroy(bp);
+    BiquadFilter::destroy(hp);
+  }
+  
   void trigger(bool state, int delay){
     eg[0]->trigger(state, delay);
     eg[1]->trigger(state, delay);
@@ -89,6 +99,20 @@ public:
     osc[1]->setModulatorFrequency(f*3*0.84);
     osc[2]->setModulatorFrequency(f*4*1.33);
   }
+  float getFrequency(){
+    return osc[0]->getFrequency()/2;
+  }   
+  void setPhase(float ph){
+    osc[0]->setPhase(ph);
+  }
+  float getPhase(){
+    return osc[0]->getPhase();
+  }
+  void reset(){
+    osc[0]->reset();
+    osc[1]->reset();
+    osc[2]->reset();
+  }
   void setFmAmount(float value){
     osc[0]->setModulatorGain(value*0.1);
     osc[1]->setModulatorGain(value*0.2);
@@ -106,15 +130,19 @@ public:
   void setAccent(float amount){
     accent = amount;
   }
-  float getNextSample(){
-    float impact = osc[0]->getNextSample();
-    impact += osc[1]->getNextSample();
-    impact += osc[2]->getNextSample();
+  using Oscillator::generate;
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
+    float impact = osc[0]->generate();
+    impact += osc[1]->generate();
+    impact += osc[2]->generate();
     float body = impact;
     impact = bp->process(impact);
-    impact *= eg[0]->getNextSample();
+    impact *= eg[0]->generate();
     body = hp->process(body);
-    body *= eg[1]->getNextSample();
+    body *= eg[1]->generate();
     return (impact + body) * gain;
   }
 };

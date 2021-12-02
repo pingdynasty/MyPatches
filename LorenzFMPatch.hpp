@@ -6,7 +6,7 @@
 #include "SineOscillator.h"
 #include "BiquadFilter.h"
 #include "Sequence.h"
-#include "Envelope.h"
+#include "AdsrEnvelope.h"
 
 /*
  * The Lorenz attractor is a set of chaotic solutions of the Lorenz system.
@@ -26,7 +26,7 @@ public:
   SmoothFloat index;
   StereoBiquadFilter* lowpass;
   Sequence<uint16_t> seq;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   FloatArray envelope;
 
   size_t memory = 512;
@@ -37,12 +37,14 @@ public:
   CircularBuffer* ypos;
   const size_t MAX_MEMORY_SIZE = 16*1024;
 
-  SineOscillator xosc, yosc;
+  SineOscillator* xosc;
+  SineOscillator* yosc;
   FloatArray xbuf, ybuf;
-  SineOscillator lfo2;
+  SineOscillator* lfo2;
 
-  LorenzFMPatch(): xosc(getSampleRate()), yosc(getSampleRate()),
-		   lfo2(getSampleRate()/getBlockSize()),
+  LorenzFMPatch(): xosc(SineOscillator::create(getSampleRate())),
+		   yosc(SineOscillator::create(getSampleRate())),
+		   lfo2(SineOscillator::create(getBlockRate())),
 		   env(getSampleRate())
   {
     registerParameter(PARAMETER_A, "Rate");
@@ -90,8 +92,8 @@ public:
     xbuf = FloatArray::create(getBlockSize());
     ybuf = FloatArray::create(getBlockSize());
 
-    lowpass = StereoBiquadFilter::create(1);
-    lowpass->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    lowpass = StereoBiquadFilter::create(getSampleRate(), 1);
+    lowpass->setLowPass(8000, FilterStage::BUTTERWORTH_Q);
 
     env.setSustain(1.0);
     env.setDecay(0.0);
@@ -107,6 +109,9 @@ public:
     FloatArray::destroy(ybuf);
     FloatArray::destroy(envelope);
     StereoBiquadFilter::destroy(lowpass);
+    SineOscillator::destroy(xosc);
+    SineOscillator::destroy(yosc);
+    SineOscillator::destroy(lfo2);
   }
 
   void reset(){
@@ -162,8 +167,8 @@ public:
     index = getParameterValue(PARAMETER_H)*0.1;
     xbuf.multiply(index);
     ybuf.multiply(index);
-    xosc.getSamples(left, xbuf);
-    yosc.getSamples(right, ybuf);    
+    xosc->generate(left, xbuf);
+    yosc->generate(right, ybuf);    
 
     int steps = getParameterValue(PARAMETER_BA)*16;
     int fills = getParameterValue(PARAMETER_BB)*steps+1;
@@ -201,15 +206,15 @@ public:
       bool on = seq.next();
       int pos = seq.getPosition()+1;
       if(on){
-	xosc.setFrequency(frequency*pos/divs);
-	yosc.setFrequency(frequency*pos/divs);
+	xosc->setFrequency(frequency*pos/divs);
+	yosc->setFrequency(frequency*pos/divs);
 	env.trigger(true);
       }else{
 	env.trigger(false);
       }
     }
     // vca
-    env.getEnvelope(envelope);
+    env.generate(envelope);
     envelope.multiply(amplitude);
     left.multiply(envelope);
     right.multiply(envelope);
@@ -220,10 +225,10 @@ public:
     lfo1 += tempo * getBlockSize() / getSampleRate();
     setParameterValue(PARAMETER_AE, lfo1);
     tempo = getParameterValue(PARAMETER_F)*2;
-    lfo2.setFrequency(tempo);
-    setParameterValue(PARAMETER_AF, lfo2.getNextSample()*0.5+0.5);
+    lfo2->setFrequency(tempo);
+    setParameterValue(PARAMETER_AF, lfo2->generate()*0.5+0.5);
 
-    lowpass->process(buffer);
+    lowpass->process(buffer, buffer);
 }
   
   void updateMatrix(float rotateX, float rotateY, float rotateZ){

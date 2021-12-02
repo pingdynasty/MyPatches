@@ -3,6 +3,7 @@
 
 #include "MonochromeScreenPatch.h"
 #include "VoltsPerOctave.h"
+#include "OpenWareLibrary.h"
 #include "Cymbal.hpp"
 #include "BassDrum.hpp"
 #include "Sequence.h"
@@ -76,7 +77,9 @@ public:
   }
 
   ~KickBoxPatch(){
-    SynthVoice::destroy(voice);    
+    SynthVoice::destroy(voice);
+    delete hat;
+    delete kick;
   }
 
   void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
@@ -97,17 +100,27 @@ public:
     voice->setEnvelope(attack, release);
   }
 
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid-MIDI_NOTE_BUTTON;
-      // if(value)
-      // 	noteOn(note, value, samples);
-      // else
-      // 	noteOff(note, samples);
-      if(value)
-	setParameterValue(PARAMETER_A, (note-20)/80.0); // set basenote parameter
+  void processMidi(MidiMessage msg){
+    switch (msg.getStatus()) {
+    case NOTE_OFF:
+      break;
+    case NOTE_ON:
+      setParameterValue(PARAMETER_A, (msg.getNote()-20)/80.0); // set basenote parameter
+      break;
     }
   }
+
+  // void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+  //   if(bid >= MIDI_NOTE_BUTTON){
+  //     uint8_t note = bid-MIDI_NOTE_BUTTON;
+  //     // if(value)
+  //     // 	noteOn(note, value, samples);
+  //     // else
+  //     // 	noteOff(note, samples);
+  //     if(value)
+  // 	setParameterValue(PARAMETER_A, (note-20)/80.0); // set basenote parameter
+  //   }
+  // }
 
   void processAudio(AudioBuffer& buffer){
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
@@ -142,7 +155,7 @@ public:
       break;
     }
     setParameters(shape, cutoff, q, attack, release, pitchbend);
-    voice->getSamples(left);
+    voice->generate(left);
     display.update(left, 2, 0.0, 3.0, 0.0);
     
     // hat + kick
@@ -159,9 +172,9 @@ public:
     kick->setDecay(decay);
     kick->setAccent(accent);
     // kick->setSnap(getParameterValue(PARAMETER_BB));
-    hat->getSamples(right);
+    hat->generate(right);
     left.add(right);
-    kick->getSamples(right);
+    kick->generate(right);
     left.add(right);
     left.multiply(0.2);
     right.copyFrom(left);
