@@ -106,6 +106,10 @@ public:
     left = new ChorusProcessor<TAPS>(sr, bs, ds*1.1);
     right = new ChorusProcessor<TAPS>(sr, bs, ds*0.9);
   }
+  ~StereoChorusProcessor(){
+    delete left;
+    delete right;
+  }
   void setDelay(float value){
     left->setDelay(value);
     right->setDelay(value);
@@ -168,6 +172,7 @@ public:
   ~StereoTriphaseChorusPatch(){
     StereoChorusMixProcessor::destroy(processor);
     TapTempoOscillator<SineOscillator>::destroy(lfo);
+    AudioBuffer::destroy(outputbuffer);
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
@@ -180,11 +185,11 @@ public:
   void processAudio(AudioBuffer &buffer) {
     float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
     lfo->clock(getBlockSize());
-    lfo->adjust(speed*4096);
+    lfo->adjustSpeed(speed);
     float modulation = lfo->generate()*0.5+0.5;
     float depth = getParameterValue(PARAMETER_B);
     float feedback = getParameterValue(PARAMETER_C)*0.6;
-    depth = clamp(depth + feedback*0.1, 0.0f, 1.0f); // compensate for zero depth/high feedback
+    depth = clamp(depth + feedback*0.1f, 0.0f, 1.0f); // compensate for zero depth/high feedback
     setButton(GREEN_BUTTON, modulation*4096);
     setParameterValue(PARAMETER_F, modulation);
     setParameterValue(PARAMETER_G, 1 - modulation);
