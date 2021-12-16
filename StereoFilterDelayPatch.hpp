@@ -2,8 +2,8 @@
 #define __StereoFilterDelayPatch_h__
 
 #include "OpenWareLibrary.h"
-
-static const int TRIGGER_LIMIT = (1<<17);
+#include "TapTempoOscillator.h"
+#define TRIGGER_LIMIT (1<<19)
 
 #define USE_SVF
 // #define FRAC_DELAY
@@ -103,7 +103,7 @@ private:
   typedef StereoBiquadFilter StereoFilter;
 #endif
   FeedbackProcessor* feedback;
-  AdjustableTapTempo* tempo;
+  TapTempoOscillator<InvertedRampOscillator>* lfo;
   const size_t max_delay;
   SmoothFloat delay_samples;
   SmoothDelayProcessor* left_delay;
@@ -125,9 +125,8 @@ public:
     registerParameter(PARAMETER_D, "Dry/Wet");
     // setParameterValue(PARAMETER_D, 0.50);
 
-    tempo = AdjustableTapTempo::create(getSampleRate(), TRIGGER_LIMIT);
-    tempo->setBeatsPerMinute(120);
-    // tempo->resetAdjustment(getParameterValue(PARAMETER_B)*4096);
+    lfo = TapTempoOscillator<InvertedRampOscillator>::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo->setBeatsPerMinute(80);
 
     // delay
 #ifdef FRAC_DELAY
@@ -158,13 +157,15 @@ public:
     SmoothDelayProcessor::destroy(left_delay);
     SmoothDelayProcessor::destroy(right_delay);
     FeedbackProcessor::destroy(feedback);
-    AdjustableTapTempo::destroy(tempo);
+    TapTempoOscillator<InvertedRampOscillator>::destroy(lfo);
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
     case BUTTON_1:
-      tempo->trigger(value, samples);
+      lfo->trigger(value, samples);
+      if(value)
+	lfo->reset();
       break;
     case BUTTON_2:
       if(value)
@@ -177,20 +178,24 @@ public:
     return 440 * exp2f((note - 69) / 12);
   }
   void processAudio(AudioBuffer &buffer){
-    tempo->clock(getBlockSize());
-    tempo->adjustSpeed(getParameterValue(PARAMETER_A));
+    // parameters
+    lfo->clock(getBlockSize());
+    lfo->adjustSpeed(getParameterValue(PARAMETER_A));
     float fb = getParameterValue(PARAMETER_B)*1.1;
     float mix = getParameterValue(PARAMETER_D);
     float exp = getParameterValue(PARAMETER_E);
     float fc = noteToFrequency(getParameterValue(PARAMETER_C)*84+36);
     fc = std::clamp(fc * (1 - exp), 65.41f, 8372.02f); // C2 to C9
-    delay_samples = tempo->getPeriodInSamples();
+    delay_samples = lfo->getPeriodInSamples();
+    float modulation = lfo->generate()*0.5+0.5;
+    setButton(GREEN_BUTTON, modulation*4096);
+    setParameterValue(PARAMETER_F, modulation);
+    setParameterValue(PARAMETER_G, 1 - modulation);
 
     // lock feedback loop: input gain 0, feedback 1
     inputgain = locked ? 0 : 1;
     if(locked)
       fb = 1;
-    debugMessage("lock", (float)locked, inputgain, fb);
     
     // filter
     filter->setLowPass(fc, FilterStage::BUTTERWORTH_Q);
