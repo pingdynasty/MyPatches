@@ -129,7 +129,7 @@ public:
     float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
     lfo->select(getParameterValue(PARAMETER_B));
     lfo->clock(getBlockSize());
-    lfo->adjustSpeed(speed);
+    lfo->adjust(speed*4096);
     delay = lfo->generate()*0.5+0.5;
     processor->setDelay(delay);
     setButton(GREEN_BUTTON, 4096 * delay);

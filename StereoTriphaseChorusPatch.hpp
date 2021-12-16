@@ -180,7 +180,7 @@ public:
   void processAudio(AudioBuffer &buffer) {
     float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
     lfo->clock(getBlockSize());
-    lfo->adjustSpeed(speed);
+    lfo->adjust(speed*4096);
     float modulation = lfo->generate()*0.5+0.5;
     float depth = getParameterValue(PARAMETER_B);
     float feedback = getParameterValue(PARAMETER_C)*0.6;
