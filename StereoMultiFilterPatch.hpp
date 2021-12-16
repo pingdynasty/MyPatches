@@ -22,7 +22,7 @@ public:
     registerParameter(PARAMETER_B, "Resonance");
     registerParameter(PARAMETER_C, "Mode");
     registerParameter(PARAMETER_D, "Mix");
-    registerParameter(PARAMETER_E, "Expression");
+    registerParameter(PARAMETER_E, "Duck");
     process = AudioBuffer::create(2, getBlockSize());
     output = AudioBuffer::create(2, getBlockSize());
 #ifdef USE_SVF
@@ -53,7 +53,7 @@ public:
   }
   void processAudio(AudioBuffer &buffer){
     float exp = getParameterValue(PARAMETER_E);
-    float fc = noteToFrequency(getParameterValue(PARAMETER_C)*84+36);
+    float fc = noteToFrequency(getParameterValue(PARAMETER_A)*84+36);
     fc = std::clamp(fc * (1 - exp), 65.41f, 8372.02f); // C2 to C9
     float q = getParameterValue(PARAMETER_B) * qrange + 0.1;
     float mode = getParameterValue(PARAMETER_C)*2;

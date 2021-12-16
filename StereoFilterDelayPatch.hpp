@@ -112,6 +112,8 @@ private:
   SeriesMultiSignalProcessor* series;
   StereoFilter* filter;
   AudioBuffer* outputbuffer;
+  SmoothFloat inputgain;
+  bool locked = false;
 public:
   StereoFilterDelayPatch() : max_delay(getSampleRate()*0.5) {
     registerParameter(PARAMETER_A, "Delay");
@@ -147,6 +149,7 @@ public:
     filter = StereoFilter::create(getSampleRate(), 2);
 #endif
     outputbuffer = AudioBuffer::create(2, getBlockSize());
+    setButton(BUTTON_2, locked, 0);
   }
 
   ~StereoFilterDelayPatch(){
@@ -160,8 +163,13 @@ public:
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     switch(bid){
-    case BUTTON_A:
+    case BUTTON_1:
       tempo->trigger(value, samples);
+      break;
+    case BUTTON_2:
+      if(value)
+	locked = !locked;
+      setButton(BUTTON_2, locked, 0);
       break;
     }
   }
@@ -177,11 +185,17 @@ public:
     float fc = noteToFrequency(getParameterValue(PARAMETER_C)*84+36);
     fc = std::clamp(fc * (1 - exp), 65.41f, 8372.02f); // C2 to C9
     delay_samples = tempo->getPeriodInSamples();
-    // debugMessage("bpm/freq", tempo->getBeatsPerMinute(), tempo->getFrequency());
 
+    // lock feedback loop: input gain 0, feedback 1
+    inputgain = locked ? 0 : 1;
+    if(locked)
+      fb = 1;
+    debugMessage("lock", (float)locked, inputgain, fb);
+    
     // filter
     filter->setLowPass(fc, FilterStage::BUTTERWORTH_Q);
     filter->process(buffer, *outputbuffer);
+    outputbuffer->multiply(inputgain);
     
     // delay
     left_delay->setDelay(delay_samples);
