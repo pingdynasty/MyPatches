@@ -53,7 +53,8 @@ public:
   }
   void processAudio(AudioBuffer &buffer){
     float exp = getParameterValue(PARAMETER_E);
-    float fc = noteToFrequency(getParameterValue(PARAMETER_A)*84+36-48*exp); // C3 to C8
+    float fc = noteToFrequency(getParameterValue(PARAMETER_C)*84+36);
+    fc = std::clamp(fc * (1 - exp), 65.41f, 8372.02f); // C2 to C9
     float q = getParameterValue(PARAMETER_B) * qrange + 0.1;
     float mode = getParameterValue(PARAMETER_C)*2;
     float wet = getParameterValue(PARAMETER_D);

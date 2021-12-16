@@ -20,9 +20,6 @@ public:
   ~PhaserSignalProcessor(){
     FloatArray::destroy(zm1);
   }
-  void setModulation(float value){
-    setDelay(value);
-  }
   void setDelay(float delay){ //sample delay time
     a1 = (1.f - delay) / (1.f + delay);
   }
@@ -41,7 +38,7 @@ public:
     }
     z = x; // save for feedback
     input += x * depth;
-    return clamp(input, -1.0f, 1.0f);
+    return input;
   }
   using SignalProcessor::process;
 };
@@ -51,6 +48,10 @@ protected:
   PhaserSignalProcessor phaser_left;
   PhaserSignalProcessor phaser_right;
 public:
+  StereoPhaserProcessor(){
+  }
+  ~StereoPhaserProcessor(){
+  }
   void setDelay(float value){
       // phaser.setDelay(value*0.04833+0.01833); // range: 440/(sr/2) to 1600/(sr/2)
     phaser_left.setDelay(value*0.04+0.02);
@@ -65,8 +66,8 @@ public:
     phaser_right.setFeedback(value);
   }
   void process(AudioBuffer& input, AudioBuffer& output){
-    phaser_left.process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    phaser_right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
+    phaser_left.process(output.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
+    phaser_right.process(output.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
   }
   static StereoPhaserProcessor* create(){
     return new StereoPhaserProcessor();
@@ -76,22 +77,40 @@ public:
   }
 };
 
+class FilteredStereoPhaserProcessor : public StereoPhaserProcessor {
+protected:
+  StereoBiquadFilter* filter;
+public:
+  FilteredStereoPhaserProcessor(float sr){
+    filter = StereoBiquadFilter::create(sr, 1);
+    filter->setHighPass(120, FilterStage::BUTTERWORTH_Q);
+  }
+  ~FilteredStereoPhaserProcessor(){
+    StereoBiquadFilter::destroy(filter);
+  }
+  void process(AudioBuffer& input, AudioBuffer& output){
+    filter->process(input, output);
+    StereoPhaserProcessor::process(output, output);
+  }
+};
+
 class StereoPhaserPatch : public Patch {
 private:
-  typedef DryWetMultiSignalProcessor<StereoPhaserProcessor> StereoPhaserMixProcessor;
+  typedef DryWetMultiSignalProcessor<FilteredStereoPhaserProcessor> StereoPhaserMixProcessor;
   StereoPhaserMixProcessor* processor;
   MorphingLFO* lfo;
+  SmoothFloat delay;
 public:
   StereoPhaserPatch(){
-    registerParameter(PARAMETER_A, "Speed");
-    registerParameter(PARAMETER_B, "Depth");
+    registerParameter(PARAMETER_A, "Rate");
+    registerParameter(PARAMETER_B, "Shape");
     registerParameter(PARAMETER_C, "Feedback");
     registerParameter(PARAMETER_D, "Mix");
-    registerParameter(PARAMETER_AA, "LFO Shape");
-    processor = StereoPhaserMixProcessor::create(2, getBlockSize());
+    registerParameter(PARAMETER_E, "Speedup");
+    processor = StereoPhaserMixProcessor::create(2, getBlockSize(), getSampleRate());
     lfo = MorphingLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo->setBeatsPerMinute(60);
-    setParameterValue(PARAMETER_AA, (float)MorphingLFO::SINE/MorphingLFO::NOF_SHAPES);
+    delay.lambda = 0.8;
   }
   ~StereoPhaserPatch(){
     StereoPhaserMixProcessor::destroy(processor);
@@ -103,17 +122,22 @@ public:
       lfo->trigger(value, samples);
       if(value)
 	lfo->reset();
+      break;
     }
   }
-
   void processAudio(AudioBuffer &buffer) {
-    lfo->select(getParameterValue(PARAMETER_AA));
-    lfo->adjustSpeed(getParameterValue(PARAMETER_A)*3-1);
+    float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
+    lfo->select(getParameterValue(PARAMETER_B));
     lfo->clock(getBlockSize());
-    setButton(PUSHBUTTON, lfo->getPhase() < M_PI);
-    processor->setDelay(lfo->generate()*0.5+0.5);
-    processor->setDepth(getParameterValue(PARAMETER_B));
-    processor->setFeedback(getParameterValue(PARAMETER_C));
+    lfo->adjustSpeed(speed);
+    delay = lfo->generate()*0.5+0.5;
+    processor->setDelay(delay);
+    setButton(GREEN_BUTTON, 4096 * delay);
+    setParameterValue(PARAMETER_F, delay);
+    setParameterValue(PARAMETER_G, 1 - delay);
+    // setButton(PUSHBUTTON, lfo->getPhase() < M_PI);
+    processor->setDepth(getParameterValue(PARAMETER_C));
+    processor->setFeedback(getParameterValue(PARAMETER_C)*0.8);
     processor->setMix(getParameterValue(PARAMETER_D));
     processor->process(buffer, buffer);
     buffer.getSamples(LEFT_CHANNEL).softclip();
