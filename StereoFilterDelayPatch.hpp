@@ -36,15 +36,12 @@ private:
 public:
   StereoFilterDelayPatch() : max_delay(getSampleRate()*0.5) {
     registerParameter(PARAMETER_A, "Delay");
-    // setParameterValue(PARAMETER_A, 0.25);
     registerParameter(PARAMETER_B, "Feedback");
-    // setParameterValue(PARAMETER_B, 0);
     registerParameter(PARAMETER_C, "Filter");
-    // setParameterValue(PARAMETER_C, 0.8);
-    registerParameter(PARAMETER_D, "Dry/Wet");
-    // setParameterValue(PARAMETER_D, 0.50);
+    registerParameter(PARAMETER_D, "Mix");
+    registerParameter(PARAMETER_E, "Filter Duck");
 
-    lfo = TapTempoOscillator<InvertedRampOscillator>::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo = TapTempoOscillator<InvertedRampOscillator>::create(getSampleRate(), 16, TRIGGER_LIMIT, getBlockRate());
     lfo->setBeatsPerMinute(80);
 
     // delay
@@ -57,8 +54,6 @@ public:
 #endif
 
     feedback = FeedbackProcessor::create(left_delay, right_delay, getBlockSize());
-    // left_delay->setDelay(max_delay*0.5);
-    // right_delay->setDelay(max_delay*0.5);
     delay_samples.lambda = 0.99;
 
 #ifdef USE_SVF
@@ -116,9 +111,7 @@ public:
     if(locked)
       fb = 1;
     
-    // filter
-    filter->setLowPass(fc, FilterStage::BUTTERWORTH_Q);
-    filter->process(buffer, *outputbuffer);
+    outputbuffer->copyFrom(buffer);
     outputbuffer->multiply(inputgain);
     
     // delay
@@ -126,6 +119,10 @@ public:
     right_delay->setDelay(delay_samples);
     feedback->setFeedback(fb);
     feedback->process(*outputbuffer, *outputbuffer);
+
+    // filter
+    filter->setLowPass(fc, FilterStage::BUTTERWORTH_Q);
+    filter->process(*outputbuffer, *outputbuffer);
 
     // mix
     outputbuffer->multiply(mix);
