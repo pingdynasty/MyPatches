@@ -18,9 +18,9 @@ class StereoMultiFilterPatch : public Patch {
   AudioBuffer* output;
 public:
   StereoMultiFilterPatch(){
-    registerParameter(PARAMETER_A, "Cutoff");
+    registerParameter(PARAMETER_A, "Frequency");
     registerParameter(PARAMETER_B, "Resonance");
-    registerParameter(PARAMETER_C, "Mode");
+    registerParameter(PARAMETER_C, "Filter Mode");
     registerParameter(PARAMETER_D, "Mix");
     registerParameter(PARAMETER_E, "Duck");
     process = AudioBuffer::create(2, getBlockSize());
