@@ -16,85 +16,6 @@ typedef CrossFadingDelayProcessor SmoothDelayProcessor;
 
 typedef PingPongFeedbackProcessor FeedbackProcessor;
 
-class ParallelSignalProcessor : public MultiSignalProcessor {
-protected:
-  SignalProcessor** processors;
-  size_t count;
-public:
-  ParallelSignalProcessor(SignalProcessor** processors, size_t count)
-    : processors(processors), count(count) {}
-  void process(AudioBuffer& input, AudioBuffer& output){
-    ASSERT(input.getChannels() >= count, "Insufficient input channels");
-    ASSERT(output.getChannels() >= count, "Insufficient output channels");
-    for(size_t i=0; i<count; ++i)
-      processors[i]->process(input.getSamples(i), output.getSamples(i));
-  }
-  void setProcessor(size_t index, SignalProcessor* processor){
-    if(index < count)
-      processors[index] = processor;
-  }
-  SignalProcessor* getProcessor(size_t index){
-    if(index < count)
-      return processors[index];
-    return NULL;
-  }
-  ParallelSignalProcessor* create(size_t count){
-    return new ParallelSignalProcessor(new SignalProcessor*[count], count);
-  }
-};
-
-class SeriesSignalProcessor : public SignalProcessor {
-protected:
-  SignalProcessor** processors;
-  size_t count;
-public:
-  SeriesSignalProcessor(SignalProcessor** processors, size_t count)
-    : processors(processors), count(count) {}
-  void process(FloatArray input, FloatArray output){
-    processors[0]->process(input, output);
-    for(size_t i=1; i<count; ++i)
-      processors[i]->process(output, output);
-  }
-  void setProcessor(size_t index, SignalProcessor* processor){
-    if(index < count)
-      processors[index] = processor;
-  }
-  SignalProcessor* getProcessor(size_t index){
-    if(index < count)
-      return processors[index];
-    return NULL;
-  }
-  SeriesSignalProcessor* create(size_t count){
-    return new SeriesSignalProcessor(new SignalProcessor*[count], count);
-  }
-};
-
-class SeriesMultiSignalProcessor : public MultiSignalProcessor {
-protected:
-  MultiSignalProcessor** processors;
-  size_t count;
-public:
-  SeriesMultiSignalProcessor(MultiSignalProcessor** processors, size_t count)
-    : processors(processors), count(count) {}
-  void process(AudioBuffer& input, AudioBuffer& output){
-    processors[0]->process(input, output);
-    for(size_t i=1; i<count; ++i)
-      processors[i]->process(output, output);
-  }
-  void setProcessor(size_t index, MultiSignalProcessor* processor){
-    if(index < count)
-      processors[index] = processor;
-  }
-  MultiSignalProcessor* getProcessor(size_t index){
-    if(index < count)
-      return processors[index];
-    return NULL;
-  }
-  SeriesMultiSignalProcessor* create(size_t count){
-    return new SeriesMultiSignalProcessor(new MultiSignalProcessor*[count], count);
-  }
-};
-
 class StereoFilterDelayPatch : public Patch {
 private:
 #ifdef USE_SVF
@@ -108,8 +29,6 @@ private:
   SmoothFloat delay_samples;
   SmoothDelayProcessor* left_delay;
   SmoothDelayProcessor* right_delay;
-  ParallelSignalProcessor* parallel;
-  SeriesMultiSignalProcessor* series;
   StereoFilter* filter;
   AudioBuffer* outputbuffer;
   SmoothFloat inputgain;
