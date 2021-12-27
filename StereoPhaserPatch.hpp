@@ -100,6 +100,9 @@ private:
   StereoPhaserMixProcessor* processor;
   MorphingLFO* lfo;
   SmoothFloat delay;
+  static constexpr float LFO_MIN_HZ = 0.1;
+  static constexpr float LFO_MAX_HZ = 40;
+  static constexpr float LFO_DEFAULT_PBM = 60;
 public:
   StereoPhaserPatch(){
     registerParameter(PARAMETER_A, "Rate");
@@ -108,8 +111,8 @@ public:
     registerParameter(PARAMETER_D, "Mix");
     registerParameter(PARAMETER_E, "Speedup");
     processor = StereoPhaserMixProcessor::create(2, getBlockSize(), getSampleRate());
-    lfo = MorphingLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo->setBeatsPerMinute(60);
+    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate());
+    lfo->setBeatsPerMinute(LFO_DEFAULT_PBM);
     delay.lambda = 0.8;
   }
   ~StereoPhaserPatch(){
@@ -126,13 +129,20 @@ public:
     }
   }
   void processAudio(AudioBuffer &buffer) {
-    float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
-    lfo->select(getParameterValue(PARAMETER_B));
+    float speed = getParameterValue(PARAMETER_A) * (1 - getParameterValue(PARAMETER_E));
+    // float speed = clamp(getParameterValue(PARAMETER_A) - getParameterValue(PARAMETER_E), 0.0f, 1.0f);
+    float shape = getParameterValue(PARAMETER_B);
+    lfo->select(shape);
     lfo->clock(getBlockSize());
-    lfo->adjust(speed*4096);
+    lfo->adjustSpeed(speed);
     delay = lfo->generate()*0.5+0.5;
     processor->setDelay(delay);
-    setButton(GREEN_BUTTON, 4096 * delay);
+    shape *= MorphingLFO::NOF_SHAPES - 1;
+    if(abs(remainderf(shape, 1)) < 0.06){
+      setButton(GREEN_BUTTON, 4096 * delay);
+    }else{
+      setButton(RED_BUTTON, 4096 * delay);
+    }
     setParameterValue(PARAMETER_F, delay);
     setParameterValue(PARAMETER_G, 1 - delay);
     // setButton(PUSHBUTTON, lfo->getPhase() < M_PI);

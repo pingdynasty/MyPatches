@@ -58,9 +58,11 @@ public:
 
 class MorphingLFO : public TapTempoOscillator<MorphingOscillator> {
 public:
-  enum Shape { AGNESI, SINE, TRIANGLE, RAMP, SQUARE, INVERTED_RAMP, NOISE, NOF_SHAPES };
+  // enum Shape { AGNESI, SINE, TRIANGLE, SQUARE, INVERTED_RAMP, RAMP, NOISE, NOF_SHAPES };
+  // enum Shape { SINE, TRIANGLE, SQUARE, RAMP, NOISE, NOF_SHAPES };
+  enum Shape { SINE, RAMP, SQUARE, INVERTED_RAMP, NOISE, NOF_SHAPES };
 public:
-  MorphingLFO(float sr, size_t limit, MorphingOscillator* osc): TapTempoOscillator(sr, limit, osc) {}
+  MorphingLFO(float sr, size_t min_limit, size_t max_limit, MorphingOscillator* osc): TapTempoOscillator(sr, min_limit, max_limit, osc) {}
   void select(Shape shape){
     select((float)shape / (NOF_SHAPES - 1));
   }
@@ -70,17 +72,18 @@ public:
   void reset(){
     oscillator->reset();
   }
-  static MorphingLFO* create(float sample_rate, size_t limit, float block_rate){
+  static MorphingLFO* create(float sample_rate, float min_hz, float max_hz, float block_rate){
     float rate = block_rate;
     MorphingOscillator* morph = MorphingOscillator::create(NOF_SHAPES);
-    morph->setOscillator(AGNESI, AgnesiOscillator::create(rate, 0.5, 5));
-    morph->setOscillator(SINE, new PhaseShiftOscillator<SineOscillator>(-M_PI/2, rate));
-    morph->setOscillator(TRIANGLE, new PhaseShiftOscillator<TriangleOscillator>(0, rate));
-    morph->setOscillator(RAMP, new RampOscillator(rate));
+    // morph->setOscillator(AGNESI, AgnesiOscillator::create(rate, 0.5, 5));
+    morph->setOscillator(SINE, new PhaseShiftOscillator<SineOscillator>(0, rate));
+    // morph->setOscillator(SINE, new PhaseShiftOscillator<SineOscillator>(-M_PI/2, rate));
+    // morph->setOscillator(TRIANGLE, new PhaseShiftOscillator<TriangleOscillator>(0, rate));
+    morph->setOscillator(RAMP, new PhaseShiftOscillator<RampOscillator>(M_PI/2, rate));
     morph->setOscillator(SQUARE, new PhaseShiftOscillator<SquareWaveOscillator>(-M_PI/2, rate));
-    morph->setOscillator(INVERTED_RAMP, new InvertedRampOscillator(rate));
+    morph->setOscillator(INVERTED_RAMP, new PhaseShiftOscillator<InvertedRampOscillator>(-M_PI/2, rate));
     morph->setOscillator(NOISE, new NoiseOscillator(rate));
-    return new MorphingLFO(sample_rate, limit, morph);
+    return new MorphingLFO(sample_rate, sample_rate/max_hz, sample_rate/min_hz, morph);
   }
   static void destroy(MorphingLFO* obj){
     MorphingOscillator* morph = (MorphingOscillator*)obj->oscillator;

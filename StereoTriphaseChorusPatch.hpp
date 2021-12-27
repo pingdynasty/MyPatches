@@ -153,10 +153,12 @@ public:
 class StereoTriphaseChorusPatch : public Patch {
 private:
   typedef StereoChorusProcessor<taps> StereoChorusMixProcessor;
-  // 
   StereoChorusMixProcessor* processor;
   AudioBuffer* outputbuffer;
   TapTempoOscillator<SineOscillator>* lfo;
+  static constexpr float LFO_MIN_HZ = 0.1;
+  static constexpr float LFO_MAX_HZ = 40;
+  static constexpr float LFO_DEFAULT_PBM = 8;
 public:
   StereoTriphaseChorusPatch(){
     registerParameter(PARAMETER_A, "Rate");
@@ -165,8 +167,8 @@ public:
     registerParameter(PARAMETER_D, "Mix");
     registerParameter(PARAMETER_E, "Speedup");
     processor = StereoChorusMixProcessor::create(getSampleRate(), getBlockSize(), 0.200*getSampleRate());
-    lfo = TapTempoOscillator<SineOscillator>::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo->setBeatsPerMinute(8);
+    lfo = TapTempoOscillator<SineOscillator>::create(getSampleRate(), getSampleRate()/LFO_MAX_HZ, getSampleRate()/LFO_MIN_HZ, getBlockRate());
+    lfo->setBeatsPerMinute(LFO_DEFAULT_PBM);
     outputbuffer = AudioBuffer::create(2, getBlockSize());
   }
   ~StereoTriphaseChorusPatch(){
@@ -183,14 +185,14 @@ public:
     }
   }
   void processAudio(AudioBuffer &buffer) {
-    float speed = clamp(getParameterValue(PARAMETER_A)*4 - 1 - getParameterValue(PARAMETER_E)*4, -0.9f, 3.0f);
+    float speed = getParameterValue(PARAMETER_A) * (1 - getParameterValue(PARAMETER_E));
     lfo->clock(getBlockSize());
     lfo->adjustSpeed(speed);
     float modulation = lfo->generate()*0.5+0.5;
     float depth = getParameterValue(PARAMETER_B);
     float feedback = getParameterValue(PARAMETER_C)*0.6;
     depth = clamp(depth + feedback*0.1f, 0.0f, 1.0f); // compensate for zero depth/high feedback
-    setButton(GREEN_BUTTON, modulation*4096);
+    setButton(PUSHBUTTON, modulation*4096);
     setParameterValue(PARAMETER_F, modulation);
     setParameterValue(PARAMETER_G, 1 - modulation);
     // processor->setDelay(0.5 - getParameterValue(PARAMETER_E)*0.5);

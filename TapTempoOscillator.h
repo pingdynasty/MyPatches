@@ -7,7 +7,7 @@ class TapTempoOscillator : public AdjustableTapTempo, public SignalGenerator {
 protected:
   T* oscillator;
 public:
-  TapTempoOscillator(float sr, size_t limit, T* osc): AdjustableTapTempo(sr, limit), oscillator(osc) {}
+  TapTempoOscillator(float sr, size_t min_limit, size_t max_limit, T* osc): AdjustableTapTempo(sr, min_limit, max_limit), oscillator(osc) {}
   void reset(){
     oscillator->reset();
   }
@@ -31,8 +31,8 @@ public:
   T* getOscillator(){
     return oscillator;
   }
-  static TapTempoOscillator* create(float sample_rate, size_t limit, float block_rate){
-    return new TapTempoOscillator(sample_rate, limit, T::create(block_rate));
+  static TapTempoOscillator* create(float sample_rate, size_t min_limit, size_t max_limit, float block_rate){
+    return new TapTempoOscillator(sample_rate, min_limit, max_limit, T::create(block_rate));
   }
   static void destroy(TapTempoOscillator* obj){
     T::destroy(obj->oscillator);
