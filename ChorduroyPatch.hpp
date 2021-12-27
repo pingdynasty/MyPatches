@@ -4,8 +4,7 @@
 #include "Patch.h"
 #include "OpenWareLibrary.h"
 
-// add sub oscillator
-// exponential decay envelope
+// #define USE_SVF
 
 /**
  * Triple tone generator that produces a triad chord that tracks the frequency of the input audio signal.
@@ -24,24 +23,110 @@ static const float TRIAD_SEMITONES[TRIADS][5] = {
    {0, 4, 8, 12, 12+4}  // Augmented triad
 };
 
-#define USE_SVF
-
-class ChorduroyPatch : public Patch {
+class Voice {
 private:
   PolyBlepOscillator* osc[3];
   SineOscillator* sine;
-  SmoothFloat freq;
-  FloatArray output;
 #ifdef USE_SVF
   StateVariableFilter* vcf;
 #else
   BiquadFilter* vcf;
 #endif
+  ExponentialDecayEnvelope env;
+  FloatArray buffer;
+  float subosc = 1.0;
+  float fc = 18000;
+  float q = 4;
+  int triad = 0;
+  int inversion = 0;
+public:
+  Voice(float sr){
+#ifdef USE_SVF
+    vcf = StateVariableFilter::create(sr);
+#else
+    vcf = BiquadFilter::create(sr, 4);
+#endif
+    for(int i=0; i<3; ++i){
+      osc[i] = PolyBlepOscillator::create(sr);
+      osc[i]->setShape(0.0f); //  0 for saw, 1 for square wave
+      // osc[i]->setPulseWidth(pwm);
+    }
+    sine = SineOscillator::create(sr);
+  }
+  ~Voice(){
+    #ifdef USE_SVF
+    StateVariableFilter::destroy(vcf);
+#else
+    BiquadFilter::destroy(vcf);
+#endif
+    for(int i=0; i<3; ++i)
+      PolyBlepOscillator::destroy(osc[i]);
+    SineOscillator::destroy(sine);
+    FloatArray::destroy(buffer);
+  }
+  void processMidi(MidiMessage msg){
+    
+  }
+  void trigger(bool ison, size_t samples){
+    env.trigger(ison, samples);
+  }
+  void setFrequency(float freq){
+    for(int i=0; i<3; ++i){
+      float frequency = freq * (1.0+TRIAD_SEMITONES[triad][i+inversion]*1/12.0);
+      osc[i]->setFrequency(frequency);
+    }
+    sine->setFrequency(freq*0.5);
+  }
+  void setChord(int triad, int inversion=0){
+    this->triad = triad;
+    this->inversion = inversion;
+  }
+  void setDecay(float decay){
+    env.setDecay(decay);
+  }
+  void setSub(float sub){
+    subosc = sub;
+  }
+  void setFilter(float ffc, float fq){
+    fc = ffc;
+    q = fq;
+  }
+
+  void setShape(float shape){
+    float pwm = shape > 1.0 ? 0.48*shape : 0.48;
+    shape = shape > 1.0 ? 1.0 : shape;
+    for(int i=0; i<3; ++i){
+      osc[i]->setShape(shape);
+      osc[i]->setPulseWidth(pwm);      
+    }
+  }
+		
+  // decay 150ms to 5s
+  void generate(FloatArray out) {
+    // vco
+    sine->generate(out);
+    out.multiply(subosc);
+    for(int i=0; i<3; ++i){
+      osc[i]->generate(buffer);
+      out.add(buffer);
+    }
+    // envelope
+    env.generate(buffer);
+    // vcf
+    buffer.multiply(fc);
+    vcf->processLowPass(out, buffer, q, out);
+    out.multiply(0.3);
+  }
+};
+
+class ChorduroyPatch : public Patch {
+private:
+  SmoothFloat freq;
   VoltsPerOctave hz;
-  AdsrEnvelope env;
+  Voice voice;
 public:
   ChorduroyPatch() :
-    freq(0.9, 440.0) {
+    freq(0.9, 440.0), voice(getSampleRate()) {
     registerParameter(PARAMETER_A, "Pitch");
     registerParameter(PARAMETER_B, "Cutoff");
     registerParameter(PARAMETER_C, "Resonance");
@@ -56,26 +141,9 @@ public:
     setParameterValue(PARAMETER_E, 0.25);
     setParameterValue(PARAMETER_F, 0.5);
     setParameterValue(PARAMETER_G, 0.5);
-#ifdef USE_SVF
-    vcf = StateVariableFilter::create(getSampleRate());
-#else
-    vcf = BiquadFilter::create(getSampleRate(), 4);
-#endif
-    output = FloatArray::create(getBlockSize());
-    for(int i=0; i<3; ++i)
-      osc[i] = PolyBlepOscillator::create(getSampleRate());
+  }
 
-    sine = SineOscillator::create(getSampleRate());
-  }      
   ~ChorduroyPatch(){
-    FloatArray::destroy(output);
-#ifdef USE_SVF
-    StateVariableFilter::destroy(vcf);
-#else
-    BiquadFilter::destroy(vcf);
-#endif
-    for(int i=0; i<3; ++i)
-      PolyBlepOscillator::destroy(osc[i]);
   }
 
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
@@ -84,65 +152,43 @@ public:
     switch(bid){
     case PUSHBUTTON:
     case BUTTON_A:
-      setParameterValue(PARAMETER_F, 0.0);
-      env.trigger(value, samples);
+      voice.setChord(0);
+      voice.trigger(value, samples);
       break;
     case BUTTON_B:
-      setParameterValue(PARAMETER_F, 1.0/TRIADS);
-      env.trigger(value, samples);
+      voice.setChord(1);
+      voice.trigger(value, samples);
       break;
     case BUTTON_C:
-      setParameterValue(PARAMETER_F, 2.0/TRIADS);
-      env.trigger(value, samples);
+      voice.setChord(2);
+      voice.trigger(value, samples);
       break;
     case BUTTON_D:      
-      setParameterValue(PARAMETER_F, 3.0/TRIADS);
-      env.trigger(value, samples);
+      voice.setChord(3);
+      voice.trigger(value, samples);
       break;
     }
-    env.setAttack(0);
-    env.setSustain(0);
-    env.setRelease(0);
   }
 
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
 
-    // vco
     float shape = getParameterValue(PARAMETER_E)*2;
-    float pwm = shape > 1.0 ? 0.48*shape : 0.48;
-    shape = shape > 1.0 ? 1.0 : shape;
-    int triad = getParameterValue(PARAMETER_F)*TRIADS;
-    int inversion = (getParameterValue(PARAMETER_F)*TRIADS-triad)*3;
-    // debugMessage("triad/inversion", triad, inversion);
     float tune = getParameterValue(PARAMETER_A)*6.0 - 4.0;
     hz.setTune(tune);
     freq = hz.getFrequency(left[0]);
-    sine->setFrequency(freq*0.5);
-    sine->generate(left);
-    left.multiply(getParameterValue(PARAMETER_H));    
-    for(int i=0; i<3; ++i){
-      float frequency = freq * (1.0+TRIAD_SEMITONES[triad][i+inversion]*1/12.0);
-      osc[i]->setShape(shape);
-      osc[i]->setPulseWidth(pwm);
-      osc[i]->setFrequency(frequency);
-      osc[i]->generate(output);
-      output.multiply(0.20);
-      left.add(output);
-    }
+    float decay = getParameterValue(PARAMETER_D)*10;
 
-    // envelope
-    float decay = getParameterValue(PARAMETER_D);
-    env.setDecay(decay);
-    env.generate(output);
+    voice.setFrequency(freq);
+    voice.setDecay(decay);
+    voice.setShape(shape);
 
-    // vcf
-    float fc = getParameterValue(PARAMETER_B)*8000+10;
-    float q = getParameterValue(PARAMETER_C)*5+0.1;
-    output.multiply(fc);
-    vcf->processLowPass(left, output, q, left);
+    // float fc = getParameterValue(PARAMETER_B)*8000+10;
+    // float q = getParameterValue(PARAMETER_C)*5+0.1;
+    // voice.setFilter(fc, q);
 
+    voice.generate(left);
     left.tanh();
     right.copyFrom(left);
   }
