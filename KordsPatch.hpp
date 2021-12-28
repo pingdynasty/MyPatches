@@ -196,13 +196,13 @@ typedef PolyphonicProcessor<SynthVoice, VOICES> Allocator;
 typedef VoiceAllocatorSignalGenerator<Allocator, SynthVoice, VOICES> SynthVoices;
 
 #ifdef FRAC_DELAY
-// typedef FractionalDelayProcessor<LINEAR_INTERPOLATION> FracDelayProcessor;
-// typedef FractionalDelayProcessor<COSINE_INTERPOLATION> FracDelayProcessor;
-// typedef FractionalDelayProcessor<CUBIC_3P_INTERPOLATION> FracDelayProcessor;
-// typedef FractionalDelayProcessor<CUBIC_4P_SMOOTH_INTERPOLATION> FracDelayProcessor;
-typedef FractionalDelayProcessor<HERMITE_INTERPOLATION> FracDelayProcessor;
+// typedef FractionalDelayProcessor<LINEAR_INTERPOLATION> SmoothDelayProcessor;
+// typedef FractionalDelayProcessor<COSINE_INTERPOLATION> SmoothDelayProcessor;
+// typedef FractionalDelayProcessor<CUBIC_3P_INTERPOLATION> SmoothDelayProcessor;
+// typedef FractionalDelayProcessor<CUBIC_4P_SMOOTH_INTERPOLATION> SmoothDelayProcessor;
+typedef FractionalDelayProcessor<HERMITE_INTERPOLATION> SmoothDelayProcessor;
 #else
-typedef CrossFadingDelayProcessor FracDelayProcessor;
+typedef CrossFadingDelayProcessor SmoothDelayProcessor;
 #endif
 
 typedef DryWetMultiSignalProcessor<PingPongFeedbackProcessor> MixProcessor;
@@ -216,8 +216,8 @@ private:
   // RampOscillator* lfo1;
   SineOscillator* lfo1;
   SineOscillator* lfo2;
-  FracDelayProcessor* left_delay;
-  FracDelayProcessor* right_delay;
+  SmoothDelayProcessor* left_delay;
+  SmoothDelayProcessor* right_delay;
   MixProcessor* delaymix;
   AdjustableTapTempo* tempo;
 
@@ -257,15 +257,15 @@ public:
 
     tempo = AdjustableTapTempo::create(getSampleRate(), TRIGGER_LIMIT);
     tempo->setBeatsPerMinute(240);
-    tempo->resetAdjustment(getParameterValue(PARAMETER_B)*4096);
+    tempo->resetSpeed(getParameterValue(PARAMETER_B));
 
     // delay
 #ifdef FRAC_DELAY
-    left_delay = FracDelayProcessor::create(TRIGGER_LIMIT);
-    right_delay = FracDelayProcessor::create(TRIGGER_LIMIT*2);
+    left_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT);
+    right_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT*2);
 #else
-    left_delay = FracDelayProcessor::create(TRIGGER_LIMIT, getBlockSize());
-    right_delay = FracDelayProcessor::create(TRIGGER_LIMIT*2, getBlockSize());
+    left_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT, getBlockSize());
+    right_delay = SmoothDelayProcessor::create(TRIGGER_LIMIT*2, getBlockSize());
 #endif
 
     delaymix = MixProcessor::create(getNumberOfChannels(), getBlockSize(), left_delay, right_delay,
@@ -289,8 +289,8 @@ public:
     FloatArray::destroy(right_mix);
     SineOscillator::destroy(lfo1);
     SineOscillator::destroy(lfo2);
-    FracDelayProcessor::destroy(left_delay);
-    FracDelayProcessor::destroy(right_delay);
+    SmoothDelayProcessor::destroy(left_delay);
+    SmoothDelayProcessor::destroy(right_delay);
     MixProcessor::destroy(delaymix);
     AdjustableTapTempo::destroy(tempo);
   }
@@ -341,10 +341,10 @@ public:
 
     // delay and mix
     tempo->clock(getBlockSize());
-    tempo->adjust(getParameterValue(PARAMETER_B)*4096);
+    tempo->adjustSpeed(getParameterValue(PARAMETER_B));
     float feedback = getParameterValue(PARAMETER_C)*1.1;
     float mix = getParameterValue(PARAMETER_D);
-    delay_samples = tempo->getSamples();
+    delay_samples = tempo->getPeriodInSamples();
 
     left_delay->setDelay(delay_samples);
     right_delay->setDelay(delay_samples*1.5);

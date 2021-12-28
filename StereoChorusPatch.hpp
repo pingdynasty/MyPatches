@@ -52,11 +52,12 @@ protected:
   FloatArray outbuf;
   BiquadFilter* lpf;
   BiquadFilter* hpf;
-  float depth;
-  float delay;
-  float spread;
-  float amount;
-  float phase;
+  float delay = 0;
+  float depth = 0;
+  float amount = 0;
+  float phase = 0;
+  float feedback = 0;
+  static constexpr float RADIANS_OFFSET = 2*M_PI/3; // 120 degrees in radians
 public:
   ChorusProcessor(float sr, size_t bs, size_t ds){
     lpf = BiquadFilter::create(sr, 1);
@@ -69,6 +70,7 @@ public:
     }
     inbuf = FloatArray::create(bs);
     outbuf = FloatArray::create(bs);
+    setDelay(0.5);
   }
   ~ChorusProcessor(){
     FloatArray::destroy(inbuf);
@@ -86,11 +88,6 @@ public:
   }
   void setDepth(float value){
     depth = value*delay*0.5f;
-    // depth = value*ringbuffer[0]->getSize()/4.0f; // max depth 1/4 buffer
-  }
-  void setSpread(float value){
-    spread = value*delay/(2*(TAPS-1));
-    // spread = value*ringbuffer[0]->getSize()/(4*(TAPS-1)); // max spread 1/4 buffer per tap
   }
   void setAmount(float value){
     amount = value;
@@ -99,7 +96,7 @@ public:
     feedback = value;
   }
   /*
-   * Phase should be between -1 and 1
+   * Phase should be in radians: (0, 2*M_PI)
    */
   void setPhase(float value){
     phase = value;
@@ -117,20 +114,21 @@ public:
   // }
   void process(FloatArray input, FloatArray output){
     ASSERT(input.getData() != output.getData(), "Inplace processing not supported");
-    output.clear();
-    lpf->process(input, inbuf);
+    inbuf.multiply(feedback);
+    inbuf.add(input);
+    lpf->process(inbuf, inbuf);
     hpf->process(inbuf, inbuf);
-    float ph = phase;
+    output.clear();
     for(size_t i=0; i<TAPS; ++i){
-      float dt = delay + depth*ph + spread*i;
+      float dt = delay + depth * sinf(phase + RADIANS_OFFSET * i);
       ringbuffer[i]->delay(inbuf, outbuf, inbuf.getSize(), dt);
       output.add(outbuf);
-      ph *= -1; // move taps in alternating directions
     }
     output.multiply(amount/(TAPS*0.707));
     outbuf.copyFrom(input);
     outbuf.multiply(1-amount);
     output.add(outbuf);
+    inbuf.copyFrom(output); // save for feedback
   }
 };
 
@@ -322,9 +320,9 @@ public:
     left->setDepth(value);
     right->setDepth(value);
   }
-  void setSpread(float value){
-    left->setSpread(value);
-    right->setSpread(value);
+  void setFeedback(float value){
+    left->setFeedback(value);
+    right->setFeedback(value);
   }
   void setAmount(float value){
     left->setAmount(value);
@@ -398,18 +396,14 @@ public:
   StereoChorusPatch(){
     registerParameter(PARAMETER_A, "Rate");
     registerParameter(PARAMETER_B, "Depth");
-    registerParameter(PARAMETER_C, "Spread");
+    registerParameter(PARAMETER_C, "Feedback");
     registerParameter(PARAMETER_D, "Mix");
+    registerParameter(PARAMETER_E, "Delay");
     registerParameter(PARAMETER_AA, "LFO Shape");
-    registerParameter(PARAMETER_AB, "Delay Time");
     processor = StereoChorusMixProcessor::create(getSampleRate(), getBlockSize(), 0.200*getSampleRate());
-    processor->setSpread(0.2);
     lfo = MorphingLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo->setBeatsPerMinute(8);
     setParameterValue(PARAMETER_AA, (float)MorphingLFO::TRIANGLE/(MorphingLFO::NOF_SHAPES - 1));
-    setParameterValue(PARAMETER_AB, 0.5f);
-    setParameterValue(PARAMETER_AC, 0.5f);
-    setParameterValue(PARAMETER_AD, 0.5f);
     outputbuffer = AudioBuffer::create(2, getBlockSize());
   }
   ~StereoChorusPatch(){
@@ -426,17 +420,16 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float speed = getParameterValue(PARAMETER_A)*3-1;
-    // speed += getParameterValue(PARAMETER_E);
     lfo->select(getParameterValue(PARAMETER_AA));
     lfo->clock(getBlockSize());
     lfo->adjustSpeed(speed);
     setButton(PUSHBUTTON, lfo->getPhase() < M_PI);
-    processor->setDelay(getParameterValue(PARAMETER_AB));
-    processor->setSpread(getParameterValue(PARAMETER_C));
+    processor->setDelay(0.5 - getParameterValue(PARAMETER_E)*0.5);
     processor->setDepth(getParameterValue(PARAMETER_B));
+    processor->setFeedback(getParameterValue(PARAMETER_C));
     processor->setAmount(getParameterValue(PARAMETER_D));
-    processor->setHighPass(getParameterValue(PARAMETER_AC));
-    processor->setLowPass(getParameterValue(PARAMETER_AD));
+    // processor->setHighPass(getParameterValue(PARAMETER_AC));
+    // processor->setLowPass(getParameterValue(PARAMETER_AD));
     processor->setPhase(lfo->generate());
     processor->process(buffer, *outputbuffer);
     outputbuffer->getSamples(LEFT_CHANNEL).softclip();

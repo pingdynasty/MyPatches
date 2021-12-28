@@ -40,9 +40,8 @@ public:
   }
   using Oscillator::generate;
   void select(float value){
-    clamp(value, 0.0f, 0.99999f);
     value *= osc_count - 1;
-    size_t idx = value;
+    size_t idx = clamp((size_t)value, (size_t)0, osc_count - 2);
     Oscillator* newlo = osc[idx];
     Oscillator* newhi = osc[idx+1];
     xf = value - idx;
