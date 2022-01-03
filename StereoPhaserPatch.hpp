@@ -111,7 +111,7 @@ public:
     registerParameter(PARAMETER_D, "Mix");
     registerParameter(PARAMETER_E, "Speedup");
     processor = StereoPhaserMixProcessor::create(2, getBlockSize(), getSampleRate());
-    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate());
+    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate(), getBlockSize());
     lfo->setBeatsPerMinute(LFO_DEFAULT_PBM);
     delay.lambda = 0.8;
   }
@@ -132,7 +132,7 @@ public:
     float speed = getParameterValue(PARAMETER_A) * (1 - getParameterValue(PARAMETER_E));
     // float speed = clamp(getParameterValue(PARAMETER_A) - getParameterValue(PARAMETER_E), 0.0f, 1.0f);
     float shape = getParameterValue(PARAMETER_B);
-    lfo->select(shape);
+    lfo->morph(shape);
     lfo->clock(getBlockSize());
     lfo->adjustSpeed(speed);
     delay = lfo->generate()*0.5+0.5;

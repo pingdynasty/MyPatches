@@ -18,10 +18,10 @@ public:
   MorphingLFOPatch(){
     registerParameter(PARAMETER_A, "Rate");
     registerParameter(PARAMETER_B, "Shape");
-    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate());
+    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate(), getBlockSize());
     lfo->setBeatsPerMinute(LFO_DEFAULT_PBM);
     setParameterValue(PARAMETER_B, (float)MorphingLFO::SINE/(MorphingLFO::NOF_SHAPES-1));
-    osc = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getSampleRate());
+    osc = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getSampleRate(), getBlockSize());
     osc->setBeatsPerMinute(LFO_DEFAULT_PBM);
     ramp = new RampOscillator(getSampleRate());
     lfo->select(MorphingLFO::SINE);
@@ -50,10 +50,10 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float speed = getParameterValue(PARAMETER_A) - getParameterValue(PARAMETER_E);
-    // speed = clamp(speed, 0.0f, 1.0f);
+    speed = clamp(speed, 0.0f, 1.0f);
     // float speed = getParameterValue(PARAMETER_A);
     float shape = getParameterValue(PARAMETER_B);
-    lfo->select(shape);
+    lfo->morph(shape);
     lfo->clock(getBlockSize());
     lfo->adjustSpeed(speed);
     float output = lfo->generate() * 0.5 + 0.5;
@@ -67,7 +67,7 @@ public:
       setButton(RED_BUTTON, 4096 * output);
     }
     // setButton(PUSHBUTTON, lfo->getPhase() < M_PI);
-    osc->select(getParameterValue(PARAMETER_B));
+    osc->morph(getParameterValue(PARAMETER_B));
     osc->clock(getBlockSize());
     osc->adjustSpeed(speed);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
