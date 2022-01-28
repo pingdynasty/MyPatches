@@ -17,7 +17,7 @@ private:
   FloatArray wavetable;
   VoltsPerOctave hz;
 public:
-HarmonicOscillatorPatch(){
+  HarmonicOscillatorPatch(){
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "Rate");
     registerParameter(PARAMETER_C, "H2");
@@ -28,6 +28,9 @@ HarmonicOscillatorPatch(){
     osc->setFrequency(440);
     harms.setGlauberState(0.5);
     harms.calculate(wavetable, samples);
+  }
+  ~HarmonicOscillatorPatch(){
+    delete osc;
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*6.0 - 4.0;
@@ -47,7 +50,7 @@ HarmonicOscillatorPatch(){
     hz.setTune(tune);
     float freq = hz.getFrequency(left[0]);
     osc->setFrequency(freq);
-    osc->getSamples(left);
+    osc->generate(left);
     right.copyFrom(left);
   }
 };

@@ -18,6 +18,9 @@
 
 */
 
+#undef powf
+#undef expf
+
 template<int samples, int controls>
 class HarmonicOscillator {
 private:
@@ -45,7 +48,7 @@ private:
   float rawCn[controls];
   float alfan[controls];
   float nfact[controls];
-  float PsiArray[samples+1][controls];
+  float PsiArray[samples][controls];
 
 public:
   // HarmonicOscillator(int ssamples, int ccontrols){
@@ -76,8 +79,8 @@ public:
 
   void initialisePSIArray(){
     float exp, x;
-    for(int lpoint=0; lpoint <= samples; ++lpoint){
-      x = ((float)lpoint) / HalfSize - HALFd;
+    for(int lpoint=0; lpoint < samples; ++lpoint){
+      x = ((float)lpoint+1) / HalfSize - HALFd;
       exp = expf(-x * x / 2.0);
       for(int jquant=0; jquant < Nstate; jquant++)
 	PsiArray[lpoint][jquant] = PSI_n_form(x, jquant, exp);                    
@@ -123,15 +126,15 @@ public:
   //
   //    Constructing the Wavefunction for a given  time
   //    and the constant alfan[n+1]
-  float PSI(float t, float x, int xx){  
+  float PSI(float t, int x){  
     float Cn;
     float Re = 0;
     float Im = 0;
     for(int i=0;i<Nstate;i++){
       Cn = aryCn[i];
       if(Cn>0.0){
-	Re += cosf((i-0.5)*t)*Cn*PsiArray[xx+1][i];
-	Im += sinf((i-0.5)*t)*Cn*PsiArray[xx+1][i];
+	Re += cosf((i-0.5)*t)*Cn*PsiArray[x][i];
+	Im += sinf((i-0.5)*t)*Cn*PsiArray[x][i];
       }
     }
     return Re*Re + Im*Im;
@@ -167,6 +170,10 @@ public:
     rawCn[index] = value;
   }
 
+  float getControl(int index){
+    return rawCn[index];
+  }
+
   //  Amplitude controls start
 
   // Normalize amplitudes
@@ -188,6 +195,10 @@ public:
     // energyControl = (int)((MAX_VALUE / 10.0f) * (AverageEnerg - EnergyConstant));
   }
 
+  float getAverageEnergy(){
+    return AverageEnerg;
+  }
+
   // Setting of amplitudes for a single state
   void setSingleState(int Nvalue){
     //         System.out.println("single state "+Nvalue);
@@ -206,8 +217,8 @@ public:
 
   //    Setting of amplitudes for Glauber State by energy selector scroller
   void setGlauberState(float Nvalue){
-    AverageEnerg=EnergyConstant+0.0001+(10.0-0.1*(float)Nvalue );  // SETENERGY
-    // AverageEnerg = EnergyConstant + 10.0f * Nvalue / MAX_VALUE;  // SETENERGY
+        // AverageEnerg = EnergyConstant+0.0001+(10.0-0.1*(double)Nvalue );  // SETENERGY
+        AverageEnerg = EnergyConstant + 10.0d * Nvalue;  // SETENERGY
 
     float Xx = sqrtf(AverageEnerg-EnergyConstant);
     float Xx2;
@@ -227,22 +238,20 @@ public:
       rawCn[i] = MAX_VALUE * aryCn[i];
       // controlvalues[i] = (int)rawCn[i];
     }
-
   }
 
   void calculate(float* values, int size){
     // calculating the wavefunction in sample points
-    values[0] = PSI(t,0,0);
-    for(int i=1; i<size; ++i)
-      values[i] = PSI(t, i / HalfSize - HALFd, i);
+    for(int i=0; i<size; ++i)
+      values[i] = PSI(t, i);
   }
 
   void calculateNormalized(float* values, int size){
-    values[0] = PSI(t,0,0);
+    values[0] = PSI(t, 0);
     float max = values[0];
     float min = values[0];
     for(int i=1; i<size; ++i){
-      values[i] = PSI(t, i / HalfSize - HALFd, i);
+      values[i] = PSI(t, i);
       if(values[i] > max)
   	max = values[i];
       if(values[i] < min)
@@ -254,6 +263,12 @@ public:
 
   void increment(){
     t += dt;
+    if(t > 2*M_PI)
+      t -= 2*M_PI;
+  }
+
+  float getTime(){
+    return t;
   }
 
   void setTimeStep(float value){
