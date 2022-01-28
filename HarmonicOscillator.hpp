@@ -248,9 +248,9 @@ public:
 
   void calculateNormalized(float* values, int size){
     values[0] = PSI(t, 0);
-    float max = values[0];
     float min = values[0];
-    for(int i=1; i<size; ++i){
+    float max = min + std::numeric_limits<float>::epsilon();
+    for(size_t i=1; i<size; ++i){
       values[i] = PSI(t, i);
       if(values[i] > max)
   	max = values[i];

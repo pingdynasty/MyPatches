@@ -8,7 +8,7 @@
 template<size_t WIDTH, size_t HEIGHT, size_t OFFSET>
 class QuantumDisplay {
 protected:
-  uint8_t buffer[WIDTH]; // reduced sample buffer
+  uint8_t buffer[WIDTH];
 public:
   void update(FloatArray samples){
     size_t len = samples.getSize();
@@ -20,8 +20,6 @@ public:
     }
   }
   void draw(MonochromeScreenBuffer& screen){
-    // for(size_t x=0; x<WIDTH; ++x)
-    //   screen.setPixel(x, buffer[x] + OFFSET, WHITE);
     int y = buffer[0];
     for(size_t x=0; x<WIDTH; ++x)
       y = drawVerticalLine(screen, x, y, buffer[x], WHITE);
@@ -37,97 +35,157 @@ public:
   }
 };
 
-class QuantumHarmonicOscillatorPatch : public MonochromeScreenPatch {
+template<size_t samples, size_t controls, InterpolationMethod im = COSINE_INTERPOLATION>
+class QuantumHarmonicGenerator : public HarmonicOscillator<samples, controls>, SignalGenerator {
+  typedef HarmonicOscillator<samples, controls> QHO;
+protected:
+  InterpolatingCircularFloatBuffer<im>* wavetable;
+  float rate = 1;
+  float pos = 0;
+public:
+  QuantumHarmonicGenerator(float sr){
+    wavetable = InterpolatingCircularFloatBuffer<im>::create(samples*2);
+  }
+  ~QuantumHarmonicGenerator(){
+    InterpolatingCircularFloatBuffer<im>::destroy(wavetable);
+  }
+  void setFrequency(float freq){    
+    rate = freq/110.0f;
+  }
+  void generate(FloatArray output){
+    QHO::calculateNormalized(wavetable->getData(), samples);
+    QHO::increment();
+    float* wt = wavetable->getData();
+    for(size_t i=0; i<samples; ++i)
+      wt[(samples*2-1)-i] = wt[i];
+    size_t len = output.getSize();
+    wavetable->read(output.getData(), len, pos, rate);
+    pos = fmodf(pos+rate*len, samples*2);
+  }
+  FloatArray getWavetable(){
+    return FloatArray(wavetable->getData(), samples*2);
+  }
+};
+
+
+template<size_t samples, size_t controls, InterpolationMethod im = COSINE_INTERPOLATION>
+class HarmonicWavetableOscillator : public HarmonicOscillator<samples, controls>, SignalGenerator {
+  typedef HarmonicOscillator<samples, controls> QHO;
   typedef WavetableOscillator Osc;
   // typedef AntialiasedWavetableOscillator Osc;
-private:
-  static const int samples = 1024;
-  static const int controls = 5;
-  HarmonicOscillator<samples/2, controls> harms;
+protected:
   Osc* osc;
   FloatArray wavetable;
+  float rate = 1;
+  float pos = 0;
+public:
+  HarmonicWavetableOscillator(float sr){
+    wavetable = FloatArray::create(samples*2);
+    osc = new Osc(sr, wavetable);
+  }
+  ~HarmonicWavetableOscillator(){
+    FloatArray::destroy(wavetable);
+  }
+  void setFrequency(float freq){
+    osc->setFrequency(freq);
+  }
+  void generate(FloatArray output){
+    QHO::calculateNormalized(wavetable, samples);
+    QHO::increment();
+    for(size_t i=0; i<samples; ++i)
+      wavetable[(samples*2-1)-i] = wavetable[i];
+    osc->generate(output);
+    output.add(-0.5f);
+  }
+  FloatArray getWavetable(){
+    return wavetable;
+  }
+};
+
+class QuantumHarmonicOscillatorPatch : public MonochromeScreenPatch {
+private:
+  static const int samples = 512;
+  static const int controls = 5;
+  // typedef HarmonicWavetableOscillator<samples, controls> QuantumOsc;
+  typedef QuantumHarmonicGenerator<samples, controls, HERMITE_INTERPOLATION> QuantumOsc;
+  CircularFloatBuffer* wavetable;
+  QuantumOsc* quantum;
   VoltsPerOctave hz;
   QuantumDisplay<128, 47, 0> display;
   float glauber = 0;
-  Window window;
-  BiquadFilter* filter;
-  SmoothFloat rms;
+  StateVariableFilter* filter;
+  SmoothFloat freq;
+  SmoothFloat fc;
 public:
   QuantumHarmonicOscillatorPatch(){
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "Rate");
-    registerParameter(PARAMETER_C, "H2");
-    registerParameter(PARAMETER_D, "H3");
-    registerParameter(PARAMETER_E, "H4");
-    registerParameter(PARAMETER_F, "RMS>");
+    registerParameter(PARAMETER_C, "Coherence");
+    registerParameter(PARAMETER_D, "Filter");
+    registerParameter(PARAMETER_E, "Resonance");
+    registerParameter(PARAMETER_F, "LFO>");
     registerParameter(PARAMETER_G, "Energy>");
-    registerParameter(PARAMETER_AA, "Glauber");
+    registerParameter(PARAMETER_AA, "H1");
+    registerParameter(PARAMETER_AB, "H2");
+    registerParameter(PARAMETER_AC, "H3");
+    registerParameter(PARAMETER_AD, "H4");
+    registerParameter(PARAMETER_AE, "H5");
     setParameterValue(PARAMETER_A, 0.2);
     setParameterValue(PARAMETER_B, 0.2);
-    setParameterValue(PARAMETER_AA, 0.2);
-    wavetable = FloatArray::create(samples);
-    osc = new Osc(getSampleRate(), wavetable);
-    osc->setFrequency(440);
-    harms.calculate(wavetable, samples/2);
-    // window = Window::create(Window::HannWindow, samples);
-    // window = Window::create(Window::WelchWindow, samples);
-    window = Window::create(Window::SineWindow, samples/2);
-    filter = BiquadFilter::create(getSampleRate(), 2);
-    filter->setLowPass(2000, FilterStage::BUTTERWORTH_Q);
+    setParameterValue(PARAMETER_C, 0.2);
+    quantum = new QuantumOsc(getSampleRate());
+    filter = StateVariableFilter::create(getSampleRate());
+    filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+    FloatArray wt = quantum->getWavetable();
+    wavetable = new CircularFloatBuffer(wt.getData(), wt.getSize());
   }
   ~QuantumHarmonicOscillatorPatch(){
-    delete osc;
+    delete quantum;
+    delete wavetable;
+    StateVariableFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer) {
     float tune = getParameterValue(PARAMETER_A)*3 - 3;
     float ts = getParameterValue(PARAMETER_B);
-    harms.setTimeStep(ts*ts*ts);
-    if(getParameterValue(PARAMETER_AA) != glauber){
-      glauber = getParameterValue(PARAMETER_AA);
-      harms.setGlauberState(glauber);
-      harms.normalizeAmplitudes();
-      setParameterValue(PARAMETER_C, harms.getControl(1));
-      setParameterValue(PARAMETER_D, harms.getControl(2));
-      setParameterValue(PARAMETER_E, harms.getControl(3));
-      // setParameterValue(PARAMETER_F, harms.getControl(4));
+    quantum->setTimeStep(ts*ts*ts);
+    if(getParameterValue(PARAMETER_C) != glauber){
+      glauber = getParameterValue(PARAMETER_C);
+      quantum->setGlauberState(glauber);
+      quantum->normalizeAmplitudes();
+      setParameterValue(PARAMETER_AA, quantum->getControl(0));
+      setParameterValue(PARAMETER_AB, quantum->getControl(1));
+      setParameterValue(PARAMETER_AC, quantum->getControl(2));
+      setParameterValue(PARAMETER_AD, quantum->getControl(3));
+      setParameterValue(PARAMETER_AE, quantum->getControl(4));
     }else{
-      harms.setControl(1, getParameterValue(PARAMETER_C));
-      harms.setControl(2, getParameterValue(PARAMETER_D));
-      harms.setControl(3, getParameterValue(PARAMETER_E));
-      // harms.setControl(4, getParameterValue(PARAMETER_F));
-      harms.normalizeAmplitudes();
-    }
-    harms.calculateNormalized(wavetable, samples/2);
-    harms.increment();
-
-    // FloatArray half = wavetable.subArray(0, samples/2);
-    // window.process(half, half);
-    for(size_t i=0; i<samples/2; ++i)
-      wavetable[(samples-1)-i] = wavetable[i];
-    // size_t mid = samples/2;
-    // wavetable[mid-1] = Interpolator::cubic(wavetable[mid-2], wavetable[mid-1], wavetable[mid-0], 0.5);
-    display.update(wavetable);
+      quantum->setControl(0, getParameterValue(PARAMETER_AA));
+      quantum->setControl(1, getParameterValue(PARAMETER_AB));
+      quantum->setControl(2, getParameterValue(PARAMETER_AC));
+      quantum->setControl(3, getParameterValue(PARAMETER_AD));
+      quantum->setControl(4, getParameterValue(PARAMETER_AE));
+      quantum->normalizeAmplitudes();
+    }    
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     hz.setTune(tune);
-    float freq = hz.getFrequency(left[0]);
-    osc->setFrequency(freq);
-    osc->generate(left);
-    left.add(-0.5f);
-    float ae = harms.getAverageEnergy(); // 0.5 to 4.03
-    filter->setLowPass(freq*3, ae);
+    freq = hz.getFrequency(left[0]);
+    quantum->setFrequency(freq);
+    quantum->generate(left);
+    float ae = quantum->getAverageEnergy(); // 0.5 to 4.03
+    float fcamount = getParameterValue(PARAMETER_D)*7+1;
+    fc = clamp(freq*fcamount, 80.0f, getSampleRate()*0.4f);
+    float qamount = getParameterValue(PARAMETER_E)*2;
+    float q = ae*qamount + FilterStage::BUTTERWORTH_Q;
+    filter->setLowPass(fc, q);
     filter->process(left, left);
-    // left.softclip();
     left.tanh();
-    rms = left.getRms();
     right.copyFrom(left);
-    setParameterValue(PARAMETER_F, rms);
+    setParameterValue(PARAMETER_F, wavetable->read());
     setParameterValue(PARAMETER_G, ae/4);
+    display.update(quantum->getWavetable());
   }
   void processScreen(MonochromeScreenBuffer& screen){
     display.draw(screen);
-    // screen.print(10, 20, "e ");
-    // screen.print(harms.getAverageEnergy());
   }
 };
 
