@@ -3,10 +3,12 @@
 
 #include "Patch.h"
 #include "OpenWareLibrary.h"
-// ./wav2float MyPatches/ir/EMT\ 244\ \(A.\ Bernhard\)/0\,4s\ Low\*2\ \ High_2.wav > MyPatches/impulse-response.h
 
 #define IR_RESOURCE "ir.wav"
 #define REPURPOSE
+
+// sox ir/EMT\ 244\ \(A.\ Bernhard\)/0\,4s\ Low\*2\ \ High_2.wav -c 1 -e float ../ir.wav
+// 92% to 102% on Genius with bs=256, 111 segments, 592mS
 
 class BufferedSignalProcessor : public SignalProcessor {
 protected:
@@ -165,27 +167,27 @@ private:
   ConvolutionSignalProcessor* convolution;
 public:
   ConvolutionPatch() {
-    registerParameter(PARAMETER_D, "Wet/Dry");
+    registerParameter(PARAMETER_A, "Gain");
+    setParameterValue(PARAMETER_A, 0.5);
+    registerParameter(PARAMETER_B, "Mix");
+    setParameterValue(PARAMETER_B, 0.5);
 
     size_t blocksize = getBlockSize();
     size_t segsize = 2*blocksize;
 
     Resource* resource = getResource(IR_RESOURCE);
-    ASSERT(resource, "Missing resource " IR_RESOURCE);
-
     WavFile wav(resource->getData(), resource->getSize());
     if(!wav.isValid())
       error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
 
-    static const int segments = 23; // 30mS, 93% on Witch
-
+    // static const size_t segments = 23; // 30mS with blocksize=64, 93% on Witch
+    size_t segments = wav.getNumberOfSamples()/blocksize; // 128mS 49% on Genius
     FloatArray impulse = FloatArray::create(segments*blocksize);
     wav.read(0, impulse);
     // FloatArray impulse = wav.createFloatArray(0);
+    debugMessage("samples/segments/mS", (float)wav.getNumberOfSamples(), segments, 1000*impulse.getSize()/getSampleRate());
     Resource::destroy(resource);
 
-    debugMessage("samples/ir/mS", (int)wav->getNumberOfSamples(), impulse.getSize(), 1000*impulse.getSize()/getSampleRate());
-    
     // normalise IR level
     // float scale = 1.0f/max(impulse.getMaxValue(), -impulse.getMinValue());
     // impulse.multiply(scale);
@@ -197,9 +199,11 @@ public:
     ConvolutionSignalProcessor::destroy(convolution);
   }
   void processAudio(AudioBuffer &buffer) {
-    float mix = getParameterValue(PARAMETER_D);
+    float gain = getParameterValue(PARAMETER_A)*2;
+    float mix = getParameterValue(PARAMETER_B);
     convolution->setMix(mix);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    left.multiply(gain);
     convolution->process(left, left);
     buffer.getSamples(RIGHT_CHANNEL).copyFrom(left);
   }
