@@ -179,7 +179,7 @@ public:
     voices->setVoice(3, createVoice("sample4.wav"));
     
     // lfo
-    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate(), getBlockSize());
     registerParameter(PARAMETER_E, "LFO");
     registerParameter(PARAMETER_F, "LFO>");
     registerParameter(PARAMETER_G, "Envelope>");

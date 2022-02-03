@@ -139,6 +139,7 @@ public:
 
 class WitchPatch : public AbstractWitchPatch {
 protected:
+  SmoothFloat fxamount;
   SynthVoices* voices;
   WitchLFO* lfo1;
   WitchLFO* lfo2;
@@ -148,12 +149,13 @@ protected:
 public:
   WitchPatch(){
     // lfo
-    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
-    lfo2 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
+    lfo1 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate(), getBlockSize());
+    lfo2 = WitchLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate(), getBlockSize());
     lfo1->setBeatsPerMinute(60);
     lfo2->setBeatsPerMinute(120);
     fx = WitchMultiEffect::create(getSampleRate(), getBlockSize());
     fx->setBeatsPerMinute(60);
+    fxamount.lambda = 0.998;
 
     registerParameter(PARAMETER_FX_AMOUNT, "FX Amount");
     registerParameter(PARAMETER_EXTL_AMOUNT, "Ext L Amount");
@@ -239,7 +241,8 @@ public:
   }
   
   void dofx(AudioBuffer &buffer){
-    fx->setEffect(getParameterValue(PARAMETER_FX_AMOUNT));
+    fxamount = getParameterValue(PARAMETER_FX_AMOUNT);
+    fx->setEffect(fxamount);
     fx->process(buffer, buffer);
   }
 

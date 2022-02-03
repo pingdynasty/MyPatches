@@ -307,20 +307,6 @@ public:
   }
 };
 
-class SeriesSignalProcessor : public SignalProcessor {
-protected:
-  SignalProcessor* a;
-  SignalProcessor* b;
-public:
-  float process(float input){
-    return b->process(a->process(input));
-  }
-  void process(FloatArray input, FloatArray output){
-    a->process(input, output);
-    b->process(output, output);
-  }
-};
-
 template<class Processor>
 class StereoSignalProcessor : public Processor {
 protected:
@@ -582,8 +568,9 @@ public:
 class WitchOverdrive : public WitchFX, public StereoOverdriveProcessor {
 protected:
   float gain = 1;
+  StereoDcBlockingFilter dc;
 public:
-  WitchOverdrive(float samplerate): WitchFX(samplerate){}
+  WitchOverdrive(float samplerate): WitchFX(samplerate) {}
   void setEffect(float value){
     setDrive(value*value*8+value*4+1);
     gain = max(1-value, 0.5f);
@@ -593,8 +580,10 @@ public:
   }
   void process(AudioBuffer& input, AudioBuffer& output){
     StereoOverdriveProcessor::process(input, output);
-    // OverdriveProcessor::process(input, output);
     output.multiply(gain);
+    output.getSamples(LEFT_CHANNEL).softclip();
+    output.getSamples(RIGHT_CHANNEL).softclip();
+    dc.process(output, output);
   }
   static WitchOverdrive* create(float samplerate, size_t blocksize){
     return new WitchOverdrive(samplerate);

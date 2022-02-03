@@ -1,5 +1,4 @@
 #include "TapTempoOscillator.h"
-#include "MorphingOscillator.h"
 
 class WitchLFO : public TapTempoOscillator<MorphingOscillator> {
 public:
@@ -10,14 +9,14 @@ public:
     select(shape / NOF_SHAPES);
   }
   void select(float value){
-    oscillator->select(value);
+    oscillator->morph(value);
   }
   void reset(){
     oscillator->reset();
   }
-  static WitchLFO* create(float sample_rate, size_t limit, float block_rate){
+  static WitchLFO* create(float sample_rate, size_t limit, float block_rate, size_t block_size){
     float rate = block_rate;
-    MorphingOscillator* morph = MorphingOscillator::create(NOF_SHAPES);
+    MorphingOscillator* morph = MorphingOscillator::create(NOF_SHAPES, block_size);
     morph->setOscillator(0, AgnesiOscillator::create(rate));
     morph->setOscillator(1, SineOscillator::create(rate));
     morph->setOscillator(2, TriangleOscillator::create(rate));
