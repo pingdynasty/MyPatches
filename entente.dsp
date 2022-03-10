@@ -1,5 +1,5 @@
 declare name "L'Entente Cordiale";
-declare message "L'Entente Cordiale";
+declare message "La Fameuse\nEntente Cordiale";
 declare description "French and English church bells in unison.";
 
 import("stdfaust.lib");
@@ -10,8 +10,8 @@ englishBell(strikePosition,strikeCutoff,strikeSharpness,gain,trigger) =
 
 // process = pm.frenchBell(pos : ba.sAndH(ba.impulsify(lgate)),cutoff,sharp,gain,lgate),
 // 	  englishBell(pos : ba.sAndH(ba.impulsify(rgate)),cutoff,sharp,gain,rgate)
-process = pm.frenchBell(pos : ba.latch(lgate),cutoff,sharp,gain,lgate),
-	  englishBell(pos : ba.latch(rgate),cutoff,sharp,gain,rgate)
+process = pm.frenchBell(pos : ba.latch(lgate), cutoff, sharp, gain, lgate),
+	  englishBell(pos : ba.latch(rgate), cutoff, sharp, gain, rgate)
 with{
   pos = nentry("Position[OWL:A]",0,0,6,1);
   sharp = hslider("Sharpness[OWL:B]",0.5,0.0001,1,0.01), 2 : pow;
