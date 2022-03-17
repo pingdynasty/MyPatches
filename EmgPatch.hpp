@@ -37,13 +37,13 @@ class EmgSignalProcessor {
 #endif
 public:
   EmgSignalProcessor(float sr, float notch_fc, float lp_fc): sr(sr){
-    hpf = BiquadFilter::create(5);
-    notch = BiquadFilter::create(5);
-    lpf = BiquadFilter::create(5);
+    hpf = BiquadFilter::create(sr, 5);
+    notch = BiquadFilter::create(sr, 5);
+    lpf = BiquadFilter::create(sr, 5);
     // initial filter settings
-    hpf->setHighPass(10.0f/(sr/2), FilterStage::BUTTERWORTH_Q);
-    notch->setNotch(notch_fc/(sr/2), 8);
-    lpf->setLowPass(lp_fc/(sr/2), FilterStage::BUTTERWORTH_Q);
+    hpf->setHighPass(10.0f, FilterStage::BUTTERWORTH_Q);
+    notch->setNotch(notch_fc, 8);
+    lpf->setLowPass(lp_fc, FilterStage::BUTTERWORTH_Q);
   }
   ~EmgSignalProcessor(){
     BiquadFilter::destroy(hpf);
@@ -51,8 +51,8 @@ public:
     BiquadFilter::destroy(lpf);
   }
   void processRaw(FloatArray samples, float gain, float hpfc, float notchq){
-    hpf->setHighPass(hpfc/(sr/2), FilterStage::BUTTERWORTH_Q);
-    notch->setNotch(50.0f/(sr/2), notchq);
+    hpf->setHighPass(hpfc, FilterStage::BUTTERWORTH_Q);
+    notch->setNotch(50.0f, notchq);
     hpf->process(samples);
     notch->process(samples);
     lpf->process(samples);
@@ -70,7 +70,7 @@ private:
   int channels = 0;
 public:
   EmgPatch() {
-    debugMessage("EMG v8 SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
+    debugMessage("EMG v9 SR/BS/CH", (int)getSampleRate(), getBlockSize(), getNumberOfChannels());
     channels = min(4, getNumberOfChannels());
     processor = new EmgSignalProcessor*[channels];
     for(int ch=0; ch<channels; ++ch)
@@ -95,7 +95,7 @@ public:
 
   void processAudio(AudioBuffer &buffer) {
     float gain = getParameterValue(PARAMETER_A)*1000+1;
-    float fc = getParameterValue(PARAMETER_B)*10+4;
+    float fc = getParameterValue(PARAMETER_B)*10+10;
     float q = getParameterValue(PARAMETER_C)*20+0.707;
     float alpha = getParameterValue(PARAMETER_D)*0.7+0.299;
 #ifdef SEND_XYZ_DATA
