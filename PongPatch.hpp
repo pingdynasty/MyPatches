@@ -14,7 +14,7 @@ public:
   float y = 0.5;
   float speedx = 0;
   float speedy = 0;
-  static constexpr float radius = 9 / scaleX;
+  static constexpr float radius = 2 / scaleX;
   void reset(){
     x = 0.5;
     y = 0.5;
