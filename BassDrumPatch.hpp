@@ -1,7 +1,7 @@
 #ifndef __BassDrumPatch_hpp__
 #define __BassDrumPatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 #include "BassDrum.hpp"
 
 class BassDrumPatch : public Patch {
@@ -23,13 +23,13 @@ public:
   void processAudio(AudioBuffer& buffer){
     float tone = 20*powf(2, getParameterValue(PARAMETER_A)*4);
     float decay = getParameterValue(PARAMETER_B);
-    float c = getParameterValue(PARAMETER_C);
-    float level = getParameterValue(PARAMETER_D)*2;
+    float snare = getParameterValue(PARAMETER_C);
+    float level = getParameterValue(PARAMETER_D)*4;
     drum[0]->setDecay(decay);
     drum[0]->setFrequency(tone);
     drum[1]->setDecay(decay*2);
     drum[1]->setFrequency(tone*2);
-    drum[1]->setSnap(c);
+    drum[1]->setSnap(snare);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     if(isButtonPressed(PUSHBUTTON) != buttonstate){
