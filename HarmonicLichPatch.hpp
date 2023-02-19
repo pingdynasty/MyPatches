@@ -60,7 +60,7 @@ private:
   int centernote = 0;
   const float NYQUIST;
 public:
-  HarmonicLichPatch() : hz(true), NYQUIST(getSampleRate()/2) {
+  HarmonicLichPatch() : NYQUIST(getSampleRate()/2) {
     registerParameter(PARAMETER_A, "Semitone");
     registerParameter(PARAMETER_B, "Fine Tune");
     registerParameter(PARAMETER_C, "Centre");
@@ -152,7 +152,7 @@ public:
       float newlevel = getParameterValue(PatchParameterId(PARAMETER_AA+i));
       float distance = abs(centre - i);
       float duck = i < centre ? a*distance : r*distance;
-      newlevel = mutes[i] ? 0 : max(0, min(1, newlevel*(1-duck)));
+      newlevel = mutes[i] ? 0.0f : std::max(0.0f, std::min(1.0f, newlevel*(1.0f-duck)));
       ramp.ramp(levels[i], newlevel);
       levels[i] = newlevel;
       newgainadjust += newlevel;
