@@ -160,9 +160,9 @@ public:
       if(freq > 10 && freq < NYQUIST){
 	osc[i]->setFrequency(freq);
 #ifdef USE_FM
-	osc[i]->getSamples(mix, right);
+	osc[i]->generate(mix, right);
 #else
-	osc[i]->getSamples(mix);
+	osc[i]->generate(mix);
 #endif
 	mix.multiply(ramp);
 	left.add(mix);
