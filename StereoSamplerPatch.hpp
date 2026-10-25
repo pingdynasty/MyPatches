@@ -51,7 +51,11 @@ public:
 	debugMessage("finished sampling");
       }else{
 	int len = min((int)(samples[0].getSize()-recpos), size);
-	samples[0].insert(left, recpos, 0, len);
+	// insert(source, sourceOffset, destinationOffset, len): write the incoming
+	// block (from its start) into the record buffer at recpos. The old API's
+	// argument order differed; v23.1 asserts source.size >= sourceOffset+len,
+	// so the previous (recpos, 0) order overran the source and aborted.
+	samples[0].insert(left, 0, recpos, len);
 	recpos += len;
       }
     }else{
