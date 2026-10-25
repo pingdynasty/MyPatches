@@ -174,8 +174,7 @@ public:
     return new ChordSignalGenerator(FloatArray::create(blocksize), sr);
   }
   static void destroy(ChordSignalGenerator* obj){
-    FloatArray::destroy(obj->buffer);
-    delete obj;
+    delete obj; // ~ChordSignalGenerator() destroys buffer
   }
 };
 
