@@ -50,13 +50,14 @@ public:
     mix2 = 0.5;    
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value)
-	basenote = note - 60;
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       resetPatch();
     }
+  }
+  void processMidi(MidiMessage msg){
+    // v23.1 removed the MIDI_NOTE_BUTTON->button mapping; notes arrive via processMidi
+    if(msg.isNoteOn())
+      basenote = msg.getNote() - 60;
   }
   void processAudio(AudioBuffer &buffer) {
     float pw = 0.5;
