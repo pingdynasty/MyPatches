@@ -3,6 +3,7 @@
 
 #include "Patch.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -25,7 +26,7 @@ class SynthVoice {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
 public:
@@ -73,7 +74,7 @@ public:
   }
   void getSamples(FloatArray samples){
     filter->setLowPass(fc, q);
-    osc.getSamples(samples);
+    osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
     env.attenuate(samples);
