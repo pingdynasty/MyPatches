@@ -79,7 +79,7 @@ public:
       return round(volts*12)/12.0f;
     default:
       int octave = (int)volts;
-      int semitone = (int)round(volts*12) % 12;
+      int semitone = ((int)round(volts*12) % 12 + 12) % 12; // keep index in [0,11]
       return scales[scale-2][semitone] + octave + offset/12.0f;
     }
   }
