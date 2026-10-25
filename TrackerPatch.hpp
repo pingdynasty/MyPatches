@@ -50,7 +50,7 @@ public:
       freq = zcc.getFrequency()*tune;
       samples.multiply(1.0-mix);
       osc.setFrequency(freq);
-      osc.getSamples(output);
+      osc.generate(output);
       output.multiply(mix*gain);
       samples.add(output);
     }else{

@@ -25,34 +25,36 @@ public:
   }
   ~PolyDrumPatch(){
   }
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value){
-	if(note < 40){
-	  float freq = 220.0f*exp2f((note-69 + pitchbend*2)/12.0);
-	  voices[0]->setFrequency(freq);
-	  voices[0]->setAccent(value/4096.0f);
-	  voices[0]->trigger();
-	}else if(note < 60){
-	  float freq = 220.0f*exp2f((note-69 + pitchbend*2)/12.0);
-	  voices[1]->setFrequency(freq);
-	  voices[1]->setAccent(value/4096.0f);
-	  voices[1]->trigger();
-	}else if(note < 80){
-	  float freq = 440.0f*exp2f((note-69 + pitchbend*2)/12.0);
-	  voices[2]->setFrequency(freq);
-	  voices[2]->setAccent(value/4096.0f);
-	  voices[2]->trigger();
-	}else{
-	  float freq = 440.0f*exp2f((note-69 + pitchbend*2)/12.0);
-	  voices[3]->setFrequency(freq);
-	  voices[3]->setAccent(value/4096.0f);
-	  voices[3]->trigger();
-	}
-	debugMessage("note on", note, value);
+  void processMidi(MidiMessage msg){
+    if(msg.isNoteOn()){
+      uint8_t note = msg.getNote();
+      uint16_t value = msg.getVelocity() << 5; // scale 0-127 to 0-4064
+      if(note < 40){
+	float freq = 220.0f*exp2f((note-69 + pitchbend*2)/12.0);
+	voices[0]->setFrequency(freq);
+	voices[0]->setAccent(value/4096.0f);
+	voices[0]->trigger();
+      }else if(note < 60){
+	float freq = 220.0f*exp2f((note-69 + pitchbend*2)/12.0);
+	voices[1]->setFrequency(freq);
+	voices[1]->setAccent(value/4096.0f);
+	voices[1]->trigger();
+      }else if(note < 80){
+	float freq = 440.0f*exp2f((note-69 + pitchbend*2)/12.0);
+	voices[2]->setFrequency(freq);
+	voices[2]->setAccent(value/4096.0f);
+	voices[2]->trigger();
+      }else{
+	float freq = 440.0f*exp2f((note-69 + pitchbend*2)/12.0);
+	voices[3]->setFrequency(freq);
+	voices[3]->setAccent(value/4096.0f);
+	voices[3]->trigger();
       }
-    }else if(bid == PUSHBUTTON){
+      debugMessage("note on", note, value);
+    }
+  }
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
+    if(bid == PUSHBUTTON){
       for(int i=0; i<4; ++i)
 	voices[i]->trigger(value, samples);
     }

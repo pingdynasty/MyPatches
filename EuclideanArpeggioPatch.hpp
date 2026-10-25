@@ -4,12 +4,13 @@
 #include "StompBox.h"
 #include "SmoothValue.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "Sequence.h"
 #include "PolyBlepOscillator.h"
 
 class EuclideanArpeggioPatch : public Patch {
 private:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   PolyBlepOscillator osc[2];
   FloatArray envelope;
   SmoothFloat freq;
@@ -63,8 +64,8 @@ public:
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     int size = buffer.getSize();
-    osc[0].getSamples(left);
-    osc[1].getSamples(right);
+    osc[0].generate(left);
+    osc[1].generate(right);
     env.getEnvelope(envelope);
     left.multiply(envelope);
     right.multiply(envelope);

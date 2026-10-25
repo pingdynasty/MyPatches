@@ -174,15 +174,14 @@ public:
     return new ChordSignalGenerator(FloatArray::create(blocksize), sr);
   }
   static void destroy(ChordSignalGenerator* obj){
-    FloatArray::destroy(obj->buffer);
-    delete obj;
+    delete obj; // ~ChordSignalGenerator() destroys buffer
   }
 };
 
 #if VOICES == 1
-typedef MonophonicSignalGenerator<ChordSignalGenerator> ChordVoices;
+typedef VoiceAllocatorSignalGenerator<MonophonicProcessor<ChordSignalGenerator>, ChordSignalGenerator, VOICES> ChordVoices;
 #else
-typedef PolyphonicSignalGenerator<ChordSignalGenerator, VOICES> ChordVoices;
+typedef VoiceAllocatorSignalGenerator<PolyphonicProcessor<ChordSignalGenerator, VOICES>, ChordSignalGenerator, VOICES> ChordVoices;
 #endif
 
 class ChorduroyPatch : public Patch {

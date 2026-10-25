@@ -2,7 +2,7 @@
 #define __MorphPatch_hpp__
 
 #include "OpenWareLibrary.h"
-#include "MorphingOscillator.h"
+#include "SquareOscillator.h" // InvertedSquareOscillator typedef lives here, not in OpenWareLibrary.h
 
 // #include "WitchFX.hpp"
 // #include "WitchPatch.hpp"
@@ -13,7 +13,7 @@ private:
 public:
   MorphPatch(){
     float rate = getSampleRate();
-    morph = MorphingOscillator::create(5);
+    morph = MorphingOscillator::create(5, getBlockSize());
     morph->setOscillator(0, AgnesiOscillator::create(rate));
     morph->setOscillator(1, SineOscillator::create(rate));
     morph->setOscillator(2, TriangleOscillator::create(rate));
@@ -47,7 +47,7 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
-    morph->select(getParameterValue(PARAMETER_D));
+    morph->morph(getParameterValue(PARAMETER_D));
     morph->setFrequency(getParameterValue(PARAMETER_A)*440+4);
     morph->generate(left);
   }

@@ -2,7 +2,7 @@
 #define __TriadPatch_hpp__
 
 #include "StompBox.h"
-#include "PitchDetector.hpp"
+#include "PitchDetector.h"
 #include "SmoothValue.h"
 #include "PolyBlepOscillator.h"
 
@@ -17,9 +17,9 @@ static const float TRIAD_TONES[4][3] = {
   {0, 3, 7},
   {0, 3, 6},
   {0, 4, 8}
-}
+};
 
-class TriadPatch : public Patch {
+class TrichordPatch : public Patch {
 private:
   PolyBlepOscillator osc;
   ZeroCrossingPitchDetector zcc;
@@ -27,7 +27,7 @@ private:
   SmoothFloat gain;
   FloatArray output;
 public:
-  TriadPatch() :
+  TrichordPatch() :
     osc(getSampleRate()), 
     zcc(getSampleRate(), getBlockSize()),
     freq(0.9, 440.0),
@@ -40,7 +40,7 @@ public:
     zcc.setHighPassCutoff(8000);
     output = FloatArray::create(getBlockSize());
   }      
-  ~TriadPatch(){
+  ~TrichordPatch(){
     FloatArray::destroy(output);
   }
   void processAudio(AudioBuffer &buffer) {
@@ -67,7 +67,7 @@ public:
     float dry = 1.0-wet;
     left.multiply(dry);
     osc.setFrequency(freq);
-    osc.getSamples(output);
+    osc.generate(output);
     output.multiply(wet*gain);
     left.add(output);
   }

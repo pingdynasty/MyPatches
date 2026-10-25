@@ -77,6 +77,8 @@ public:
     hat = new CymbalVoice(getSampleRate());
     kick = new BassDrumVoice(getSampleRate());
     kick->setSnap(0.2);
+    drum[0] = new DrumTrigger(hat);
+    drum[1] = new DrumTrigger(kick);
   }
   ~DualEuclideanDrumPatch(){
   }

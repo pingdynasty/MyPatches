@@ -12,9 +12,9 @@ static const int TRIGGER_LIMIT = (1<<17);
 
 class StereoSamplerVoice : public AbstractSynth {
 private:
-  SampleOscillator* oscL;
-  SampleOscillator* oscR;
-  AdsrEnvelope* env;
+  LinearSampleOscillator* oscL;
+  LinearSampleOscillator* oscR;
+  LinearAdsrEnvelope* env;
   float gain;
   Control<PARAMETER_D> attack_release = 0.5f;
   Control<PARAMETER_AB> decay = 0.0f;
@@ -26,9 +26,9 @@ private:
 public:
   StereoSamplerVoice(float sr, size_t bs, FloatArray left, FloatArray right)
     : gain(1.0f) {
-    oscL = SampleOscillator::create(sr, left);
-    oscR = SampleOscillator::create(sr, right);
-    env = AdsrEnvelope::create(sr);
+    oscL = LinearSampleOscillator::create(sr, left);
+    oscR = LinearSampleOscillator::create(sr, right);
+    env = LinearAdsrEnvelope::create(sr);
     filter = StereoBiquadFilter::create(sr, 2);
     buffer = FloatArray::create(bs);
   }
@@ -36,10 +36,10 @@ public:
     return new StereoSamplerVoice(sr, bs, left, right);
   }
   static void destroy(StereoSamplerVoice* obj) {
-    SampleOscillator::destroy(obj->oscL);
-    SampleOscillator::destroy(obj->oscR);
+    LinearSampleOscillator::destroy(obj->oscL);
+    LinearSampleOscillator::destroy(obj->oscR);
     FloatArray::destroy(obj->buffer);
-    AdsrEnvelope::destroy(obj->env);
+    LinearAdsrEnvelope::destroy(obj->env);
     StereoBiquadFilter::destroy(obj->filter);
     delete obj;
   }
@@ -47,7 +47,7 @@ public:
     oscL->setFrequency(freq);
     oscR->setFrequency(freq);
     freq *= 30;
-    freq = min(18000, freq);
+    freq = min(18000.0f, freq);
     // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setEnvelope() {
@@ -129,12 +129,13 @@ public:
 };
 
 #if defined USE_MPE
-typedef MidiPolyphonicExpressionMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
+typedef MidiPolyphonicExpressionProcessor<StereoSamplerVoice, POLYPHONY> Allocator;
 #elif POLYPHONY == 1
-typedef MonophonicMultiSignalGenerator<StereoSamplerVoice> VoiceProcessor;
+typedef MonophonicProcessor<StereoSamplerVoice> Allocator;
 #else
-typedef PolyphonicMultiSignalGenerator<StereoSamplerVoice, POLYPHONY> VoiceProcessor;
+typedef PolyphonicProcessor<StereoSamplerVoice, POLYPHONY> Allocator;
 #endif
+typedef VoiceAllocatorMultiSignalGenerator<Allocator, StereoSamplerVoice, POLYPHONY> VoiceProcessor;
 
 class StereoSamplerPatch : public Patch {
 private:
@@ -143,8 +144,8 @@ private:
 
   SineOscillator* lfo1;
   AgnesiOscillator* lfo2;
-  TapTempo<TRIGGER_LIMIT> tempo1;
-  TapTempo<TRIGGER_LIMIT> tempo2;
+  LegacyTapTempo<TRIGGER_LIMIT> tempo1;
+  LegacyTapTempo<TRIGGER_LIMIT> tempo2;
   FloatArray sampleL, sampleR;
 public:
 

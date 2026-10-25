@@ -3,6 +3,7 @@
 
 #include "StompBox.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -21,19 +22,20 @@ class SynthVoice {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
+  float sr;
 public:
   SynthVoice(float sr, BiquadFilter* f) : 
-    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f) {    
+    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f), sr(sr) {    
     env.setSustain(1.0);
     env.setDecay(0.0);
     env.setRelease(0.0);
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(4));
+    return new SynthVoice(sr, BiquadFilter::create(sr, 4));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -67,12 +69,12 @@ public:
     env.gate(state, delay);
   }
   void getSamples(FloatArray samples){
-    filter->setLowPass(fc, q);
-    osc.getSamples(samples);
+    filter->setLowPass(fc*sr, q); // fc is a fraction of the sample rate; filter wants Hz
+    osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
     samples.multiply(0.8-q*0.2); // gain compensation for high q
-    env.attenuate(samples);
+    env.process(samples, samples);
   }
 };
 
@@ -97,36 +99,42 @@ public:
     SynthVoice::destroy(voice[0]);
     SynthVoice::destroy(voice[1]);
   }
+  void noteOn(uint8_t note, uint16_t velocity, uint16_t samples){
+    float freq = (440.0f / 32) * exp2f((note - 9) / 12.0f);
+    if(notes[0] == -1 || notes[0] == note){
+      notes[0] = note;
+      voice[0]->setFrequency(freq);
+      voice[0]->setGain(velocity/4095.0f);
+      voice[0]->setGate(true, samples);
+    }else if(notes[1] == -1 || notes[1] == note){
+      notes[1] = note;
+      voice[1]->setFrequency(freq);
+      voice[1]->setGain(velocity/4095.0f);
+      voice[1]->setGate(true, samples);
+    }
+  }
+  void noteOff(uint8_t note, uint16_t samples){
+    if(notes[0] == note){
+      notes[0] = -1;
+      voice[0]->setGate(false, samples);
+    }else if(notes[1] == note){
+      notes[1] = -1;
+      voice[1]->setGate(false, samples);
+    }
+  }
+  void processMidi(MidiMessage msg){
+    if(msg.isNoteOn()){
+      uint8_t note = msg.getNote();
+      // scale 7-bit MIDI velocity to the 12-bit range the patch expects
+      uint16_t velocity = (uint16_t)msg.getVelocity() << 5;
+      debugMessage("midi note", note, velocity);
+      noteOn(note, velocity, 0);
+    }else if(msg.isNoteOff()){
+      noteOff(msg.getNote(), 0);
+    }
+  }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      debugMessage("midi note", note, value, samples);
-      if(value){
-	// note on
-	// float freq = (440.0f / 32) * (2 ^ ((note - 9) / 12));
-	float freq = (440.0f / 32) * exp2f((note - 9) / 12.0f);
-	if(notes[0] == -1 || notes[0] == note){
-	  notes[0] = note;
-	  voice[0]->setFrequency(freq);
-	  voice[0]->setGain(value/4095.0f);
-	  voice[0]->setGate(true, samples);
-	}else if(notes[1] == -1 || notes[1] == note){
-	  notes[1] = note;
-	  voice[1]->setFrequency(freq);
-	  voice[1]->setGain(value/4095.0f);
-	  voice[1]->setGate(true, samples);
-	}	  
-      }else{
-	// note off
-	if(notes[0] == note){
-	  notes[0] = -1;
-	  voice[0]->setGate(false, samples);
-	}else if(notes[1] == note){
-	  notes[1] = -1;
-	  voice[1]->setGate(false, samples);
-	}
-      }
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       if(value){
 	voice[0]->setGate(true, 0);
 	voice[1]->setGate(true, 0);

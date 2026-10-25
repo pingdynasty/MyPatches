@@ -47,8 +47,8 @@ public:
     registerParameter(PARAMETER_C, "Input Level");
     registerParameter(PARAMETER_D, "Dry/Wet");
     AudioBuffer* buffer = createMemoryBuffer(2, SIMPLE_STEREO_DELAY_REQUEST_BUFFER_SIZE);
-    delayBufferL.initialise(buffer->getSamples(0), buffer->getSize());
-    delayBufferR.initialise(buffer->getSamples(1), buffer->getSize());
+    delayBufferL = CircularBuffer(buffer->getSamples(0), buffer->getSize());
+    delayBufferR = CircularBuffer(buffer->getSamples(1), buffer->getSize());
   }
   void processAudio(AudioBuffer &buffer){
     float gain = getParameterValue(PARAMETER_C)*2;

@@ -38,7 +38,7 @@ public:
     int mode = getParameterValue(PARAMETER_D)*ZOELZER_MODES;
     float fc = getParameterValue(PARAMETER_A)*12000+400; // exp control?
     float q = getParameterValue(PARAMETER_B)*4+0.1;
-    float gain = getParameterValue(PARAMETER_C)*36-18
+    float gain = getParameterValue(PARAMETER_C)*36-18;
     switch(mode){
     case ZOELZER_LOWPASS_FILTER_MODE:
       filter->setLowPass(fc, q);

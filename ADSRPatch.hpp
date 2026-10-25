@@ -2,11 +2,11 @@
 #define __ADSRPatch_hpp__
 
 #include "StompBox.h"
-#include "Envelope.h"
+#include "AdsrEnvelope.h"
 
 class ADSRPatch : public Patch {
 public:
-  AdsrEnvelope adsr;
+  LinearAdsrEnvelope adsr;
   FloatArray envelope;
   ADSRPatch() : adsr(getSampleRate()) {
     registerParameter(PARAMETER_A, "Attack");

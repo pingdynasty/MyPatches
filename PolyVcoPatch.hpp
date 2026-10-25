@@ -19,6 +19,7 @@
 
 #include "Patch.h"
 #include "DcFilter.hpp"
+#include "SmoothValue.h"
 #include "MonoVoiceAllocator.hpp"
 
 static constexpr int TUNING_TABLE_SIZE = 256;

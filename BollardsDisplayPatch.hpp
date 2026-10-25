@@ -1,4 +1,5 @@
-#include "Patch.h"
+#include "ColourScreenPatch.h"
+#include "SmoothValue.h"
 
 #define MAX_PRESET     11
 #define MANUAL_PRESET (MAX_PRESET+1)
@@ -15,7 +16,7 @@ const char presetnames[][8] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
 
 #define PARAMETER_TICKS 63
 
-class BollardsDisplayPatch : public Patch {
+class BollardsDisplayPatch : public ColourScreenPatch {
 private:
   const int SEND_RATE = 1357;
   const int OWL_A_CH = 1;
@@ -89,7 +90,7 @@ public:
     tune2 = SmoothFloat(0, 0.98);
     autoChangePreset = false;
   }
-  void drawPreset(ScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
+  void drawPreset(ColourScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
     screen.setCursor(x, y);
     if(preset < MAX_PRESET){
       screen.setTextSize(1);
@@ -100,13 +101,13 @@ public:
     }      
     screen.print(presetnames[preset-1]);
   }
-  void drawOctave(ScreenBuffer& screen, uint8_t x, uint8_t y, int8_t octave){
+  void drawOctave(ColourScreenBuffer& screen, uint8_t x, uint8_t y, int8_t octave){
     screen.setTextSize(1);
     screen.print(x, y, "Octave ");
     screen.setTextSize(4);
     screen.print(octave);
   }
-  void processScreen(ScreenBuffer& screen){
+  void processScreen(ColourScreenBuffer& screen){
     screen.fill(bg);
     if(idle >= maxIdleInterval){
       screen.clear();

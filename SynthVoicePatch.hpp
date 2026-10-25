@@ -3,6 +3,7 @@
 
 #include "StompBox.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -40,13 +41,13 @@ public:
  */
 class SynthVoicePatch : public Patch {
 private:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   TriggerButton* button;
   FloatArray envelope;
   PolyBlepOscillator osc;
   VoltsPerOctave hz;
   BiquadFilter* filter;
-  SmoothFloat tune, cutoff, q, fc;
+  SmoothFloat tune, fc, q;
 public:
   SynthVoicePatch() : osc(getSampleRate()), env(getSampleRate()) {
     registerParameter(PARAMETER_A, "Pitch");
@@ -58,24 +59,17 @@ public:
     env.setDecay(0.0);
     env.setRelease(0.0);
     envelope = FloatArray::create(getBlockSize());
-    filter = BiquadFilter::create(4); // 8-pole filter 48dB
+    filter = BiquadFilter::create(getSampleRate(), 4); // 8-pole filter 48dB
     button = new TriggerButton(&env);
-    debugMessage("offset/mult", hz.offset, hz.multiplier);
-    hz.offset = -0.0589f;
-    hz.multiplier = -4.399f;
-    // tune.lambda = 0.3;
-    // cutoff.lambda = 0.3;
   }
   ~SynthVoicePatch(){
     FloatArray::destroy(envelope);
     BiquadFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer) {
-    tune = getParameterValue(PARAMETER_A)*2-1;
-    // tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
-    float cutoff = getParameterValue(PARAMETER_B)*8.0;
-    // float cutoff = getParameterValue(PARAMETER_B)*10.0 - 4.0;
-    q = getParameterValue(PARAMETER_C)*2.4+0.75;
+    tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
+    float cutoff = getParameterValue(PARAMETER_B)*10.0 - 4.0;
+    q = getParameterValue(PARAMETER_C)*3+0.75;
     float shape = getParameterValue(PARAMETER_E)*2;
     float pw = 0.5;
     if(shape > 1.0){
@@ -116,16 +110,19 @@ public:
     osc.setFrequency(freq);
     osc.setShape(shape);
     osc.setPulseWidth(pw);
-    osc.getSamples(left);
+    osc.generate(left);
     // vcf
     hz.setTune(cutoff);
-    fc = min(0.999, max(0.01, hz.getFrequency(right[0])/(getSampleRate()*2))); // normalised and bounded
-    filter->setLowPass(fc, q);
+    cutoff = hz.getFrequency(right[0]);
+    fc = min(0.999, max(0.01, cutoff/(getSampleRate()*2))); // normalised and bounded
+    // pre-v23.1 the library read this as a fraction of the sample rate (cutoff/2 Hz);
+    // keep that, capped just below Nyquist
+    filter->setLowPass(min(fc*getSampleRate(), 0.49f*getSampleRate()), q);
     right.copyFrom(left);
     filter->process(right);
     right.multiply(0.8-q*0.2); // gain compensation for high q
     // vca
-    env.getEnvelope(envelope);
+    env.generate(envelope);
     envelope.add(gain);
     left.multiply(envelope);
     right.multiply(envelope);

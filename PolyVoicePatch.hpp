@@ -3,32 +3,32 @@
 
 #include "Patch.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 
 // The per-note messages sent over each channel are limited to Note On, Note Off, Channel Pressure (for finger pressure), Pitch Bend (for x-axis movement) and CC74 (for Y-axis movement).
-
-#define MIDI_VOICES 4
   
 class SynthVoice {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
+  float sr;
 public:
   SynthVoice(float sr, BiquadFilter* f) : 
-    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f) {    
+    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f), sr(sr) {    
     env.setSustain(1.0);
     env.setDecay(0.0);
     env.setRelease(0.0);
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(2));
+    return new SynthVoice(sr, BiquadFilter::create(sr, 4));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -61,8 +61,8 @@ public:
     env.gate(state, delay);
   }
   void getSamples(FloatArray samples){
-    filter->setLowPass(fc, q);
-    osc.getSamples(samples);
+    filter->setLowPass(fc*sr, q); // fc is a fraction of the sample rate; filter wants Hz
+    osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
     env.attenuate(samples);
@@ -168,7 +168,7 @@ public:
 
 class PolyVoicePatch : public Patch {
 private:
-  Voices<MIDI_VOICES> voices;
+  Voices<8> voices;
 public:
   PolyVoicePatch() : voices(getSampleRate(), getBlockSize()) {
     registerParameter(PARAMETER_A, "Waveshape");
@@ -178,15 +178,14 @@ public:
   }
   ~PolyVoicePatch(){
   }
+  void processMidi(MidiMessage msg){
+    if(msg.isNoteOn())
+      voices.noteOn(msg.getNote(), (uint16_t)msg.getVelocity() << 5, 0);
+    else if(msg.isNoteOff())
+      voices.noteOff(msg.getNote(), 0);
+  }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      // debugMessage("note/velocity", bid - MIDI_NOTE_BUTTON, value);
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value) // note on
-	voices.noteOn(note, value, samples);
-      else // note off
-	voices.noteOff(note, samples);
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       if(value)
 	voices.allNotesOn();
       else

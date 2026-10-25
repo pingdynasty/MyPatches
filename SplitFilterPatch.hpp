@@ -2,6 +2,7 @@
 #define __SplitFilterPatch_hpp__
 
 #include "StompBox.h"
+#include "BiquadFilter.h"
 
 class SplitFilterPatch : public Patch {
 private:
@@ -13,8 +14,8 @@ public:
     registerParameter(PARAMETER_B, "Resonance");
     registerParameter(PARAMETER_C, "Spread");
     registerParameter(PARAMETER_D, "Gain");
-    leftFilter = BiquadFilter::create(1);
-    rightFilter = BiquadFilter::create(1);
+    leftFilter = BiquadFilter::create(getSampleRate(), 1);
+    rightFilter = BiquadFilter::create(getSampleRate(), 1);
   }
   void processAudio(AudioBuffer &buffer){
     float fc = getParameterValue(PARAMETER_A);
@@ -23,18 +24,18 @@ public:
     float spread = getParameterValue(PARAMETER_C)*0.004 - 0.002;
     spread = 0;
     float gain = getParameterValue(PARAMETER_D)*2.0;
-    leftFilter->setHighPass(fc+spread, q);
-    rightFilter->setLowPass(fc-spread, q);
+    leftFilter->setHighPass((fc+spread)*getSampleRate()*0.5f, q); // 0..1 knob = fraction of Nyquist; filter wants Hz
+    rightFilter->setLowPass((fc-spread)*getSampleRate()*0.5f, q);
     int size = buffer.getSize();
     float buf[size];
     FloatArray left = buffer.getSamples(0);
     FloatArray right = buffer.getSamples(1);
     leftFilter->process(left, buf, size);
-    left.copyFrom(buf, size);
+    left.copyFrom(FloatArray(buf, size));
     rightFilter->process(right, buf, size);
-    right.copyFrom(buf, size);
-    left.scale(gain);
-    right.scale(gain);
+    right.copyFrom(FloatArray(buf, size));
+    left.multiply(gain);
+    right.multiply(gain);
   }
 };
 

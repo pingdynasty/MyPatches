@@ -35,7 +35,7 @@ public:
     shape = getFloatParameter("Waveshape", 0, 2);
     registerParameter(PARAMETER_F, "Mix1");
     registerParameter(PARAMETER_G, "Mix2");
-    filter = BiquadFilter::create(4); // 8-pole filter 48dB
+    filter = BiquadFilter::create(getSampleRate(), 4); // 8-pole filter 48dB
     resetPatch();
     // hz.offset = -0.0577;
     // hz.multiplier = -4.32958;
@@ -50,13 +50,14 @@ public:
     mix2 = 0.5;    
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value)
-	basenote = note - 60;
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       resetPatch();
     }
+  }
+  void processMidi(MidiMessage msg){
+    // v23.1 removed the MIDI_NOTE_BUTTON->button mapping; notes arrive via processMidi
+    if(msg.isNoteOn())
+      basenote = msg.getNote() - 60;
   }
   void processAudio(AudioBuffer &buffer) {
     float pw = 0.5;
@@ -84,7 +85,8 @@ public:
     right.multiply(mix2);
     right.add(left);
     // vcf
-    float fc = cutoff*cutoff*0.9+0.01;
+    // v23.1: cutoff is in Hz now (ae2e342); old normalised fc == fc*(sr/2) Hz.
+    float fc = (cutoff*cutoff*0.9+0.01)*(getSampleRate()/2);
     filter->setLowPass(fc, q);
     filter->process(right);
     right.multiply(.5*(1-q*0.3)); // gain compensation for high q

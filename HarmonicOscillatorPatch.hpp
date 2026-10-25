@@ -4,6 +4,8 @@
 #include "StompBox.h"
 #include "VoltsPerOctave.h"
 #include "HarmonicOscillator.hpp"
+#include "Interpolator.h"
+#include "InterpolatingCircularBuffer.h"
 #include "WavetableOscillator.h"
 #include "BiquadFilter.h"
 #include "Window.h"

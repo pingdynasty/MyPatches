@@ -3,6 +3,7 @@
 
 #include "Patch.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -22,7 +23,7 @@ class SynthVoice {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
 public:
@@ -235,8 +236,8 @@ private:
   // RampOscillator lfo1;
   SineOscillator lfo1;
   SineOscillator lfo2;
-  TapTempo<TRIGGER_LIMIT> tempo1;
-  TapTempo<TRIGGER_LIMIT> tempo2;
+  PatchTapTempo<TRIGGER_LIMIT> tempo1;
+  PatchTapTempo<TRIGGER_LIMIT> tempo2;
 public:
   WitchySubPatch() : voices(getSampleRate(), getBlockSize()),
 		     lfo1(getBlockRate()),

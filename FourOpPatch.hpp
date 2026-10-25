@@ -2,16 +2,16 @@
 #define __FourOpPatch_hpp__
 
 #include "Patch.h"
-#include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "BiquadFilter.h"
 #include "Control.h"
 #include "SineOscillator.h"
 
-class Operator : public Oscillator {
+class Operator {
 private:
 public:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SineOscillator osc;
 public:
   float index = 1.0;
@@ -42,7 +42,7 @@ public:
   }
 };
 
-class FourOp : public Oscillator {
+class FourOp {
 public:
   Operator ops[4];
   Control<PARAMETER_A> a;
@@ -362,15 +362,16 @@ private:
   BiquadFilter* lp;
 public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      if(value)
-	algo.noteOn(note, value, samples);
-      else
-	algo.noteOff(samples);
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       algo.gate(value, samples);
     }
+  }
+  void processMidi(MidiMessage msg){
+    // v23.1 removed the MIDI_NOTE_BUTTON->button mapping; notes arrive via processMidi
+    if(msg.isNoteOn())
+      algo.noteOn(msg.getNote(), msg.getVelocity(), 0);
+    else if(msg.isNoteOff())
+      algo.noteOff(0);
   }
   FourOpPatch() {
     algo.setSampleRate(getSampleRate());
@@ -378,8 +379,8 @@ public:
     registerParameter(PARAMETER_B, "Operator 2");
     registerParameter(PARAMETER_C, "Operator 3");
     registerParameter(PARAMETER_D, "Operator 4");
-    lp = StereoBiquadFilter::create(2);
-    lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
+    lp = StereoBiquadFilter::create(getSampleRate(), 2);
+    lp->setLowPass(0.8*getSampleRate()*0.5f, FilterStage::BUTTERWORTH_Q); // 0.8 of Nyquist to Hz
   }
   ~FourOpPatch(){
   }

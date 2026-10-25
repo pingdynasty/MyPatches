@@ -66,7 +66,7 @@ public:
 
   void record(FloatArray samples){
     input.clear();
-    input.copyFrom(samples, blocksize);
+    input.copyFrom(samples.subArray(0, blocksize));
     // forward fft
     fft.fft(input, cinbuf[current]);
     current = (current > 0) ? (current - 1) : (segments - 1);

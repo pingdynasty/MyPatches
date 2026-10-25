@@ -64,7 +64,7 @@ public:
   }
   float getWave(float phase){
     uint32_t index = phase*(DDS_LENGTH-1);
-    index = min(index, DDS_LENGTH-1);
+    index = min(index, (uint32_t)(DDS_LENGTH-1));
     return sine[index];
   }
   void processAudio(AudioBuffer& buf){

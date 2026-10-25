@@ -3,6 +3,7 @@
 
 #include "Patch.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -13,7 +14,7 @@
 class Operator : public Oscillator {
 private:
 public:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SineOscillator osc;
 public:
   float index = 1.0;
@@ -30,11 +31,24 @@ public:
     env.setSustain(s);
     env.setRelease(r);
   }
-  float getNextSample(){
-    return env.getNextSample()*index*osc.getNextSample();
+  float getFrequency(){
+    return osc.getFrequency();
   }
-  float getNextSample(float fm){
-    return env.getNextSample()*index*osc.getNextSample(fm);
+  void setPhase(float phase){
+    osc.setPhase(phase);
+  }
+  float getPhase(){
+    return osc.getPhase();
+  }
+  void reset(){
+    osc.reset();
+  }
+  using Oscillator::generate;
+  float generate(){
+    return env.generate()*index*osc.generate();
+  }
+  float generate(float fm){
+    return env.generate()*index*osc.generate(fm);
   }
   void gate(bool state){
     env.gate(state);
@@ -105,15 +119,36 @@ public:
     ops[5].env.setRelease(release*1.9);
   }
   float getNextSample(){
+    return generate();
+  }
+  using Oscillator::generate;
+  float getFrequency(){
+    return ops[0].getFrequency();
+  }
+  void setPhase(float phase){
+    for(int i=0; i<6; ++i)
+      ops[i].setPhase(phase);
+  }
+  float getPhase(){
+    return ops[0].getPhase();
+  }
+  void reset(){
+    for(int i=0; i<6; ++i)
+      ops[i].reset();
+  }
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
     float sample, out;
     // 0>1>2>
     // 3>4>5>
-    sample = ops[0].getNextSample();
-    sample = ops[1].getNextSample(sample);
-    out = ops[2].getNextSample(sample);
-    sample = ops[3].getNextSample();
-    sample = ops[4].getNextSample(sample);
-    out += ops[5].getNextSample(sample);
+    sample = ops[0].generate();
+    sample = ops[1].generate(sample);
+    out = ops[2].generate(sample);
+    sample = ops[3].generate();
+    sample = ops[4].generate(sample);
+    out += ops[5].generate(sample);
     return out;
   }
 };
@@ -124,8 +159,7 @@ private:
   VoltsPerOctave hz;
 public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       algo.gate(value);
     }
   }

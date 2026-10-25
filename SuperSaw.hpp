@@ -67,13 +67,14 @@ void init(){
     phases=FloatArray::create(numberOfOscillators);
     phases.clear();
     float filterStages=2;
-    filter=BiquadFilter::create(filterStages);
+    filter=BiquadFilter::create(1.0f/samplePeriod, filterStages);
   }
 
 public:  
   void setFilter(float aFrequency){
-    float cutoff=aFrequency*samplePeriod*0.5;
-    filter->setHighPass(cutoff, FilterStage::BUTTERWORTH_Q);
+    // cutoff was aFrequency*samplePeriod*0.5, a fraction of the sample rate;
+    // in Hz that is (aFrequency/(2*sr))*sr = aFrequency*0.5
+    filter->setHighPass(aFrequency*0.5f, FilterStage::BUTTERWORTH_Q);
   }
   
   void updatePhaseIncrements(){
@@ -111,6 +112,8 @@ public:
   */ 
   void setSampleRate(float aSampleRate){
     samplePeriod=1/aSampleRate;
+    if(filter!=NULL)
+      filter->setSampleRate(aSampleRate);
   }
 
   /**
@@ -185,6 +188,30 @@ public:
   }
 
   float getNextSample(){
+    return generate();
+  }
+
+  using Oscillator::generate;
+  float getFrequency(){
+    return frequency;
+  }
+  void setPhase(float phase){
+    for(int n=0; n<numberOfOscillators; n++)
+      phases[n] = phase;
+  }
+  float getPhase(){
+    return phases[numberOfOscillators/2];
+  }
+  void reset(){
+    for(int n=0; n<numberOfOscillators; n++)
+      phases[n] = 0;
+  }
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
+    if(lastCall!=kUpdatePhaseIncrements)
+      updatePhaseIncrements();
     float out=0;
     for(int n=0; n<numberOfOscillators; n++){
       out += phases[n]*amplitudes[n];

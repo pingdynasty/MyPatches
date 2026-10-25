@@ -31,10 +31,10 @@ public:
     eg[1]->setDecay(0.2f);
     eg[1]->setSustain(0.8f);
     eg[1]->setRelease(0.2f);
-    bp = BiquadFilter::create(2);
-    hp = BiquadFilter::create(2);
-    bp->setBandPass(0.6, FilterStage::BUTTERWORTH_Q);
-    hp->setHighPass(0.6, FilterStage::BUTTERWORTH_Q);
+    bp = BiquadFilter::create(sr, 2);
+    hp = BiquadFilter::create(sr, 2);
+    bp->setBandPass(0.6*sr*0.5f, FilterStage::BUTTERWORTH_Q); // 0.6 of Nyquist to Hz
+    hp->setHighPass(0.6*sr*0.5f, FilterStage::BUTTERWORTH_Q); // 0.6 of Nyquist to Hz
     osc[0]->setFrequency(835.34);
     osc[0]->setGain(2.5);
     osc[0]->setModulatorFrequency(310.47);
@@ -65,8 +65,8 @@ public:
     eg[1]->setDecay(0.2f);
     eg[1]->setSustain(0.8f);
     eg[1]->setRelease(0.2f);
-    bp = BiquadFilter::create(2);
-    hp = BiquadFilter::create(2);
+    bp = BiquadFilter::create(sr, 2);
+    hp = BiquadFilter::create(sr, 2);
     setFrequency(freq);
     setFilter(filter);
     setFmAmount(fm);
@@ -124,8 +124,8 @@ public:
     eg[1]->setRelease(d*0.33);
  }
   void setFilter(float f){
-    bp->setBandPass(f, FilterStage::BUTTERWORTH_Q);
-    hp->setHighPass(f, FilterStage::BUTTERWORTH_Q);
+    bp->setBandPass(f*fs*0.5f, FilterStage::BUTTERWORTH_Q); // f is a fraction of Nyquist; filter wants Hz
+    hp->setHighPass(f*fs*0.5f, FilterStage::BUTTERWORTH_Q);
   }
   void setAccent(float amount){
     accent = amount;
