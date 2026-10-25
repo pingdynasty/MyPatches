@@ -2,6 +2,7 @@
 #define __FormantFilterPatch_hpp__
 
 #include "StompBox.h"
+#include "BiquadFilter.h"
 #include <math.h>
 
 class FormantFilterPatch : public Patch {
@@ -45,10 +46,10 @@ public:
     filter2->setBandPass(f2, f2*qmul);
     filter3->setBandPass(f3, f3*qmul);
     filter4->setLowShelf(lp, gain);
-    filter1->process(buffer);
-    filter2->process(buffer);
-    filter3->process(buffer);
-    filter4->process(buffer);
+    filter1->process(buffer, buffer);
+    filter2->process(buffer, buffer);
+    filter3->process(buffer, buffer);
+    filter4->process(buffer, buffer);
   }
 };
 
