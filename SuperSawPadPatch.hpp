@@ -8,6 +8,7 @@
 // #include "Oscillators.hpp"
 #include "BiquadFilter.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "SmoothValue.h"
 
 #define P1      1.0
@@ -34,8 +35,8 @@ class PadVoice : public Voice {
 private:
   SuperSaw* osc;
   Oscillator* lfo;
-  AdsrEnvelope* eg1;
-  AdsrEnvelope* eg2;
+  LinearAdsrEnvelope* eg1;
+  LinearAdsrEnvelope* eg2;
   BiquadFilter* filter;
   const float sr;
   const int bs;
@@ -47,8 +48,8 @@ public:
     sr(samplingrate), bs(blocksize) {
     osc = new SuperSaw(sr);
     lfo = new SineOscillator(sr/bs);
-    eg1 = new AdsrEnvelope(sr);
-    eg2 = new AdsrEnvelope(sr/bs);
+    eg1 = new LinearAdsrEnvelope(sr);
+    eg2 = new LinearAdsrEnvelope(sr/bs);
     filter = BiquadFilter::create(1);
     eg1->setSustain(0.8);
     eg2->setSustain(1.0);
@@ -101,11 +102,28 @@ public:
    * eg1 > vca
    * eg2 > filter fc
    */
-  float getNextSample(){
-    float sample = osc->getNextSample();
-    // sample *= lfoamt * lfo->getNextSample();
+  float getFrequency(){
+    return osc->getFrequency();
+  }
+  void setPhase(float phase){
+    osc->setPhase(phase);
+  }
+  float getPhase(){
+    return osc->getPhase();
+  }
+  void reset(){
+    osc->reset();
+  }
+  using Oscillator::generate;
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
+    float sample = osc->generate();
+    // sample *= lfoamt * lfo->generate();
     sample = filter->process(sample);
-    sample *= eg1->getNextSample();
+    sample *= eg1->generate();
+    return sample;
   }
   void getSamples(FloatArray output){
     osc->getSamples(output);

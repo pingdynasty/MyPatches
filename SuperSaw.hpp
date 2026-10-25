@@ -185,6 +185,30 @@ public:
   }
 
   float getNextSample(){
+    return generate();
+  }
+
+  using Oscillator::generate;
+  float getFrequency(){
+    return frequency;
+  }
+  void setPhase(float phase){
+    for(int n=0; n<numberOfOscillators; n++)
+      phases[n] = phase;
+  }
+  float getPhase(){
+    return phases[numberOfOscillators/2];
+  }
+  void reset(){
+    for(int n=0; n<numberOfOscillators; n++)
+      phases[n] = 0;
+  }
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
+    if(lastCall!=kUpdatePhaseIncrements)
+      updatePhaseIncrements();
     float out=0;
     for(int n=0; n<numberOfOscillators; n++){
       out += phases[n]*amplitudes[n];

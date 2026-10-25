@@ -8,6 +8,11 @@ class Drum : public Oscillator {
 public:
   virtual void setDecay(float amount){}
   virtual void setAccent(float accent){}
+  virtual void trigger(bool state, int delay){}
+  virtual void gate(bool state, int delay){}
+  virtual void trigger(){
+    trigger(true, 0);
+  }
 };
 
 #endif // __Drum_hpp__
