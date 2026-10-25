@@ -260,8 +260,9 @@ public:
   ~SamplerPatch(){
   }
   void processMidi(MidiMessage msg){
+    // take() scales gain by velocity/4095, so convert the 7-bit MIDI velocity to that range (<<5)
     if(msg.isNoteOn())
-      voices.noteOn(msg.getNote(), msg.getVelocity(), 0);
+      voices.noteOn(msg.getNote(), msg.getVelocity() << 5, 0);
     else if(msg.isNoteOff())
       voices.noteOff(msg.getNote(), 0);
   }
