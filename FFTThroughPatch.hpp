@@ -51,7 +51,7 @@ public:
     processFreq(freqdomain);
     fft.ifft(freqdomain, timedomain);
     outwin.apply(timedomain);
-    left.copyFrom(timedomain); // use first half of output
+    left.copyFrom(timedomain.subArray(0, blocksize)); // use first half of output
     left.add(overlap);
     overlap.copyFrom(timedomain.subArray(blocksize, blocksize)); // save second half
   }
