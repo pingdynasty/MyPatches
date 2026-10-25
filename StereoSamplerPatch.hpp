@@ -50,7 +50,7 @@ public:
 	readpos = 0;
 	debugMessage("finished sampling");
       }else{
-	int len = min(samples[0].getSize()-recpos, size);
+	int len = min((int)(samples[0].getSize()-recpos), size);
 	samples[0].insert(left, recpos, 0, len);
 	recpos += len;
       }
@@ -66,8 +66,8 @@ public:
 	while(i < size && abs(left[i++]) < NOISEGATE);
 	if(i < size){
 	  recording = true;
-	  int len = min(samples[0].getSize(), size);
-	  samples[0].copyFrom(left, len);
+	  int len = min((int)samples[0].getSize(), size);
+	  samples[0].copyFrom(left.subArray(0, len));
 	  recpos = len;
 	}
       }

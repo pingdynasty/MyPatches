@@ -12,7 +12,7 @@ class SynthVoice {
 private:
   PolyBlepOscillator osc;
   BiquadFilter* filter;
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
 public:
