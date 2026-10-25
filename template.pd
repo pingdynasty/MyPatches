@@ -6,12 +6,12 @@
 -262144 -1 -1 0 1;
 #X obj 573 44 hsl 128 15 0 1 0 0 empty empty Parameter_D -2 -8 0 10
 -262144 -1 -1 0 1;
-#X obj 579 65 r Channel-D;
-#X obj 436 65 r Channel-C;
-#X obj 295 65 r Channel-B;
+#X obj 579 65 r Channel_D @owl D 0 1 0;
+#X obj 436 65 r Channel_C @owl C 0 1 0;
+#X obj 295 65 r Channel_B @owl B 0 1 0;
 #X obj 140 44 hsl 128 15 0 1 0 0 empty empty Parameter_A -2 -8 0 10
 -262144 -1 -1 0 1;
-#X obj 147 65 r Channel-A;
+#X obj 147 65 r Channel_A @owl A 0 1 0;
 #X text 72 4 OWL Puredata Template;
 #X obj 294 181 adc~;
 #X obj 281 112 + 0;
@@ -26,7 +26,7 @@
 -262144 -1 -1 0 1;
 #X obj 716 90 * 1;
 #X obj 714 111 + 0;
-#X obj 725 65 r Channel-E;
+#X obj 725 65 r Channel_E @owl E 0 1 0;
 #X connect 1 0 14 0;
 #X connect 2 0 15 0;
 #X connect 3 0 17 0;
