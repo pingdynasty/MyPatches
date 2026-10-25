@@ -1,5 +1,5 @@
-#ifndef __CymbalPatch_hpp__
-#define __CymbalPatch_hpp__
+#ifndef __DualCymbalPatch_hpp__
+#define __DualCymbalPatch_hpp__
 
 #include "StompBox.h"
 #include "SmoothValue.h"
@@ -11,12 +11,12 @@
 #include "ExponentialDecayEnvelope.hpp"
 #include "Cymbal.hpp"
 
-class CymbalPatch : public Patch {
+class DualCymbalPatch : public Patch {
 private:
   CymbalVoice* cymbal[2];
   int buttonstate = false;
 public:
-  CymbalPatch(){
+  DualCymbalPatch(){
     registerParameter(PARAMETER_A, "Tone");
     registerParameter(PARAMETER_B, "Decay");
     registerParameter(PARAMETER_C, "Filter");
@@ -24,7 +24,7 @@ public:
     cymbal[0] = new CymbalVoice(getSampleRate());
     cymbal[1] = new CymbalVoice(getSampleRate());
   }
-  ~CymbalPatch(){
+  ~DualCymbalPatch(){
   }
   void processAudio(AudioBuffer& buffer){
     float tone = 60*powf(2, getParameterValue(PARAMETER_A)*6);
@@ -69,4 +69,4 @@ public:
   }
 };
 
-#endif   // __CymbalPatch_hpp__
+#endif   // __DualCymbalPatch_hpp__
