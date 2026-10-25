@@ -1,4 +1,5 @@
-#include "Patch.h"
+#include "MonochromeScreenPatch.h"
+#include "SmoothValue.h"
 
 #define MAX_PRESET     11
 #define MANUAL_PRESET (MAX_PRESET+1)
@@ -21,7 +22,7 @@
 
 const char presetnames[][8] = {" 1", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", "Bypass", "Manual"};
 
-class PresetDisplayPatch : public Patch {
+class PresetDisplayPatch : public MonochromeScreenPatch {
 private:
   const int SEND_RATE = 1357;
   const int OWL_A_CH = 1;
@@ -103,14 +104,14 @@ public:
     setOctave(0, octave0);
     setOctave(1, octave1);
   }
-  void draw(ScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
+  void draw(MonochromeScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
     if(preset < MAX_PRESET)
       screen.setTextSize(4);
     else
       screen.setTextSize(2);
     screen.print(x, y, presetnames[preset-1]);
   }
-  void processScreen(ScreenBuffer& screen){
+  void processScreen(MonochromeScreenBuffer& screen){
     if(idle >= maxIdleInterval){
       screen.clear();
     }else{
@@ -121,26 +122,26 @@ public:
 
   void processAudio(AudioBuffer& samples){
     idle++;
-    int preset = max(1, min(MANUAL_PRESET, round(getParameterValue(PARAMETER_A)*MANUAL_PRESET)));
+    int preset = max(1, min(MANUAL_PRESET, (int)round(getParameterValue(PARAMETER_A)*MANUAL_PRESET)));
     if(preset0 != preset){
       preset0 = preset;
       setPreset(0, preset0);
       idle = 0;
     }
-    preset = max(1, min(MANUAL_PRESET, round(getParameterValue(PARAMETER_B)*MANUAL_PRESET)));
+    preset = max(1, min(MANUAL_PRESET, (int)round(getParameterValue(PARAMETER_B)*MANUAL_PRESET)));
     if(preset1 != preset){
       preset1 = preset;
       setPreset(1, preset1);
       idle = 0;
     }
 
-    int octave = max(0, min(4, round(getParameterValue(PARAMETER_C)*5)));
+    int octave = max(0, min(4, (int)round(getParameterValue(PARAMETER_C)*5)));
     if(octave != octave0){
       octave0 = octave;
       setOctave(0, octave0);
       idle = 0;
     }
-    octave = max(0, min(4, round(getParameterValue(PARAMETER_D)*5)));
+    octave = max(0, min(4, (int)round(getParameterValue(PARAMETER_D)*5)));
     if(octave != octave1){
       octave1 = octave;
       setOctave(1, octave1);
