@@ -50,7 +50,7 @@ public:
     lfo = new SineOscillator(sr/bs);
     eg1 = new LinearAdsrEnvelope(sr);
     eg2 = new LinearAdsrEnvelope(sr/bs);
-    filter = BiquadFilter::create(1);
+    filter = BiquadFilter::create(sr, 1);
     eg1->setSustain(0.8);
     eg2->setSustain(1.0);
     eg2->setDecay(0.0);
@@ -84,8 +84,8 @@ public:
     float fc = freq/((sr/bs)*2);
     fc += lfoamt * lfo->getNextSample();
     fc *= eg2->getNextSample();
-    fc = min(0.999, max(0.01, fc)); // normalised and bounded
-    filter->setBandPass(fc, q);
+    fc = min(0.999, max(0.01, fc)); // normalised and bounded (fraction of Nyquist)
+    filter->setBandPass(fc*sr*0.5f, q); // Nyquist-fraction to Hz
   }
   void trigger(bool state, int delay){
     eg1->trigger(state, delay);
