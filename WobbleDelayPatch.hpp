@@ -30,10 +30,10 @@ public:
     registerParameter(PARAMETER_D, "Dry/Wet");
     delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
     delayBufferR = CircularBuffer::create(TRIGGER_LIMIT);
-    highpass = StereoBiquadFilter::create(1);
-    highpass->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q); // dc filter
-    lowpass = StereoBiquadFilter::create(1);
-    lowpass->setLowPass(8000/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    highpass = StereoBiquadFilter::create(getSampleRate(), 1);
+    highpass->setHighPass(80, FilterStage::BUTTERWORTH_Q); // dc filter: 40/(sr/2) was 80 Hz (sr-fraction)
+    lowpass = StereoBiquadFilter::create(getSampleRate(), 1);
+    lowpass->setLowPass(16000, FilterStage::BUTTERWORTH_Q); // 8000/(sr/2) was 16000 Hz (sr-fraction)
   }
   ~WobbleDelayPatch() {
     CircularBuffer::destroy(delayBufferL);
