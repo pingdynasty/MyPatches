@@ -1,6 +1,7 @@
-#ifndef __PolyVoicePatch_hpp__
-#define __PolyVoicePatch_hpp__
+#ifndef __PolySubPatch_hpp__
+#define __PolySubPatch_hpp__
 
+#include "OpenWareLibrary.h"
 #include "Patch.h"
 #include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
@@ -297,4 +298,4 @@ public:
   }
 };
 
-#endif   // __PolyVoicePatch_hpp__
+#endif   // __PolySubPatch_hpp__

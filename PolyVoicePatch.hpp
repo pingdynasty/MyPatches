@@ -1,6 +1,7 @@
 #ifndef __PolyVoicePatch_hpp__
 #define __PolyVoicePatch_hpp__
 
+#define MIDI_VOICES 4
 #include "Patch.h"
 #include "Envelope.h"
 #include "AdsrEnvelope.h"
@@ -28,7 +29,7 @@ public:
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(sr, 4));
+    return new SynthVoice(sr, BiquadFilter::create(sr, 2));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -168,7 +169,7 @@ public:
 
 class PolyVoicePatch : public Patch {
 private:
-  Voices<8> voices;
+  Voices<MIDI_VOICES> voices;
 public:
   PolyVoicePatch() : voices(getSampleRate(), getBlockSize()) {
     registerParameter(PARAMETER_A, "Waveshape");
