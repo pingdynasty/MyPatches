@@ -36,12 +36,12 @@ public:
   }
   float getAmplitude(float inc){
     uint32_t index = inc*(WIN_LENGTH-1);
-    index = min(index, WIN_LENGTH-1);
+    index = min(index, (uint32_t)(WIN_LENGTH-1));
     return amp[index];
   }
   float getWave(float phase){
     uint32_t index = phase*(DDS_LENGTH-1);
-    index = min(index, DDS_LENGTH-1);
+    index = min(index, (uint32_t)(DDS_LENGTH-1));
     return sine[index];
   }
   void processAudio(AudioBuffer& buf){

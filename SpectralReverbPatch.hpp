@@ -46,7 +46,7 @@ public:
 
     // forward fft
     input.clear();
-    input.copyFrom(samples, blocksize);
+    input.copyFrom(samples);
     fft.fft(input, cinbuf[current]);
 
     float amount = getParameterValue(PARAMETER_A)*4;

@@ -6,6 +6,7 @@
 #include "TrickySineOscPatch.hpp"
 #define LEFT_PATCH SineOscPatch
 #define RIGHT_PATCH TrickySineOscPatch
+#define MORPH_PARAMETER PARAMETER_C
 
 class ParallelPatch : public Patch {
 private:
@@ -14,7 +15,7 @@ private:
   AudioBuffer* leftBuffer;
   AudioBuffer* rightBuffer;
 public:
-  MorphPatch(){
+  ParallelPatch(){
     registerParameter(MORPH_PARAMETER, "Morph");
     leftBuffer = AudioBuffer::create(1, getBlockSize());
     rightBuffer = AudioBuffer::create(1, getBlockSize());
@@ -22,12 +23,12 @@ public:
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    leftBuffer->copyFrom(left);
-    rightBuffer->copyFrom(right);
+    leftBuffer->getSamples(0).copyFrom(left);
+    rightBuffer->getSamples(0).copyFrom(right);
     leftPatch.processAudio(*leftBuffer);
     rightPatch.processAudio(*rightBuffer);
-    left.copyFrom(*leftBuffer);
-    right.copyFrom(*rightBuffer);
+    left.copyFrom(leftBuffer->getSamples(0));
+    right.copyFrom(rightBuffer->getSamples(0));
   }
 };
 
