@@ -78,8 +78,8 @@ static float CubicInterpolate(float y0, float y1, float y2, float mu){
 
 class SamplerVoice : public AbstractSynth {
 private:
-  SampleOscillator* osc;
-  AdsrEnvelope* env;
+  LinearSampleOscillator* osc;
+  LinearAdsrEnvelope* env;
   float gain;
   Control<PARAMETER_D> attack_release = 0.5f;
   Control<PARAMETER_AB> decay = 0.0f;
@@ -90,9 +90,9 @@ private:
 public:
   SamplerVoice(float sr, FloatArray buf)
     : gain(1.0f) {
-    osc = SampleOscillator::create(sr, buf);
-    osc->setRepeatMode(SampleOscillator::REPEAT_REVERSE);
-    env = AdsrEnvelope::create(sr);
+    osc = LinearSampleOscillator::create(sr, buf);
+    osc->setRepeatMode(LinearSampleOscillator::REPEAT_REVERSE);
+    env = LinearAdsrEnvelope::create(sr);
     filter = BiquadFilter::create(sr, 2);
   }
   static SamplerVoice* create(float sr) {
@@ -102,8 +102,8 @@ public:
     return new SamplerVoice(sr, buf);
   }
   static void destroy(SamplerVoice* obj) {
-    SampleOscillator::destroy(obj->osc);
-    AdsrEnvelope::destroy(obj->env);
+    LinearSampleOscillator::destroy(obj->osc);
+    LinearAdsrEnvelope::destroy(obj->env);
     BiquadFilter::destroy(obj->filter);
     delete obj;
   }
@@ -113,7 +113,7 @@ public:
   void setFrequency(float freq) {
     osc->setFrequency(freq);
     freq *= 30;
-    freq = min(18000, freq);
+    freq = min(18000.0f, freq);
     // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setEnvelope() {
@@ -195,13 +195,14 @@ public:
 
 class SpiralSamplerPatch : public Patch {
 private:
-  PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>* voices;
+  typedef VoiceAllocatorSignalGenerator<PolyphonicProcessor<SamplerVoice, POLYPHONY>, SamplerVoice, POLYPHONY> Voices;
+  Voices* voices;
   int basenote = 60;
 
   SineOscillator* lfo1;
   AgnesiOscillator* lfo2;
-  TapTempo<TRIGGER_LIMIT> tempo1;
-  TapTempo<TRIGGER_LIMIT> tempo2;
+  PatchTapTempo<TRIGGER_LIMIT> tempo1;
+  PatchTapTempo<TRIGGER_LIMIT> tempo2;
 public:
 
   SpiralSamplerPatch() :
@@ -237,7 +238,7 @@ public:
     DcBlockingFilter::destroy(filter);
 
     // create voices
-    voices = PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>::create(getBlockSize());
+    voices = Voices::create(getBlockSize());
     for(size_t i=0; i<POLYPHONY; ++i)
       voices->setVoice(i, SamplerVoice::create(getSampleRate(), sample));
     
@@ -255,7 +256,7 @@ public:
     AgnesiOscillator::destroy(lfo2);
     for(int i=0; i<POLYPHONY; ++i)
       SamplerVoice::destroy(voices->getVoice(i));
-    PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>::destroy(voices);
+    Voices::destroy(voices);
   }
     
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
