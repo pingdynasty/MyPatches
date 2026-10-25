@@ -4,12 +4,13 @@
 #include "StompBox.h"
 #include "SmoothValue.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "Sequence.h"
 #include "PolyBlepOscillator.h"
 
 class EuclideanArpeggioPatch : public Patch {
 private:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   PolyBlepOscillator osc[2];
   FloatArray envelope;
   SmoothFloat freq;

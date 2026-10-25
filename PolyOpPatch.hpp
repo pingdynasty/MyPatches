@@ -3,6 +3,7 @@
 
 #include "Patch.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "BiquadFilter.h"
 #include "SineOscillator.h"
@@ -26,7 +27,7 @@ public:
 class Operator : public Oscillator {
 private:
 public:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   SineOscillator osc;
 public:
   float index = 1.0;
