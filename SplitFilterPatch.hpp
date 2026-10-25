@@ -2,6 +2,7 @@
 #define __SplitFilterPatch_hpp__
 
 #include "StompBox.h"
+#include "BiquadFilter.h"
 
 class SplitFilterPatch : public Patch {
 private:
@@ -30,11 +31,11 @@ public:
     FloatArray left = buffer.getSamples(0);
     FloatArray right = buffer.getSamples(1);
     leftFilter->process(left, buf, size);
-    left.copyFrom(buf, size);
+    left.copyFrom(FloatArray(buf, size));
     rightFilter->process(right, buf, size);
-    right.copyFrom(buf, size);
-    left.scale(gain);
-    right.scale(gain);
+    right.copyFrom(FloatArray(buf, size));
+    left.multiply(gain);
+    right.multiply(gain);
   }
 };
 
