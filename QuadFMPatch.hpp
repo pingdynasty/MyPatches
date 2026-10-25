@@ -8,7 +8,7 @@
 #include "Control.h"
 #include "SmoothValue.h"
 
-class Operator : public Oscillator {
+class Operator {
 private:
 public:
   SineOscillator osc;
@@ -35,7 +35,7 @@ public:
   }
 };
 
-class QuadFM : public Oscillator {
+class QuadFM {
 public:
   Operator ops[4];
   Control<PARAMETER_A> a;
