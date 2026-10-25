@@ -16,18 +16,21 @@ private:
   const float lp;
 public:
   FormantFilterPatch() 
-    : qmul((getSampleRate()/2)/80),
-      minf(200/(getSampleRate()/2)),
-      maxf(1400/(getSampleRate()/2)),
-      lp(3500*2/(getSampleRate()/2)) {
+    // Cutoffs in Hz. These filters used to be created with create(1), i.e. a
+    // sample rate of 1, so the old v/(sr/2) values meant v*2 Hz: 200/(sr/2) was
+    // 400 Hz, and q = f*(sr/2)/80 with f in units of sr is q = f_hz/160.
+    : qmul(1.0f/160),
+      minf(400),
+      maxf(2800),
+      lp(14000) {
     registerParameter(PARAMETER_A, "Formant 1");
     registerParameter(PARAMETER_B, "Formant 2");
     registerParameter(PARAMETER_C, "Formant 3");
     registerParameter(PARAMETER_D, "Gain");
-    filter1 = StereoBiquadFilter::create(1);
-    filter2 = StereoBiquadFilter::create(1);
-    filter3 = StereoBiquadFilter::create(1);
-    filter4 = StereoBiquadFilter::create(1);
+    filter1 = StereoBiquadFilter::create(getSampleRate(), 1);
+    filter2 = StereoBiquadFilter::create(getSampleRate(), 1);
+    filter3 = StereoBiquadFilter::create(getSampleRate(), 1);
+    filter4 = StereoBiquadFilter::create(getSampleRate(), 1);
   }    
 
   ~FormantFilterPatch(){
