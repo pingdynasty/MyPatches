@@ -3,6 +3,7 @@
 
 #include "StompBox.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 #include "VoltsPerOctave.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
@@ -40,7 +41,7 @@ public:
  */
 class SynthVoicePatch : public Patch {
 private:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   TriggerButton* button;
   FloatArray envelope;
   PolyBlepOscillator osc;
@@ -116,7 +117,7 @@ public:
     osc.setFrequency(freq);
     osc.setShape(shape);
     osc.setPulseWidth(pw);
-    osc.getSamples(left);
+    osc.generate(left);
     // vcf
     hz.setTune(cutoff);
     fc = min(0.999, max(0.01, hz.getFrequency(right[0])/(getSampleRate()*2))); // normalised and bounded
@@ -125,7 +126,7 @@ public:
     filter->process(right);
     right.multiply(0.8-q*0.2); // gain compensation for high q
     // vca
-    env.getEnvelope(envelope);
+    env.generate(envelope);
     envelope.add(gain);
     left.multiply(envelope);
     right.multiply(envelope);
