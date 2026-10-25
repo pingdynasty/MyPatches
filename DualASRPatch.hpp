@@ -3,10 +3,11 @@
 
 #include "StompBox.h"
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
 
 class DualASRPatch : public Patch {
 public:
-  AdsrEnvelope eg1, eg2;
+  LinearAdsrEnvelope eg1, eg2;
   DualASRPatch() : eg1(getSampleRate()), eg2(getSampleRate()) {
     registerParameter(PARAMETER_A, "Attack");
     registerParameter(PARAMETER_B, "Release");
@@ -32,8 +33,8 @@ public:
     eg2.setRelease(getParameterValue(PARAMETER_D)*2);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    eg1.getEnvelope(left);
-    eg2.getEnvelope(right);
+    eg1.generate(left);
+    eg2.generate(right);
     left.multiply(-1);
     right.multiply(-1);
   }
