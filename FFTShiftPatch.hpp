@@ -2,6 +2,7 @@
 #define __FFTShiftPatch_hpp__
 
 #include "Patch.h"
+#include "SmoothValue.h"
 #include "FastFourierTransform.h"
 #include "Window.h"
 
