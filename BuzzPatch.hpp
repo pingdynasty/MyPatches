@@ -37,8 +37,8 @@ public:
     }
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    osc1.getSamples(left);
-    osc2.getSamples(right);
+    osc1.generate(left);
+    osc2.generate(right);
   }
 };
 
