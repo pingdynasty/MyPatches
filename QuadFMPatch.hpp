@@ -306,8 +306,8 @@ public:
     registerParameter(PARAMETER_B, "Operator 2");
     registerParameter(PARAMETER_C, "Operator 3");
     registerParameter(PARAMETER_D, "Operator 4");
-    lp = StereoBiquadFilter::create(2);
-    lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
+    lp = StereoBiquadFilter::create(getSampleRate(), 2);
+    lp->setLowPass(0.8*getSampleRate()*0.5f, FilterStage::BUTTERWORTH_Q); // 0.8 of Nyquist to Hz
     hz.offset = -0.0589f;
     hz.multiplier = -4.399f;
   }

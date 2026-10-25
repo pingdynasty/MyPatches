@@ -589,8 +589,8 @@ public:
     registerParameter(PARAMETER_BC, "LFO Sine>");
     registerParameter(PARAMETER_BD, "LFO Ramp>");
 
-    lp = StereoBiquadFilter::create(2);
-    lp->setLowPass(0.8, FilterStage::BUTTERWORTH_Q);
+    lp = StereoBiquadFilter::create(getSampleRate(), 2);
+    lp->setLowPass(0.8*getSampleRate()*0.5f, FilterStage::BUTTERWORTH_Q); // 0.8 of Nyquist to Hz
   }
   ~PolyOpPatch(){
   }
