@@ -16,23 +16,25 @@ public:
   }
   ~MidiInterfacePatch(){
   }
+  void processMidi(MidiMessage msg){
+    if(msg.isNoteOn()){
+      velocity = (uint16_t)msg.getVelocity() << 5;
+      note = msg.getNote();
+      setButton(PUSHBUTTON, ON, getBlockSize());
+    }else if(msg.isNoteOff()){
+      velocity = 0;
+      setButton(PUSHBUTTON, OFF, getBlockSize());
+    }
+  }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      velocity = value;
-      if(value){ // note on
-	note = bid - MIDI_NOTE_BUTTON;
-	setButton(PUSHBUTTON, ON, samples+getBlockSize());
-      }else{ // note off
-	setButton(PUSHBUTTON, OFF, samples+getBlockSize());
-      }
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       if(value){
 	uint8_t note = round(12*log2f(freqin/440.0f))+69;
-	uint16_t velocity = min(4095, (uint16_t)(ampin*4095/5));
-	setButton((PatchButtonId)(MIDI_NOTE_BUTTON+note), velocity, samples+getBlockSize());
+	uint8_t velocity = min(127, (int)(ampin*127/5));
+	sendMidi(MidiMessage::note(1, note, velocity));
 	lastnote = note;
       }else{
-	setButton((PatchButtonId)(MIDI_NOTE_BUTTON+lastnote), 0, samples+getBlockSize());
+	sendMidi(MidiMessage::note(1, lastnote, 0));
       }
     }
   }

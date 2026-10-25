@@ -60,7 +60,7 @@ public:
 		     minrate(maxrate/2048),
 		     origin(0), current(0), target(0) {
     // noise = WhiteNoiseOscillator::create();
-    noise = new WhiteNoiseOscillator();
+    noise = new NoiseOscillator();
     range = getFloatParameter("Range", 0.01, 1.0, 1.0);
     rate = getIntParameter("Rate", 0, maxrate, 0);
     scale = getIntParameter("Scale", 0, 5, 0);
@@ -97,7 +97,7 @@ public:
       if(abs(current-target) < 0.01){
 	current = target;
 	origin = target;
-	target = noise->getNextSample()*range;
+	target = noise->generate()*range;
       }
       left[i] = current;
       current += getIncrement();

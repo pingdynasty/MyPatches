@@ -72,7 +72,7 @@ public:
       osc[i].setShape(shape);
       osc[i].setPulseWidth(pwm);
       osc[i].setFrequency(frequency);
-      osc[i].getSamples(output);
+      osc[i].generate(output);
       output.multiply(wet*gain);
       left.add(output);
     }
