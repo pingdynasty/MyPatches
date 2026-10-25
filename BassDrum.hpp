@@ -54,7 +54,7 @@ public:
     env2 = ExponentialDecayEnvelope::create(sr);
     noise = PinkNoiseGenerator::create();
     filter = BiquadFilter::create(sr, 1);
-    filter->setLowPass(0.6, FilterStage::BUTTERWORTH_Q);
+    filter->setLowPass(0.6*sr/2, FilterStage::BUTTERWORTH_Q); // 0.6 of Nyquist
   }  
   BassDrumVoice(float sr, float freq, float snap) : fs(sr), gain(0.0), accent(0.0) {
     sine = SineOscillator::create(sr);
@@ -64,7 +64,7 @@ public:
     env2 = ExponentialDecayEnvelope::create(sr);
     noise = PinkNoiseGenerator::create();
     filter = BiquadFilter::create(sr, 1);
-    filter->setLowPass(0.6, FilterStage::BUTTERWORTH_Q);
+    filter->setLowPass(0.6*sr/2, FilterStage::BUTTERWORTH_Q); // 0.6 of Nyquist
     setFrequency(freq);
     setSnap(snap);
   }
@@ -100,7 +100,7 @@ public:
   void setSnap(float s){
     snare = s;
     balance = s*0.5;
-    filter->setLowPass(0.25+balance, FilterStage::BUTTERWORTH_Q);
+    filter->setLowPass((0.25+balance)*fs/2, FilterStage::BUTTERWORTH_Q); // fraction of Nyquist
   }
   void setAccent(float amount){
     accent = amount;
