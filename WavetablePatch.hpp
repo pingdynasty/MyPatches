@@ -8,7 +8,7 @@ class WavetablePatch : public Patch {
 private:
   uint32_t acc = 0;
   float waves[3][3][WAVETABLE_SIZE];
-  const float M_SQRT1_2;
+  const float invSqrt2;
   const float fs;
 
 int32_t calculateIncrement(float exp, float lin){
@@ -18,7 +18,7 @@ int32_t calculateIncrement(float exp, float lin){
   return inc;
 }
 public:
-  WavetablePatch() : M_SQRT1_2(1.0f/sqrtf(2.0)), fs(getSampleRate()) {
+  WavetablePatch() : invSqrt2(1.0f/sqrtf(2.0)), fs(getSampleRate()) {
     registerParameter(PARAMETER_A, "Tune");
     registerParameter(PARAMETER_B, "X");
     registerParameter(PARAMETER_C, "Y");
@@ -44,10 +44,10 @@ public:
     int yLow = floor(y);
     int yHigh = ceil(y);
     // calculate distance multipliers
-    float x0y0 = 1.0 - sqrtf((x-xLow)*(x-xLow) + (y-yLow)*(y-yLow))*M_SQRT1_2;
-    float x0y1 = 1.0 - sqrtf((x-xLow)*(x-xLow) + (yHigh-y)*(yHigh-y))*M_SQRT1_2;
-    float x1y0 = 1.0 - sqrtf((xHigh-x)*(xHigh-x) + (y-yLow)*(y-yLow))*M_SQRT1_2;
-    float x1y1 = 1.0 - sqrtf((xHigh-x)*(xHigh-x) + (yHigh-y)*(yHigh-y))*M_SQRT1_2;
+    float x0y0 = 1.0 - sqrtf((x-xLow)*(x-xLow) + (y-yLow)*(y-yLow))*invSqrt2;
+    float x0y1 = 1.0 - sqrtf((x-xLow)*(x-xLow) + (yHigh-y)*(yHigh-y))*invSqrt2;
+    float x1y0 = 1.0 - sqrtf((xHigh-x)*(xHigh-x) + (y-yLow)*(y-yLow))*invSqrt2;
+    float x1y1 = 1.0 - sqrtf((xHigh-x)*(xHigh-x) + (yHigh-y)*(yHigh-y))*invSqrt2;
     float* cvExp = buffer.getSamples(0);
     float* cvLin = buffer.getSamples(1);
     float* out = buffer.getSamples(0);
