@@ -28,12 +28,6 @@
 // #include "PadSynth.hpp"
 // #define SOULPATCH PadSynth
 
-namespace std {
-  void __throw_bad_alloc (void) { error(PROGRAM_ERROR_STATUS, "bad alloc"); while(1); }
-  void __throw_bad_function_call() { error(PROGRAM_ERROR_STATUS, "bad func"); while(1); }
-  void __throw_length_error (const char *) { error(PROGRAM_ERROR_STATUS, "bad len"); while(1); }
-}
-
 #define MAX_MIDI_MESSAGES 32
 class SoulPatch : public Patch {
 private:
