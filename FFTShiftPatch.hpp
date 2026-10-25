@@ -4,6 +4,7 @@
 #include "Patch.h"
 #include "FastFourierTransform.h"
 #include "Window.h"
+#include "SmoothValue.h"
 
 class FFTShiftPatch : public Patch {
 private:
