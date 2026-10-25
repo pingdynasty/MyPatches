@@ -5,6 +5,7 @@
 #include "CircularBuffer.hpp"
 #include "SineOscillator.h"
 #include "BiquadFilter.h"
+#include "SmoothValue.h"
 #include "Sequence.h"
 #include "AdsrEnvelope.h"
 

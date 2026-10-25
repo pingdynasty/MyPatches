@@ -30,7 +30,7 @@ public:
       buttonstate = isButtonPressed(PUSHBUTTON);
       if(buttonstate){
 	chirp[0]->setFrequency(freq);
-	chirp[0]->setDecay(decay);
+	chirp[0]->setRate(-decay);
 	chirp[0]->trigger();
 	chirp[1]->setFrequency(freq);
 	chirp[1]->setRate(rate);
