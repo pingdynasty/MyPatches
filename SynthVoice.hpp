@@ -2,6 +2,8 @@
 #define __SynthVoice_hpp__
 
 #include "Envelope.h"
+#include "AdsrEnvelope.h"
+#include "SmoothValue.h"
 #include "PolyBlepOscillator.h"
 #include "BiquadFilter.h"
 

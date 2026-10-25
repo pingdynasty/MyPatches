@@ -150,18 +150,18 @@ public:
       modulation[i].update();
       float freq = 440.0f*exp2f((notes[i]+basenote + bend[i]*PITCHBEND_RANGE)/12.0);
       voice[i]->setFrequency(freq);
-      shape = max(0, min(1.999, shape+pressure[i]));
+      shape = max(0.0f, min(1.999f, shape+pressure[i]));
       voice[i]->setWaveshape(shape);
-      fc = max(0.001, min(0.499, fc+modulation[i]));
+      fc = max(0.001f, min(0.499f, fc+modulation[i]));
       voice[i]->setFilter(fc, q);
       voice[i]->setEnvelope(attack, release);
     }
   }
 
   void getSamples(FloatArray samples){
-    voice[0]->getSamples(samples);
+    voice[0]->generate(samples);
     for(int i=1; i<VOICES; ++i){
-      voice[i]->getSamples(buffer);
+      voice[i]->generate(buffer);
       samples.add(buffer);
     }
   }
@@ -190,13 +190,7 @@ public:
     BiquadFilter::destroy(hp);
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      // uint8_t note = bid - MIDI_NOTE_BUTTON;
-      // if(value) // note on
-      // 	voices.noteOn(note, value>>5, samples);
-      // else // note off
-      // 	voices.noteOff(note, samples);
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       if(value)
 	voices.allNotesOn();
       else
