@@ -1,7 +1,12 @@
-#ifndef __PolySubPatch_hpp__
-#define __PolySubPatch_hpp__
+#ifndef __PolyVoicePatch_hpp__
+#define __PolyVoicePatch_hpp__
 
-#include "OpenWareLibrary.h"
+#include "Patch.h"
+#include "AdsrEnvelope.h"
+#include "VoltsPerOctave.h"
+#include "PolyBlepOscillator.h"
+#include "BiquadFilter.h"
+#include "SmoothValue.h"
 
 #define MIDI_VOICES 8
 #define PITCHBEND_RANGE 8  // Roli default pitch bend is +/-48 semitones
@@ -189,7 +194,7 @@ public:
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
     hp = BiquadFilter::create(getSampleRate(), 2);
-    hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    hp->setHighPass(80, FilterStage::BUTTERWORTH_Q); // 40/(sr/2) was 80 Hz (sr-fraction)
   }
   ~PolySubPatch(){
     BiquadFilter::destroy(hp);
@@ -292,4 +297,4 @@ public:
   }
 };
 
-#endif   // __PolySubPatch_hpp__
+#endif   // __PolyVoicePatch_hpp__

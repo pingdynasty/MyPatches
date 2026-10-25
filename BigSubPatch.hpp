@@ -226,8 +226,8 @@ public:
     setParameterValue(PARAMETER_E, 0.5);
     setParameterValue(PARAMETER_G, 0.5);
 
-    hp = BiquadFilter::create(2);
-    hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    hp = BiquadFilter::create(getSampleRate(), 2);
+    hp->setHighPass(80, FilterStage::BUTTERWORTH_Q); // 40/(sr/2) was 80 Hz (sr-fraction)
   }
   ~BigSubPatch(){
     BiquadFilter::destroy(hp);

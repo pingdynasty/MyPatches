@@ -183,8 +183,8 @@ public:
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
-    hp = BiquadFilter::create(2);
-    hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
+    hp = BiquadFilter::create(getSampleRate(), 2);
+    hp->setHighPass(80, FilterStage::BUTTERWORTH_Q); // 40/(sr/2) was 80 Hz (sr-fraction)
   }
   ~MultiPolySubPatch(){
     BiquadFilter::destroy(hp);
