@@ -2,6 +2,7 @@
 #define __MorphPatch_hpp__
 
 #include "OpenWareLibrary.h"
+#include "SquareOscillator.h" // InvertedSquareOscillator typedef lives here, not in OpenWareLibrary.h
 
 // #include "WitchFX.hpp"
 // #include "WitchPatch.hpp"
