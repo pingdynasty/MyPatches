@@ -48,28 +48,28 @@ private:
   };
   const int maxrate;
   const int minrate;
+  float origin, current, target;
   Oscillator* noise;
-  float last, target;
   FloatParameter range;
   IntParameter rate;
   VoltsPerOctave hz;
   IntParameter scale;
   IntParameter offset;
 public:
-  RandomLfoPatch() : maxrate(getSampleRate()*2),
-		     minrate(getSampleRate()/2000) {
+  RandomLfoPatch() : maxrate(getSampleRate()/2),
+		     minrate(maxrate/2048),
+		     origin(0), current(0), target(0) {
     // noise = WhiteNoiseOscillator::create();
     noise = new WhiteNoiseOscillator();
     range = getFloatParameter("Range", 0.01, 1.0, 1.0);
     rate = getIntParameter("Rate", 0, maxrate, 0);
     scale = getIntParameter("Scale", 0, 5, 0);
     offset = getIntParameter("Root", -11, 12, 0);
-    target = last = 0.0f;
   }
   float getIncrement(){
-    if(rate < minrate)
+    if(rate <= minrate)
       return 0.0f;
-    return (target-last)/(maxrate-rate);
+    return (target-origin)/(maxrate-rate);
   }
   float quantize(float volts){
     switch(scale){
@@ -86,21 +86,24 @@ public:
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid == PUSHBUTTON && value){
       // skip straight to target
-      last = target;
+      current = target;
     }
   }
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     for(int i = 0; i<buffer.getSize(); i++){
-      if(abs(last-target) < 0.001){
-	last = target;
+      float inc = getIncrement();
+      if(abs(current-target) < 0.01){
+	current = target;
+	origin = target;
 	target = noise->getNextSample()*range;
       }
-      left[i] = last;
-      last += getIncrement();
+      left[i] = current;
+      current += getIncrement();
       right[i] = hz.voltsToSample(quantize(hz.sampleToVolts(right[i])));
     }
+    debugMessage("origin/target/current", origin, target, current);
   }
 };
 

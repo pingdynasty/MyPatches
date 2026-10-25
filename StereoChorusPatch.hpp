@@ -4,6 +4,7 @@
 #include "OpenWareLibrary.h"
 #include "MorphingLFO.h"
 
+
 // Flangers use much shorter delay times (1ms to 5ms) compared to choruses (5ms to 30ms) and only involve one copy of the original signal while choruses can create multiple copies.
 
 // Figure 10: A four-path chorus unit.
@@ -280,28 +281,6 @@ public:
   // }
 };
 
-template<class Processor>
-class StereoSignalProcessor : public Processor {
-protected:
-  Processor right;
-public:
-  template <typename... Args>
-  StereoSignalProcessor(Args&&... args) :
-    Processor(std::forward<Args>(args)...), right(std::forward<Args>(args)...) {}
-  void process(AudioBuffer& input, AudioBuffer& output){
-    Processor::process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
-  }
-  template <typename... Args>
-  static StereoSignalProcessor* create(Args&&... args){
-    return new StereoSignalProcessor<Processor>(std::forward<Args>(args)...);
-  }
-  static void destroy(StereoSignalProcessor* processor){
-    delete processor;
-  }
-};
-#endif
-
 template<size_t TAPS=3>
 class StereoChorusProcessor : public MultiSignalProcessor {
 protected:
@@ -351,37 +330,6 @@ public:
     delete processor;
   }
 };
-
-// class BufferingSignalProcessor : public SignalProcessor {
-// protected:
-//   CircularFloatBuffer* buffer;
-//   SignalProcessor* processor;
-//   size_t blocksize;
-// public:
-//   BufferingSignalProcessor(SignalProcessor* processor): processor(processor) {}
-//   virtual float process(float input){
-//     buffer->write(input);
-//     if(buffer->getReadCapacity() >= blocksize){
-//       // buffer size must be a multiple of blocksize
-//       ASSERT(buffer->getContiguousReadCapacity() >= blocksize, "Misaligned buffer");
-//       FloatArray data(buffer->getReadHead(), blocksize);
-//       processor->process(data, data);
-//       buffer->moveReadHead(blocksize);
-//     }
-//     return buffer->readAt(buffer->getWriteIndex() - blocksize);
-//   }
-//   virtual void process(FloatArray input, FloatArray output){
-//     buffer->write(input);
-//     if(buffer->getReadCapacity() >= blocksize){
-//       // buffer size must be a multiple of blocksize
-//       ASSERT(buffer->getContiguousReadCapacity() >= blocksize, "Misaligned buffer");
-//       FloatArray data(buffer->getReadHead(), blocksize);
-//       processor->process(data, data);
-//       buffer->moveReadHead(blocksize);
-//     }
-//     return buffer->readAt(buffer->getWriteIndex() - blocksize);
-//   }
-// };
 
 class StereoChorusPatch : public Patch {
 private:

@@ -7,93 +7,74 @@
 static const int TRIGGER_LIMIT = (1<<17);
 
 #define SAMPLE_NAME "sample1.wav"
-// #define SAMPLE_NAME "wavetable1.wav"
-// #define SAMPLE_NAME "sample.wav"
-#define MIDDLE_C 261.6
 #define POLYPHONY 8
+#define BUTTON_VELOCITY 100
 
-/*
-  need a buffer that can be read in a circular fashion
- */
-class SampleOscillator : public Oscillator {
-private:
-    const float fs;
-    FloatArray buffer;
-    float pos = 0.0f;
-    uint16_t size;
-    float rate = 1.0f;
+// class InterpolatedFloatArray : public FloatArray {
+// cosine, cubic, Catmull-Rom, Hermite interpolation algorithms
+// ref: http://paulbourke.net/miscellaneous/interpolation/
+  static float LinearInterpolate(float y1, float y2, float mu){
+    return y1 + (y2 - y1) * mu;
+  }
+  static float CosineInterpolate(float y1, float y2, float mu){
+    float mu2 = (1-cosf(mu*M_PI))/2;
+    return y1*(1-mu2)+y2*mu2;
+  }
+  /**
+   * Get the interpolated value of a curve described by y0 to y4,
+   * somewhere between the points y1 and y2.
+   */
+  float CubicInterpolate(float y0, float y1, float y2, float y3, float mu) {
+    float mu2 = mu*mu;
+    float a0 = y3 - y2 - y0 + y1;
+    float a1 = y0 - y1 - a0;
+    float a2 = y2 - y0;
+    float a3 = y1;
+    return a0*mu*mu2+a1*mu2+a2*mu+a3;
+  }
+  static float SmoothCubicInterpolate(float y0, float y1, float y2, float y3, float mu) {
+    // use Catmull-Rom splines:
+    // take the slope between the previous point and the next as the derivative at the current point
+   float mu2 = mu*mu;
+   float a0 = -0.5*y0 + 1.5*y1 - 1.5*y2 + 0.5*y3;
+   float a1 = y0 - 2.5*y1 + 2*y2 - 0.5*y3;
+   float a2 = -0.5*y0 + 0.5*y2;
+   float a3 = y1;
+   return a0*mu*mu2+a1*mu2+a2*mu+a3;
+  }
+  /*
+    Tension: 1 is high, 0 normal, -1 is low
+    Bias: 0 is even,
+         positive is towards first segment,
+         negative towards the other
+  */
+  static float HermiteInterpolate(float y0, float y1, float y2, float y3, float mu, float tension, float bias){
+    float mu2 = mu * mu;
+    float mu3 = mu2 * mu;
+    float m0  = (y1-y0)*(1+bias)*(1-tension)/2;
+    m0 += (y2-y1)*(1-bias)*(1-tension)/2;
+    float m1  = (y2-y1)*(1+bias)*(1-tension)/2;
+    m1 += (y3-y2)*(1-bias)*(1-tension)/2;
+    float a0 =  2*mu3 - 3*mu2 + 1;
+    float a1 =    mu3 - 2*mu2 + mu;
+    float a2 =    mu3 -   mu2;
+    float a3 = -2*mu3 + 3*mu2;
+   return(a0*y1+a1*m0+a2*m1+a3*y2);
+  }
+//   float get(float index){
+//     // for cubic/hermite interpolation
+//     // add two extra points at the start and end of the sequence, the new points are created so that they have a slope equal to the slope of the start or end segment.    
+//   }
+// };
 
-public:
-  SampleOscillator(float sr, FloatArray sample)
-    : fs(sr)
-    , buffer(sample) {
-    size = buffer.getSize() - 1;
-  }
-  void setFrequency(float freq) {
-    rate = freq / MIDDLE_C;
-  }
-  // void setPortamento(float portamento){
-  //   rate.lambda = portamento*0.19 + 0.8;
-  // }
-  void setSample(FloatArray sample){
-    buffer = sample;
-    size = buffer.getSize() -1;
-  }
-  void reset() {
-    pos = 0.0f;
-  }
-  static float interpolate(float index, FloatArray data) {
-    size_t idx = (int)index;
-    float low = data[idx];
-    float high = data[idx + 1];
-    float frac = index - idx;
-    return low * frac + high * (1.0 - frac);
-  }
-  void setPhase(float phase){
-    pos = size*phase/(2*M_PI);
-  }
-  float getPhase(){
-    return pos*2*M_PI/size;
-  }
-  using Oscillator::generate;
-  float generate(float fm) {
-    return generate();
-  }
-  float generate() {
-    float sample = 0.0f;
-    if(pos >= 0.0f && pos < size){
-      sample = interpolate(pos, buffer);
-      pos += rate;
-    }
-    return sample;
-  }
-  // void generate(FloatArray out){
-  //   // todo: unwind interpolation
-  // }
-  uint16_t findZeroCrossing(uint16_t index) {
-    uint16_t i = min(index, size);
-    if (buffer[i] > 0)
-      while (i < size && buffer[i] > 0)
-	i++;
-    else
-      while (i < size && buffer[i] < 0)
-	i++;
-    return i;
-  }
-  void setDuration(uint16_t samples) {
-    size = findZeroCrossing(samples);
-  }
-  /* @return the audio length in samples */
-  uint16_t getSampleLength() {
-    return buffer.getSize();
-  }
-  static SampleOscillator* create(float sr, FloatArray buf) {
-    return new SampleOscillator(sr, buf);
-  }
-  static void destroy(SampleOscillator* obj) {
-    delete obj;
-  }
-};
+// three-point cubic interpolation of point between y1 and y2
+// ref: http://www.ebyte.it/library/codesnippets/P3Interpolation.html
+static float CubicInterpolate(float y0, float y1, float y2, float mu){
+  float d1 = 0.5*(y2-y0);
+  float d2 = y2-y1+y0-y1;
+  float dx = mu;
+  return y1 + dx*(d1+0.5*d2*dx);
+}
 
 class SamplerVoice : public AbstractSynth {
 private:
@@ -104,15 +85,15 @@ private:
   Control<PARAMETER_AB> decay = 0.0f;
   Control<PARAMETER_AC> sustain = 1.0f;
   // Control<PARAMETER_AE> portamento = 0.0f;
-  Control<PARAMETER_AF> duration = 1.0f;
+  Control<PARAMETER_E> duration = 1.0f;
+  BiquadFilter* filter;
 public:
   SamplerVoice(float sr, FloatArray buf)
     : gain(1.0f) {
     osc = SampleOscillator::create(sr, buf);
+    osc->setRepeatMode(SampleOscillator::REPEAT_REVERSE);
     env = AdsrEnvelope::create(sr);
-    env->setSustain(1.0);
-    env->setDecay(0.0);
-    env->setRelease(0.0);
+    filter = BiquadFilter::create(sr, 2);
   }
   static SamplerVoice* create(float sr) {
     return new SamplerVoice(sr, FloatArray());
@@ -123,6 +104,7 @@ public:
   static void destroy(SamplerVoice* obj) {
     SampleOscillator::destroy(obj->osc);
     AdsrEnvelope::destroy(obj->env);
+    BiquadFilter::destroy(obj->filter);
     delete obj;
   }
   void setSample(FloatArray sample){
@@ -130,29 +112,31 @@ public:
   }
   void setFrequency(float freq) {
     osc->setFrequency(freq);
+    freq *= 30;
+    freq = min(18000, freq);
+    // filter->setLowPass(freq, FilterStage::BUTTERWORTH_Q);
   }
   void setEnvelope() {
-    float df = attack_release*4;
+    float df = attack_release*3;
+    constexpr float tmin = 0.002;
     int di = (int)df;
+    df = df - di;
     float attack, release;
     switch(di){
       // a/d
     case 0: // l/s
-      attack = 1.0-df;
-      release = 0.0;
+      attack = 1- df + tmin;
+      release = tmin;
       break;
     case 1: // s/s
-      attack = 0.0;
-      release = df-1;
+      attack = tmin;
+      release = df + tmin;
       break;
     case 2: // s/l
-      attack = df-2;
-      release = 1.0;
+      attack = df + tmin;
+      release = 1.0 + tmin;
       break;
-    case 3: // l/l
-      attack = 1.0;
-      release = 1.0;
-      break;
+      // l/l
     }
     env->setAttack(attack);
     env->setDecay(decay);
@@ -173,25 +157,49 @@ public:
   }
   float generate() {
     setEnvelope();
-    osc->setDuration(duration * osc->getSampleLength());
-    return osc->generate()*env->generate()*gain;
+    osc->setDuration(duration);
+    // 'duration' or trim should trim from start clockwise and end anti-clockwise
+    float y = osc->generate();
+    y *= env->generate();
+    y = filter->process(y); // filter before or after envelope?
+    y *= gain;
+    return y;
   }
   void generate(FloatArray samples) {
     setEnvelope();
-    osc->setDuration(duration * osc->getSampleLength());
+    osc->setDuration(duration);
     osc->generate(samples);
-    samples.multiply(gain);
     env->process(samples, samples);
+    filter->process(samples, samples);
+    samples.multiply(gain);
+  }
+  float filter_fc = 8000;
+  float filter_q = 4;
+  float filter_gain = 0;
+  virtual void setParameter(uint8_t parameter_id, float value){
+    switch(parameter_id){
+    case 1:
+      filter_fc = value;
+      filter->setPeak(filter_fc, filter_q, filter_gain);
+      break;
+    case 2:
+      filter_q = value;
+      break;
+    case 3:
+      filter_gain = value;
+      break;
+    }
   }
 };
 
+
 class SpiralSamplerPatch : public Patch {
 private:
-  PolyphonicProcessor<SamplerVoice, POLYPHONY>* voices;
+  PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>* voices;
   int basenote = 60;
 
   SineOscillator* lfo1;
-  SineOscillator* lfo2;
+  AgnesiOscillator* lfo2;
   TapTempo<TRIGGER_LIMIT> tempo1;
   TapTempo<TRIGGER_LIMIT> tempo2;
 public:
@@ -205,62 +213,103 @@ public:
     //registerParameter(PARAMETER_AE, "Portamento");
     registerParameter(PARAMETER_AF, "Duration");
 
-    // load sample and create voices
+    registerParameter(PARAMETER_B, "Cutoff");
+    setParameterValue(PARAMETER_B, 0.5);
+    registerParameter(PARAMETER_C, "Peak");
+    setParameterValue(PARAMETER_C, 0.5);
+
+    // load sample
     Resource* resource = getResource(SAMPLE_NAME);
-    WavFile wav = WavFile::create(resource->getData());
+    WavFile wav(resource->getData(), resource->getSize());
     if(!wav.isValid())
       error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
-    FloatArray sample = wav.createFloatArray();
+    FloatArray sample = wav.createFloatArray(0);
     Resource::destroy(resource);
-    voices = PolyphonicProcessor<SamplerVoice, POLYPHONY>::create(getBlockSize());
+    
+    // filter sample
+    // BiquadFilter* filter = BiquadFilter::create(getSampleRate(), 2);
+    // // filter->setHighPass();
+    // filter->setLowPass(6000, FilterStage::BUTTERWORTH_Q);
+    // filter->process(sample, sample);
+    // BiquadFilter::destroy(filter);
+    DcBlockingFilter* filter = DcBlockingFilter::create();
+    filter->process(sample, sample);
+    DcBlockingFilter::destroy(filter);
+
+    // create voices
+    voices = PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>::create(getBlockSize());
     for(size_t i=0; i<POLYPHONY; ++i)
       voices->setVoice(i, SamplerVoice::create(getSampleRate(), sample));
-
+    
       // lfo
     lfo1 = SineOscillator::create(getBlockRate());
-    lfo2 = SineOscillator::create(getBlockRate());
+    // lfo2 = SineOscillator::create(getBlockRate());
+    lfo2 = AgnesiOscillator::create(getBlockRate(), 0.5, 10);
     registerParameter(PARAMETER_F, "LFO1>");
     registerParameter(PARAMETER_G, "LFO2>");
-}
+  }
 
   ~SpiralSamplerPatch() {
     SineOscillator::destroy(lfo1);
-    SineOscillator::destroy(lfo2);
+    // SineOscillator::destroy(lfo2);
+    AgnesiOscillator::destroy(lfo2);
     for(int i=0; i<POLYPHONY; ++i)
       SamplerVoice::destroy(voices->getVoice(i));
-    PolyphonicProcessor<SamplerVoice, POLYPHONY>::destroy(voices);
+    PolyphonicSignalGenerator<SamplerVoice, POLYPHONY>::destroy(voices);
   }
     
-  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples) {
+  void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     int note = 0;
+    static int lastnote[4];
     switch(bid){
-    case PUSHBUTTON:
-    case BUTTON_A:
-      note = basenote;
+    case BUTTON_1:
+      if(value){
+	note = basenote;
+	lastnote[0] = note;
+	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      }else{
+	voices->noteOff(MidiMessage::note(0, lastnote[0], 0));
+      }
       break;
-    case BUTTON_B:
-      note = basenote+3;
+    case BUTTON_2:
+      if(value){
+	note = basenote+3;
+	lastnote[1] = note;
+	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+      }else{
+	voices->noteOff(MidiMessage::note(0, lastnote[1], 0));
+      }
       break;
-    case BUTTON_C:
+    case BUTTON_3:
       tempo1.trigger(value, samples);
       if(value)
 	lfo1->reset();
       // note = basenote+7;
       break;
-    case BUTTON_D:
+    case BUTTON_4:
       tempo2.trigger(value, samples);
       if(value)
 	lfo2->reset(); // todo: instead of hard reset, calculate to sync on next edge
       // note = basenote+12;
       break;
-    }
-    if(note && value)
-      voices->noteOn(MidiMessage::note(0, note, 80));
-    if (bid == PUSHBUTTON) {
-      if(value)
-	voices->allNotesOn();
-      else
-	voices->allNotesOff();
+    // case BUTTON_3:
+    //   if(value){
+    // 	note = basenote+7;
+    // 	lastnote[2] = note;
+    // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+    //   }else{
+    // 	voices->noteOff(MidiMessage::note(0, lastnote[2], 0));
+    //   }
+    //   break;
+    // case BUTTON_4:
+    //   if(value){
+    // 	note = basenote+12;
+    // 	lastnote[3] = note;
+    // 	voices->noteOn(MidiMessage::note(0, note, BUTTON_VELOCITY));
+    //   }else{
+    // 	voices->noteOff(MidiMessage::note(0, lastnote[3], 0));
+    //   }
+    //   break;
     }
   }
 
@@ -271,9 +320,16 @@ public:
   void processAudio(AudioBuffer& buffer) {
     basenote = getParameterValue(PARAMETER_A)*48+40;
 
+    float cutoff = getParameterValue(PARAMETER_B);
+    cutoff = cutoff*cutoff*12000+400;
+    float gain = getParameterValue(PARAMETER_C)*24-12;
+    voices->setParameter(3, gain);
+    voices->setParameter(1, cutoff);
+    
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices->generate(left);
+    left.tanh();
     right.copyFrom(left);
 
     // lfo
@@ -285,9 +341,10 @@ public:
     setButton(BUTTON_E, lfo1->getPhase() < M_PI);
     rate = getSampleRate()/tempo2.getSamples();
     lfo2->setFrequency(rate);
-    setParameterValue(PARAMETER_G, lfo2->generate()*0.5+0.5);
+    // setParameterValue(PARAMETER_G, lfo2->generate()*0.5+0.5);
+    setParameterValue(PARAMETER_G, lfo2->generate());
     setButton(BUTTON_F, lfo2->getPhase() < M_PI);
 }
 };
 
-#endif // __ResSamplerPatch_hpp__
+#endif // __SpiralSamplerPatch_hpp__

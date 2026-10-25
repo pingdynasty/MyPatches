@@ -6,44 +6,41 @@
 
 class StateVariableFilterPatch : public Patch {
 private:
-  StateVariableFilter filter;
+  MultiStateVariableFilter* filter;
 public:
   StateVariableFilterPatch(){
     registerParameter(PARAMETER_A, "Frequency");
     registerParameter(PARAMETER_B, "Resonance");
     registerParameter(PARAMETER_C, "Gain");
     registerParameter(PARAMETER_D, "Mode");
+    filter = MultiStateVariableFilter::create(getSampleRate(), getNumberOfChannels());
+  }
+  ~StateVariableFilterPatch(){
+    MultiStateVariableFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer){
-    float fc = getParameterValue(PARAMETER_A)*0.5;
+    float fc = getParameterValue(PARAMETER_A)*12000+20;
     float q = getParameterValue(PARAMETER_B)*8+0.1;
     float gain = getParameterValue(PARAMETER_C)*60 - 30;
     int mode = getParameterValue(PARAMETER_D)*5;
     switch(mode){
     case 0:
-      filter.setLowShelf(fc, q, gain);
+      filter->setLowPass(fc, q);
       break;
     case 1:
-      filter.setLowPass(fc, q);
+      filter->setHighShelf(fc, q, gain);
       break;
     case 2:
-      filter.setBandPass(fc, q);
+      filter->setBell(fc, q, gain); // or setBandPass(fc, q);
       break;
     case 3:
-      filter.setHighPass(fc, q);
+      filter->setLowShelf(fc, q, gain);
       break;
     case 4:
-      filter.setHighShelf(fc, q, gain);
+      filter->setHighPass(fc, q);
       break;
-    // case NOTCH_FILTER_MODE:
-    //   filter.setNotch(fc, q);
-    //   break;
-    // case PEAK_FILTER_MODE:
-    //   filter.setPeak(fc, q, gain);
-    //   break;
     }
-    FloatArray samples = buffer.getSamples(0);
-    filter.process(samples, samples);
+    filter->process(buffer, buffer);
   }
 };
 

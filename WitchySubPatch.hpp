@@ -181,6 +181,54 @@ public:
   }
 };
 
+
+#if 0
+/*
+ * Chord memory / recall / latch
+ * last N notes played
+*/
+class ChordMemory {
+public:
+  uint8_t* note;
+  uint8_t* velocity;
+  const size_t size;
+  Voices* voices;
+  bool recording = false;
+  ChordMemory(uint8_t* notes, uint8_t* velocities, size_t size):
+    note(notes), velocity(velocities), size(size){}
+  void processMidi(MidiMessage msg){
+    if(recording){
+      if(msg.isNoteOn())
+	addNote(msg.getNote(), msg.getVelocity());
+    }else{
+      if(msg.isNoteOn())
+	chordOn(msg.getNote()%12, msg.getVelocity()-60);
+      else if(msg.isNoteOff())
+	chordOff();
+    }
+  }
+  void chordOn(uint8_t note_offset, uint8_t velocity_offset){
+    for(size_t i=0; i<size; ++i){
+      if(velocity[i])
+	noteOn(note[i]+note_offset, velocity[i]+velocity_offset, 0);
+    }
+  }
+  void chordOff(){
+    for(size_t i=0; i<size; ++i){
+      if(velocity[i])
+	noteOff(note[i]+note_offset, 0);
+    }
+  }
+  static ChordMemory* create(size_t size){
+    return new ChordMemory(new uint8_t[size], new uint8_t[size], size);
+  }
+  static void destroy(ChordMemory* obj){
+    delete[] obj->note;
+    delete[] obj->velocity;
+    delete obj;
+};
+#endif
+  
 class WitchySubPatch : public Patch {
 private:
   Voices<MIDI_VOICES> voices;

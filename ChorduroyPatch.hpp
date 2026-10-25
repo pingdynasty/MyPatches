@@ -124,6 +124,7 @@ private:
   SmoothFloat freq;
   VoltsPerOctave hz;
   Voice voice;
+  DcBlockingFilter dc;
 public:
   ChorduroyPatch() :
     freq(0.9, 440.0), voice(getSampleRate()) {
@@ -184,11 +185,14 @@ public:
     voice.setDecay(decay);
     voice.setShape(shape);
 
-    // float fc = getParameterValue(PARAMETER_B)*8000+10;
-    // float q = getParameterValue(PARAMETER_C)*5+0.1;
-    // voice.setFilter(fc, q);
+    float fc = getParameterValue(PARAMETER_B)*8000+10;
+    float q = getParameterValue(PARAMETER_C)*5+0.1;
+    voice.setFilter(fc, q);
 
     voice.generate(left);
+    // dc.process(left, right);
+    // right.tanh();
+    // left.copyFrom(right);
     left.tanh();
     right.copyFrom(left);
   }

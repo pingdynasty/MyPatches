@@ -14,13 +14,13 @@
  * The cross-section of a single water wave has a shape similar to the Witch of Agnesi.
  * Serpentine curve: y = a*b*x / (x^2 + a^2)
  * http://mathworld.wolfram.com/SerpentineCurve.html
-
+ *
+ * https://blogs.scientificamerican.com/roots-of-unity/a-few-of-my-favorite-spaces-the-witch-of-agnesi/
  * todo: Tractrix curve
  * http://xahlee.info/SpecialPlaneCurves_dir/Tractrix_dir/tractrix.html
  */
 class AgnesiEnvelopePatch : public Patch {
 private:
-  FloatArray envelope;
   float x;
   bool triggered;
 public:
@@ -28,7 +28,6 @@ public:
     registerParameter(PARAMETER_A, "Rate");
     registerParameter(PARAMETER_B, "Radius");
     registerParameter(PARAMETER_C, "Offset");
-    envelope = FloatArray::create(getBlockSize());
     x = 0;
   }
   float agnesi(float x, float a){

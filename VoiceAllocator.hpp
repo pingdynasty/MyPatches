@@ -20,7 +20,7 @@ public:
 
 class TestPatch : public Patch {
   MonoVoiceAllocator allocator;
-  void processMidi(MidiMessage& msg){
+  void processMidi(MidiMessage msg){
     uint16_t samples = 0;
     if(msg.isNoteOn()){
       allocator.noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);
@@ -43,15 +43,16 @@ class ChannelVoiceAllocator {
 };
 
 class MonoVoiceAllocator {
-  float& freq, gain, gate;
+  float& freq;
+  float& gain;
+  float& gate;
   uint8_t notes[16];
   uint8_t lastNote = 0;
   float pb;
 public:
   MonoVoiceAllocator(float& fq, float& gn, float& gt): freq(fq), gain(gn), gate(gt) {}
   
-  void processMidi(MidiMessage& msg){
-    uint16_t samples = 0;
+  void processMidi(MidiMessage msg){
     uint16_t samples = 0;
     if(msg.isNoteOn()){
       noteOn(msg.getNote(), (uint16_t)msg.getVelocity()<<5, samples);

@@ -389,7 +389,7 @@ public:
 #ifdef MIDI_CHANNEL_ALLOCATION
   FourOpVoiceAllocator(){}
   ////
-  void processMidi(MidiMessage& msg){
+  void processMidi(MidiMessage msg){
     uint16_t samples = 0;
     uint8_t ch = msg.getChannel();
     if(msg.isNoteOn()){
@@ -427,7 +427,7 @@ public:
       allocation[i] = 0;
     }
   }
-  void processMidi(MidiMessage& msg){    
+  void processMidi(MidiMessage msg){    
     uint16_t samples = 0;
     if(msg.isNoteOn()){
       noteOn(msg.getNote(), msg.getVelocity(), samples);
@@ -588,7 +588,7 @@ public:
     if(bid == PUSHBUTTON && value == 0)
       allocator->allNotesOff(samples);
   }
-  void processMidi(MidiMessage& msg){
+  void processMidi(MidiMessage msg){
     // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
     // if(msg.getPort() != 1) // prevent double triggering on TouchKeys / Impulse
     //   return;

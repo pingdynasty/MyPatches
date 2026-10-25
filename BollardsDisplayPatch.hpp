@@ -8,8 +8,8 @@
 
 #define GREY 0xAAAA
 
-#define MINS_PER_PRESET 60
-#define MINS_IDLE_TIME  5
+#define MINS_PER_PRESET 3
+#define MINS_IDLE_TIME  2
 
 const char presetnames[][8] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Bypass", "Manual"};
 
@@ -37,6 +37,7 @@ private:
   uint32_t counter, idle;
   const uint32_t presetChangeInterval;
   const uint32_t maxIdleInterval;
+  bool autoChangePreset;
 public:
   BollardsDisplayPatch() :
     presetChangeInterval(MINS_PER_PRESET*60*getSampleRate()/getBlockSize()),
@@ -44,6 +45,7 @@ public:
     registerParameter(PARAMETER_A, "Preset");
     registerParameter(PARAMETER_B, "Octave");
     reset();
+    parameterA = parameterB = 0;
     // changePreset();
   }
   void setOctave(int ch, int oct){
@@ -81,9 +83,11 @@ public:
   void reset(){
     counter = idle = 0;
     setParameterValue(PARAMETER_A, 1.0/PARAMETER_TICKS);
-    setParameterValue(PARAMETER_B, 2.0/PARAMETER_TICKS);
+    setParameterValue(PARAMETER_B, 0.025);
+    // setParameterValue(PARAMETER_B, 1.0/PARAMETER_TICKS);
     tune1 = SmoothFloat(0, 0.98);
     tune2 = SmoothFloat(0, 0.98);
+    autoChangePreset = false;
   }
   void drawPreset(ScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
     screen.setCursor(x, y);
@@ -116,6 +120,7 @@ public:
     if(next >= MAX_PRESET)
       next = 0;
     setParameterValue(PARAMETER_A, float(next)/PARAMETER_TICKS);
+    autoChangePreset = true;
   }
   void processAudio(AudioBuffer& samples){
     idle++;
@@ -129,13 +134,16 @@ public:
       }else if(parameterA < 1){
       	parameterA = 1;
       	setParameterValue(PARAMETER_A, float(parameterA)/PARAMETER_TICKS);	
-      }			      
+      }
       if(preset0 != parameterA){
       	preset0 = parameterA;
       	preset1 = parameterA;
       	setPreset(0, preset0);
       	setPreset(1, preset1);
-	idle = 0;
+	if(autoChangePreset)
+	  autoChangePreset = false;
+	else
+	  idle = 0;
       }
     }
     value = round(getParameterValue(PARAMETER_B)*PARAMETER_TICKS);
@@ -153,7 +161,10 @@ public:
 	octave1 = parameterB;
 	setOctave(0, octave0);
 	setOctave(1, octave1);
-	idle = 0;
+	if(autoChangePreset)
+	  autoChangePreset = false;
+	else
+	  idle = 0;
       }
     }
     

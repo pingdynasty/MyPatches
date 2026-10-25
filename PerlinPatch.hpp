@@ -7,17 +7,23 @@
 
 class PerlinPatch : public Patch {
 private:
+  FloatParameter x, y, z;
+  IntParameter w;
 public:
   PerlinPatch(){
   }
   ~PerlinPatch(){
+    x = getFloatParameter("X", 0, 1, 0, 0.99);
+    y = getFloatParameter("Y", 0, 1, 0, 0.99);
+    z = getFloatParameter("Z", 0, 1, 0, 0.99);
+    // w = getIntParameter("Wrap", 0, 8);
   }
   void processAudio(AudioBuffer& buffer){
     float x = getParameterValue(PARAMETER_A);
     float y = getParameterValue(PARAMETER_B);
     float z = getParameterValue(PARAMETER_C);
-    int wrap = getParameterValue(PARAMETER_D)*8;
-    wrap = 1<<wrap;
+    // int wrap = 1<<(int)w;
+    int wrap = 1 << (int)(getParameterValue(PARAMETER_D)*8);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     for(int i=0; i<buffer.getSize(); ++i){

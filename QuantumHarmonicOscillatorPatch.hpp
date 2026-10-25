@@ -125,6 +125,7 @@ public:
     registerParameter(PARAMETER_E, "Resonance");
     registerParameter(PARAMETER_F, "LFO>");
     registerParameter(PARAMETER_G, "Energy>");
+    registerParameter(PARAMETER_H, "Average>");
     registerParameter(PARAMETER_AA, "H1");
     registerParameter(PARAMETER_AB, "H2");
     registerParameter(PARAMETER_AC, "H3");
@@ -182,6 +183,7 @@ public:
     right.copyFrom(left);
     setParameterValue(PARAMETER_F, wavetable->read());
     setParameterValue(PARAMETER_G, ae/4);
+    setParameterValue(PARAMETER_H, FloatArray(wavetable->getData(), wavetable->getSize()).getMean());
     display.update(quantum->getWavetable());
   }
   void processScreen(MonochromeScreenBuffer& screen){

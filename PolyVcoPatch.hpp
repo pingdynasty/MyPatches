@@ -18,19 +18,16 @@
 #undef exp10f
 
 #include "Patch.h"
+#include "DcFilter.hpp"
 #include "MonoVoiceAllocator.hpp"
 
-static constexpr int TUNING_TABLE_SIZE = 1024;
+static constexpr int TUNING_TABLE_SIZE = 256;
 static constexpr int CV_SETTLE_BLOCKS = 2;
 
 static constexpr int POINTS_AVERAGE = 3;
 static constexpr int POINTS_DISCARD = 2;
-static constexpr float POS_THRESHOLD = 0.1;
-static constexpr float NEG_THRESHOLD = -0.1;
-// static constexpr float POS_THRESHOLD = 1.0;
-// static constexpr float NEG_THRESHOLD = 0.9;
-// sync out on Magus audio in: -0.22 to 0.03
-// sync out on Noctua audio in: 0 to 1.99
+static constexpr float POS_THRESHOLD = 0.01;
+static constexpr float NEG_THRESHOLD = -0.01;
 static constexpr float SPREAD_THRESHOLD = 0;
 
 static constexpr float CH1_MIN = 1; // inverted range
@@ -210,6 +207,7 @@ class PolyVcoPatch : public Patch {
   FrequencyCounter fc;
   Tuner tuner;
   SmoothFloat cv;
+  DcFilter dcfilter;
   enum PatchMode {
 	INIT_MODE,
 	CTRL_MODE,
@@ -286,6 +284,7 @@ public:
     FloatArray left = buffer.getSamples(0);
     FloatArray right = buffer.getSamples(2); // channel 3 on Noctua
     float cv;
+    dcfilter.process(left);
     fc.process(left);
     switch(mode){
     case INIT_MODE: {
@@ -319,7 +318,8 @@ public:
       break;
     }
     case PLAY_MODE: {      
-      float note = (int)(getParameterValue(PARAMETER_B)*63) + allocator.getNote();
+      // float note = (int)(getParameterValue(PARAMETER_B)*63) + allocator.getNote();
+      float note = allocator.getNote();
       cv = tuner.getNoteCV(note);
       // debugMessage("play", note, fc.getFrequency(), noteToFrequency(note));
       float measured = frequencyToNote(fc.getFrequency());
@@ -339,7 +339,7 @@ public:
       break;
     }
     }
-    // left.setAll(cv*(CH1_MAX-CH1_MIN)+CH1_MIN);
+    left.setAll(cv*(CH1_MAX-CH1_MIN)+CH1_MIN);
     right.setAll(cv*(CH2_MAX-CH2_MIN)+CH2_MIN);
     setParameterValue(PARAMETER_H, cv);
   }

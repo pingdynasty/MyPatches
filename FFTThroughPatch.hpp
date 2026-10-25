@@ -15,6 +15,8 @@ private:
   FloatArray overlap;
   Window inwin;
   Window outwin;
+  FloatArray magnitudes;
+  SmoothFloat shift;
 public:
   FFTThroughPatch(){
     blocksize = getBlockSize();
@@ -27,18 +29,25 @@ public:
     outwin = Window::create(Window::TriangularWindow, fftsize);
     timedomain.clear();
     overlap.clear();
+    magnitudes = FloatArray::create(fftsize);
   }
   void processFreq(ComplexFloatArray bins){
     // do something with the phase and magnitude
-    int idx = bins.getMaxMagnitudeIndex();
+    int idx = bins.subArray(0, fftsize/2).getMaxMagnitudeIndex();
     debugMessage("max index/value/freq", (float)idx, bins.mag(idx), (float)idx*getSampleRate()/fftsize);
+    bins.getMagnitudeValues(magnitudes);
+    shift = getParameterValue(PARAMETER_A)*fftsize/8;
+    magnitudes.move(0, shift, fftsize-shift);
+    magnitudes.subArray(0, shift).clear();
+    bins.setMagnitude(magnitudes);
   }
   void processAudio(AudioBuffer &buffer) {
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     inwin.apply(left);
     timedomain.copyFrom(left);
+    timedomain.subArray(blocksize, fftsize-blocksize).clear();
     fft.fft(timedomain, freqdomain);
-    processFreq(freqdomain.subArray(0, blocksize));
+    processFreq(freqdomain);
     fft.ifft(freqdomain, timedomain);
     outwin.apply(timedomain);
     left.copyFrom(timedomain); // use first half of output

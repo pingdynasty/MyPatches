@@ -8,14 +8,6 @@
 #define FX_SELECT FX_PHASER
 
 #include "WitchFX.hpp"
-
-/**
- * Get a frequency multiplier that scales a given number of octaves up and down, 
- * for 0<=x<=1, where x=0.5 equals unity
- */
-float getFrequencyScalar(float x, float octaves){
-  return exp2f(2*octaves*x - octaves);
-}
 			 
 class VosimSynth : public AbstractSynth {
 protected:

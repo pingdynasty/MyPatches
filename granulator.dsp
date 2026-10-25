@@ -68,6 +68,7 @@ granulator = vgroup("Granulator", environment {
     duree_env = 1/(speed : /(ratio_env*(0.25)*fade));
 }.process);
 
+// dry/wet mix
 mix = hslider("Mix [OWL:D]", 0.5, 0, 1, 0.001);
 
 process(l,r) = l,r <: *(1-mix), *(1-mix), granulator*mix, granulator*mix :> _,_;

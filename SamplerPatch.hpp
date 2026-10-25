@@ -2,30 +2,29 @@
 #define __SamplerPatch_hpp__
 
 #include "Patch.h"
-#include "Envelope.h"
-#include "Oscillator.h"
-#include "VoltsPerOctave.h"
-#define SAMPLENAME sample1[0]
-#include "sample.h"
+#include "OpenWareLibrary.h"
+#define SAMPLENAME "sample1.wav"
 #define MIDDLE_C 261.6
 
-#include "Control.h"
-#include "SmoothValue.h"
+#define MIDI_VOICES 8
 
 /*
   need a buffer that can be read in a circular fashion
  */
-class SampleOscillator : public Oscillator {
+class MySampleOscillator : public Oscillator {
 private:
   const float fs;
   FloatArray buffer;
   float pos = 0.0f;
-  uint16_t size;
+  size_t size;
   float rate = 1.0f;
 public:
-  SampleOscillator(float sr, FloatArray sample) :
+  MySampleOscillator(float sr, FloatArray sample) :
     fs(sr), buffer(sample){
     size = buffer.getSize()-1;
+  }
+  float getFrequency(){
+    return rate*MIDDLE_C;
   }
   void setFrequency(float freq){
     rate = freq/MIDDLE_C;
@@ -35,6 +34,12 @@ public:
   // }
   void reset(){
     pos = 0.0f;
+  }
+  void setPhase(float phase){
+    pos = size*phase/(2*M_PI);
+  }
+  float getPhase(){
+    return pos*2*M_PI/size;
   }
   void increment(){
     pos += rate;
@@ -50,13 +55,17 @@ public:
     float frac = index - idx;
     return low*frac + high*(1.0-frac);    
   }
-  float getNextSample(){
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
     increment();
     return interpolate(pos, buffer);
   }
-  uint16_t findZeroCrossing(uint16_t index){
-    uint16_t limit = buffer.getSize()-1;
-    uint16_t i = min(index, limit);
+  using Oscillator::generate;
+  size_t findZeroCrossing(size_t index){
+    size_t limit = buffer.getSize()-1;
+    size_t i = min(index, limit);
     if(buffer[i] > 0)
       while(i < limit && buffer[i] > 0)
 	i++;
@@ -65,11 +74,11 @@ public:
 	i++;
     return i;
   }
-  void setDuration(uint16_t samples){
+  void setDuration(size_t samples){
     size = findZeroCrossing(samples);
   }
   /* @return the audio length in samples */
-  uint16_t getSampleLength(){
+  size_t getSampleLength(){
     return buffer.getSize();
   }
   // void getSamples(FloatArray out){
@@ -79,8 +88,8 @@ public:
 
 class SamplerVoice {
 private:
-  SampleOscillator osc;
-  AdsrEnvelope env;
+  MySampleOscillator osc;
+  ExponentialAdsrEnvelope env;
   float gain;
   Control<PARAMETER_AA> attack = 0.0f;
   Control<PARAMETER_AB> decay = 0.0f;
@@ -121,11 +130,11 @@ public:
     if(state)
       osc.reset();
   }
-  void getSamples(FloatArray samples){
+  void generate(FloatArray samples){
     osc.setDuration(duration*osc.getSampleLength());
-    osc.getSamples(samples);
+    osc.generate(samples);
     samples.multiply(gain);
-    env.attenuate(samples);
+    env.process(samples, samples);
   }
 };
 
@@ -155,7 +164,9 @@ private:
   }
 
 public:
-  Voices(float sr, int bs, FloatArray buf) : allocated(0) {
+  Voices() : allocated(0) {}
+  
+  void init(float sr, int bs, FloatArray buf){
     for(int i=0; i<VOICES; ++i){
       voice[i] = SamplerVoice::create(sr, buf);
       notes[i] = 69; // middle A, 440Hz
@@ -215,10 +226,10 @@ public:
     }
   }
 
-  void getSamples(FloatArray samples){
-    voice[0]->getSamples(samples);
+  void generate(FloatArray samples){
+    voice[0]->generate(samples);
     for(int i=1; i<VOICES; ++i){
-      voice[i]->getSamples(buffer);
+      voice[i]->generate(buffer);
       samples.add(buffer);
     }
   }
@@ -226,30 +237,37 @@ public:
 
 class SamplerPatch : public Patch {
 private:
-  Voices<8> voices;
+  Voices<MIDI_VOICES> voices;
 public:
-  SamplerPatch() : 
-    voices(getSampleRate(), getBlockSize(), 
-	   FloatArray(SAMPLENAME, // SAMPLESIZE)){ // 
-		      sizeof(SAMPLENAME)/sizeof(float))) {
-    registerParameter(PARAMETER_A, "Pitchbend");
-    registerParameter(PARAMETER_D, "Envelope");
-    FloatArray sample(SAMPLENAME, sizeof(SAMPLENAME)/sizeof(float));
+  SamplerPatch() {
+
+    Resource* resource = getResource(SAMPLENAME);
+    WavFile wav(resource->getData(), resource->getSize());
+    if(!wav.isValid())
+      error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
+    FloatArray sample = wav.createFloatArray(0);
+
     float scale = 1.0f/max(sample.getMaxValue(), -sample.getMinValue());
     sample.multiply(scale);
+
+    voices.init(getSampleRate(), getBlockSize(), sample);
+
+    registerParameter(PARAMETER_A, "Pitchbend");
+    registerParameter(PARAMETER_D, "Envelope");
+
     // debugMessage("normalised", scale);
   }
   ~SamplerPatch(){
   }
+  void processMidi(MidiMessage msg){
+    if(msg.isNoteOn())
+      voices.noteOn(msg.getNote(), msg.getVelocity(), 0);
+    else if(msg.isNoteOff())
+      voices.noteOff(msg.getNote(), 0);
+  }
+
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      // debugMessage("midi note", note, value, samples);
-      if(value) // note on
-	voices.noteOn(note, value, samples);
-      else // note off
-	voices.noteOff(note, samples);
-    }else if(bid == PUSHBUTTON){
+    if(bid == PUSHBUTTON){
       // debugMessage("push", bid, value, samples);
       if(value)
 	voices.allNotesOn();
@@ -270,7 +288,7 @@ public:
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     voices.setParameters(attack, release, pitchbend);
-    voices.getSamples(left);
+    voices.generate(left);
     right.copyFrom(left);
   }
 };

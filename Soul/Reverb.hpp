@@ -13,10 +13,8 @@
 #include <cstring>
 #include <cassert>
 
-#define SOUL_CPP_ASSERT(x) assert (x)
-
 #ifndef SOUL_CPP_ASSERT
- #define SOUL_CPP_ASSERT(x)
+ #define SOUL_CPP_ASSERT(x) assert (x)
 #endif
 
 //==============================================================================
@@ -112,7 +110,7 @@ public:
     //==============================================================================
     // The following methods provide basic initialisation and control for the processor
 
-    void init (double newSampleRate, int sessionID)
+    void init (float newSampleRate, int sessionID)
     {
         memset (reinterpret_cast<void*> (std::addressof (state)), 0, sizeof (state));
         sampleRate = newSampleRate;
@@ -388,7 +386,7 @@ public:
         (void) newState;
     }
 
-    void setPosition (int64_t currentFrame, double currentQuarterNote, double lastBarStartQuarterNote)
+    void setPosition (int64_t currentFrame, float currentQuarterNote, float lastBarStartQuarterNote)
     {
         (void) currentFrame; (void) currentQuarterNote; (void) lastBarStartQuarterNote;
     }
@@ -603,13 +601,13 @@ public:
     static constexpr int32_t _intrin_wrap (int32_t n, int32_t range)   { if (range == 0) return 0; auto x = n % range; return x < 0 ? x + range : x; }
 
     static constexpr float  _nan32 = std::numeric_limits<float>::quiet_NaN();
-    static constexpr double _nan64 = std::numeric_limits<double>::quiet_NaN();
+    static constexpr float _nan64 = std::numeric_limits<float>::quiet_NaN();
 
     static constexpr float  _inf32 = std::numeric_limits<float>::infinity();
-    static constexpr double _inf64 = std::numeric_limits<double>::infinity();
+    static constexpr float _inf64 = std::numeric_limits<float>::infinity();
 
     static constexpr float  _ninf32 = -_inf32;
-    static constexpr double _ninf64 = -_inf64;
+    static constexpr float _ninf64 = -_inf64;
 
     template <typename SourceFloatType, typename DestFloatType>
     static inline void copyToInterleaved (DestFloatType* monoDest, const SourceFloatType* const* sourceChannels, uint32_t sourceStartFrame, uint32_t numFrames)
@@ -1550,7 +1548,7 @@ public:
         diff = static_cast<float> (_state.m_targetValue - _state.m_currentValue);
         _2 = soul__intrinsics___abs_specialised (static_cast<float> (diff));
         rampSeconds = static_cast<float> (_2 / 20.0f);
-        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<double> (rampSeconds));
+        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<float> (rampSeconds));
         _state.m_rampIncrement = static_cast<float> (diff / static_cast<float> (static_cast<float> (_state.m_rampSamples)));
     }
 
@@ -1589,7 +1587,7 @@ public:
         diff = static_cast<float> (_state.m_targetValue - _state.m_currentValue);
         _2 = soul__intrinsics___abs_specialised (static_cast<float> (diff));
         rampSeconds = static_cast<float> (_2 / 20.0f);
-        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<double> (rampSeconds));
+        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<float> (rampSeconds));
         _state.m_rampIncrement = static_cast<float> (diff / static_cast<float> (static_cast<float> (_state.m_rampSamples)));
     }
 
@@ -1628,7 +1626,7 @@ public:
         diff = static_cast<float> (_state.m_targetValue - _state.m_currentValue);
         _2 = soul__intrinsics___abs_specialised (static_cast<float> (diff));
         rampSeconds = static_cast<float> (_2 / 20.0f);
-        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<double> (rampSeconds));
+        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<float> (rampSeconds));
         _state.m_rampIncrement = static_cast<float> (diff / static_cast<float> (static_cast<float> (_state.m_rampSamples)));
     }
 
@@ -1667,7 +1665,7 @@ public:
         diff = static_cast<float> (_state.m_targetValue - _state.m_currentValue);
         _2 = soul__intrinsics___abs_specialised (static_cast<float> (diff));
         rampSeconds = static_cast<float> (_2 / 20.0f);
-        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<double> (rampSeconds));
+        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<float> (rampSeconds));
         _state.m_rampIncrement = static_cast<float> (diff / static_cast<float> (static_cast<float> (_state.m_rampSamples)));
     }
 
@@ -1706,7 +1704,7 @@ public:
         diff = static_cast<float> (_state.m_targetValue - _state.m_currentValue);
         _2 = soul__intrinsics___abs_specialised (static_cast<float> (diff));
         rampSeconds = static_cast<float> (_2 / 20.0f);
-        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<double> (rampSeconds));
+        _state.m_rampSamples = static_cast<int32_t> ((sampleRate * 1.0) * static_cast<float> (rampSeconds));
         _state.m_rampIncrement = static_cast<float> (diff / static_cast<float> (static_cast<float> (_state.m_rampSamples)));
     }
 
@@ -2810,7 +2808,7 @@ public:
     //==============================================================================
     _State state = {}, initialisedState;
 
-    double sampleRate = 1.0;
+    float sampleRate = 1.0;
     uint32_t framesToAdvance = 0;
     uint64_t totalFramesElapsed = 0;
 };

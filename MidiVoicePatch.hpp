@@ -104,7 +104,7 @@ public:
       if(value){
 	// note on
 	// float freq = (440.0f / 32) * (2 ^ ((note - 9) / 12));
-	float freq = (440.0f / 32) * fastpow2f((note - 9) / 12.0f);
+	float freq = (440.0f / 32) * exp2f((note - 9) / 12.0f);
 	if(notes[0] == -1 || notes[0] == note){
 	  notes[0] = note;
 	  voice[0]->setFrequency(freq);

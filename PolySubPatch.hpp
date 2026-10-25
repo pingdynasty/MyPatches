@@ -1,12 +1,7 @@
-#ifndef __PolyVoicePatch_hpp__
-#define __PolyVoicePatch_hpp__
+#ifndef __PolySubPatch_hpp__
+#define __PolySubPatch_hpp__
 
-#include "Patch.h"
-#include "Envelope.h"
-#include "VoltsPerOctave.h"
-#include "PolyBlepOscillator.h"
-#include "BiquadFilter.h"
-#include "SmoothValue.h"
+#include "OpenWareLibrary.h"
 
 #define MIDI_VOICES 8
 #define PITCHBEND_RANGE 8  // Roli default pitch bend is +/-48 semitones
@@ -29,7 +24,7 @@ public:
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(4));
+    return new SynthVoice(sr, BiquadFilter::create(sr, 4));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -63,10 +58,10 @@ public:
   }
   void getSamples(FloatArray samples){
     filter->setLowPass(fc, q);
-    osc.getSamples(samples);
+    osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
-    env.attenuate(samples);
+    env.process(samples, samples);
   }
 };
 
@@ -192,7 +187,7 @@ public:
     setParameterValue(PARAMETER_C, 0.2);
     setParameterValue(PARAMETER_D, 0.4);
     setParameterValue(PARAMETER_E, 0.5);
-    hp = BiquadFilter::create(2);
+    hp = BiquadFilter::create(getSampleRate(), 2);
     hp->setHighPass(40/(getSampleRate()/2), FilterStage::BUTTERWORTH_Q);
   }
   ~PolySubPatch(){
@@ -296,4 +291,4 @@ public:
   }
 };
 
-#endif   // __PolyVoicePatch_hpp__
+#endif   // __PolySubPatch_hpp__

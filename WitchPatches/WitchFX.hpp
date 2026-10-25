@@ -3,6 +3,14 @@
 
 #define TRIGGER_LIMIT (1<<22)
 
+/**
+ * Get a frequency multiplier that scales a given number of octaves up and down, 
+ * for 0<=x<=1, where x=0.5 equals unity
+ */
+float getFrequencyScalar(float x, float octaves){
+  return exp2f(2*octaves*x - octaves);
+}
+
 class StereoMixProcessor : public MultiSignalProcessor {
 protected:
   float a = 2.424; // default pan law -3dB

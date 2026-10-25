@@ -8,7 +8,7 @@
 
 #define GREY 0xAAAA
 
-#define MINS_PER_PRESET 60
+#define MINS_PER_PRESET 0.1
 #define MINS_IDLE_TIME 5
 
 // extern "C" {
@@ -102,26 +102,6 @@ public:
     octave0 = octave1 = 1;
     setOctave(0, octave0);
     setOctave(1, octave1);
-#if 0    
-    setParameterValue(PARAMETER_A, preset0*4096/MANUAL_PRESET);
-    setParameterValue(PARAMETER_B, preset1*4096/MANUAL_PRESET);
-
-    // // send PC to change to last program, E8: PC40
-    // midiSendPC(OWL_A_CH, 40);
-    // send CC 26 value 127 to turn remote control on: CC26/127
-    midiSendCC(OWL_A_CH, PATCH_CONTROL, 127);
-    // send parameter E value 0 to select first preset: CC24/0
-    midiSendCC(OWL_A_CH, PATCH_PARAMETER_E, preset0);
-
-    midiSendCC(OWL_B_CH, PATCH_CONTROL, 127);
-    midiSendCC(OWL_B_CH, PATCH_PARAMETER_E, preset0);
-
-    midiSendCC(OWL_C_CH, PATCH_CONTROL, 127);
-    midiSendCC(OWL_C_CH, PATCH_PARAMETER_E, preset1);
-    midiSendCC(OWL_D_CH, PATCH_CONTROL, 127);
-    midiSendCC(OWL_D_CH, PATCH_PARAMETER_E, preset1);
-  }
-#endif
   }
   void draw(ScreenBuffer& screen, uint8_t x, uint8_t y, uint8_t preset){
     if(preset < MAX_PRESET)

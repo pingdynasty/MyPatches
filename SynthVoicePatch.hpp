@@ -46,7 +46,7 @@ private:
   PolyBlepOscillator osc;
   VoltsPerOctave hz;
   BiquadFilter* filter;
-  SmoothFloat tune, fc, q;
+  SmoothFloat tune, cutoff, q, fc;
 public:
   SynthVoicePatch() : osc(getSampleRate()), env(getSampleRate()) {
     registerParameter(PARAMETER_A, "Pitch");
@@ -60,15 +60,22 @@ public:
     envelope = FloatArray::create(getBlockSize());
     filter = BiquadFilter::create(4); // 8-pole filter 48dB
     button = new TriggerButton(&env);
+    debugMessage("offset/mult", hz.offset, hz.multiplier);
+    hz.offset = -0.0589f;
+    hz.multiplier = -4.399f;
+    // tune.lambda = 0.3;
+    // cutoff.lambda = 0.3;
   }
   ~SynthVoicePatch(){
     FloatArray::destroy(envelope);
     BiquadFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer) {
-    tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
-    float cutoff = getParameterValue(PARAMETER_B)*10.0 - 4.0;
-    q = getParameterValue(PARAMETER_C)*3+0.75;
+    tune = getParameterValue(PARAMETER_A)*2-1;
+    // tune = getParameterValue(PARAMETER_A)*10.0 - 6.0;
+    float cutoff = getParameterValue(PARAMETER_B)*8.0;
+    // float cutoff = getParameterValue(PARAMETER_B)*10.0 - 4.0;
+    q = getParameterValue(PARAMETER_C)*2.4+0.75;
     float shape = getParameterValue(PARAMETER_E)*2;
     float pw = 0.5;
     if(shape > 1.0){
@@ -112,8 +119,7 @@ public:
     osc.getSamples(left);
     // vcf
     hz.setTune(cutoff);
-    cutoff = hz.getFrequency(right[0]);
-    fc = min(0.999, max(0.01, cutoff/(getSampleRate()*2))); // normalised and bounded
+    fc = min(0.999, max(0.01, hz.getFrequency(right[0])/(getSampleRate()*2))); // normalised and bounded
     filter->setLowPass(fc, q);
     right.copyFrom(left);
     filter->process(right);

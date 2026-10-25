@@ -5,8 +5,6 @@
 #include "VoltsPerOctave.h"
 #include "Cymbal.hpp"
 #include "BassDrum.hpp"
-#include "ChirpOscillator.h"
-#include "SineOscillator.h"
 
 class PolyDrumPatch : public Patch {
 private:

@@ -17,14 +17,14 @@
 
 #define SOUL_CPP_ASSERT(x)
 
-#include "DiodeClipper.hpp"
-#define SOULPATCH Diode
+// #include "DiodeClipper.hpp"
+// #define SOULPATCH Diode
 // #include "SineSynth.hpp"
 // #define SOULPATCH SineSynth
 // #include "Reverb.hpp"
 // #define SOULPATCH Reverb
-// #include "Delay.hpp"
-// #define SOULPATCH Delay
+#include "Delay.hpp"
+#define SOULPATCH Delay
 // #include "PadSynth.hpp"
 // #define SOULPATCH PadSynth
 

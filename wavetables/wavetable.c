@@ -3,7 +3,12 @@
  * https://www.earlevel.com/main/2020/01/04/further-thoughts-on-wave-table-oscillators/
  *
  * "I hope you don’t mind if I simply paste in here the core code for the wavetable oscillator that I wrote. It is not a complete solution, just the inner core code. It shows how to interpolate between wavetables in up to three dimensions. one of those dimensions will be the keyboard or MIDI note (so wavetables along that dimension will be losing harmonics as you go up in pitch)."
+
  * "I just wanted to share some fundamental wavetable code, the actual synthesis code, to sorta demonstrate how interpolation between wavetables along different dimensions can be done. When we were trying this out, usually one dimension was the MIDI pitch, another dimension was elapsed time after NoteOn, and if we needed a modwheel or pedal or key velocity then we had a third dimension of interpolation. We also tried out a method to detune some harmonics slightly using "cylindrical coordinates" (one of the dimensions was circular, not linear) that could cause some harmonics to detune more than others."
+
+ * "The file shows how to linearly interpolate between wavetables in up to 3 dimensions of controller.  And in any of those dimensions, you can easily extend this to piecewise linear control functions."
+
+ * "You can actually set up wavetables that can advance the phase of one harmonic relative to another (like the fundamental).  Then you can have a trajectory that's a circle and you can use that to detune a partial from its harmonic value.  Otherwise partials are always harmonic in wavetable synthesis."
 
  */
 

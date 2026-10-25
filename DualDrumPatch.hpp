@@ -1,7 +1,7 @@
 #ifndef __DualDrumPatch_hpp__
 #define __DualDrumPatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 #include "VoltsPerOctave.h"
 #include "Cymbal.hpp"
 #include "BassDrum.hpp"
@@ -102,6 +102,7 @@ public:
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     drum[0]->getSamples(left);
     drum[1]->getSamples(right);
+    // right.multiply(0.5);
   }
 };
 

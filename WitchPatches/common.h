@@ -1,4 +1,4 @@
-/* #define PATCH_EXPRESSION */
+#define PATCH_PERFORMANCE
 
 #ifdef PATCH_EXPRESSION
 #define USE_MPE

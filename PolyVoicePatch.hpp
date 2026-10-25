@@ -9,6 +9,8 @@
 #include "SmoothValue.h"
 
 // The per-note messages sent over each channel are limited to Note On, Note Off, Channel Pressure (for finger pressure), Pitch Bend (for x-axis movement) and CC74 (for Y-axis movement).
+
+#define MIDI_VOICES 4
   
 class SynthVoice {
 private:
@@ -26,7 +28,7 @@ public:
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(4));
+    return new SynthVoice(sr, BiquadFilter::create(2));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -166,7 +168,7 @@ public:
 
 class PolyVoicePatch : public Patch {
 private:
-  Voices<8> voices;
+  Voices<MIDI_VOICES> voices;
 public:
   PolyVoicePatch() : voices(getSampleRate(), getBlockSize()) {
     registerParameter(PARAMETER_A, "Waveshape");
@@ -178,7 +180,7 @@ public:
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
     if(bid >= MIDI_NOTE_BUTTON){
-      debugMessage("note/velocity", bid - MIDI_NOTE_BUTTON, value);
+      // debugMessage("note/velocity", bid - MIDI_NOTE_BUTTON, value);
       uint8_t note = bid - MIDI_NOTE_BUTTON;
       if(value) // note on
 	voices.noteOn(note, value, samples);

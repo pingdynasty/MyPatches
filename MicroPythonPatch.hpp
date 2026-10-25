@@ -2,13 +2,11 @@
 #define __MicroPythonPatch_hpp__
 
 /**
-   cd micropython/ports/owl
-   make CROSS=1 clean all
-   cp build/libmicropython-cm4.a ~/devel/OwlProgram/MyPatches/
-   make CROSS=0 clean all
-   cp build/libmicropython-i386.a ~/devel/OwlProgram/MyPatches/
+ * build build/libmicropython-cm4.a:
+ * make CROSS=1 clean all
+ * build build/libmicropython-i386.a:
+ * make CROSS=0 clean all
  */
-
 #define USE_MP_SCREEN
 #ifdef USE_MP_SCREEN
 #include "MonochromeScreenPatch.h"
@@ -18,14 +16,12 @@
 #include "ServiceCall.h"
 #include "message.h"
 
-// #define NO_QSTR
-
-// #define HEAPSIZE (6*1024*1024)
-#define HEAPSIZE (256*1024)
+#define HEAPSIZE (6*1024*1024)
+// #define HEAPSIZE (256*1024)
 
 extern "C" {
 
-  static const char* mp_message = NULL;
+  static const char* mp_message = NULL; // needs to be copied
   void output_string(const char* str){
     if(str != NULL && str[0] != 0 && str[0] != 13){ // ignore cr lf
       debugMessage(str);
@@ -343,8 +339,8 @@ public:
     // mp_obj_list_init(MP_OBJ_TO_PTR(mp_sys_argv), 0);
 
     const char str[] = 
-      "import owl\n" 
       "import math\n"
+      "import owl\n" 
       "print('hello embedded world!')\n"
       // "def sin_osc(freq, duration = 1, sample_rate = 48000):\n"
       // "  ph = 0\n"

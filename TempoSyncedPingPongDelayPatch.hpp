@@ -37,14 +37,8 @@ DESCRIPTION:
 
 */
 
-#include "Patch.h"
-#include "DcBlockingFilter.h"
-#include "BiquadFilter.h"
-#include "CircularBuffer.hpp"
+#include "OpenWareLibrary.h"
 #include "TapTempo.hpp"
-#include "SineOscillator.h"
-#include "RampOscillator.h"
-#include "SmoothValue.h"
 
 static const int RATIOS_COUNT = 9;
 static const float ratios[RATIOS_COUNT] = { 1.0/4, 
@@ -70,8 +64,8 @@ static const uint32_t counters[RATIOS_COUNT] = { 1,
 class TempoSyncedPingPongDelayPatch : public Patch {
 private:
   static const int TRIGGER_LIMIT = (1<<17);
-  CircularBuffer* delayBufferL;
-  CircularBuffer* delayBufferR;
+  CircularBuffer<float>* delayBufferL; // change to use FractionalDelayProcessor
+  CircularBuffer<float>* delayBufferR;
   int delayL, delayR, ratio;
   TapTempo<TRIGGER_LIMIT> tempo;
   StereoDcBlockingFilter dc;
@@ -90,8 +84,8 @@ public:
     registerParameter(PARAMETER_D, "Dry/Wet");
     registerParameter(PARAMETER_F, "LFO Sine>");
     registerParameter(PARAMETER_G, "LFO Ramp>");
-    delayBufferL = CircularBuffer::create(TRIGGER_LIMIT);
-    delayBufferR = CircularBuffer::create(TRIGGER_LIMIT*2);
+    delayBufferL = CircularBuffer<float>::create(TRIGGER_LIMIT);
+    delayBufferR = CircularBuffer<float>::create(TRIGGER_LIMIT*2);
     lowpass = StereoBiquadFilter::create(getSampleRate(), 1);
     lowpass->setLowPass(18000, FilterStage::BUTTERWORTH_Q);
     lfo1 = RampOscillator::create(getSampleRate()/getBlockSize());    
@@ -99,8 +93,8 @@ public:
   }
 
   ~TempoSyncedPingPongDelayPatch(){
-    CircularBuffer::destroy(delayBufferL);
-    CircularBuffer::destroy(delayBufferR);
+    CircularBuffer<float>::destroy(delayBufferL);
+    CircularBuffer<float>::destroy(delayBufferR);
     StereoBiquadFilter::destroy(lowpass);
     RampOscillator::destroy(lfo1);
     SineOscillator::destroy(lfo2);
@@ -150,8 +144,8 @@ public:
     for(int n=0; n<size; n++){
       float x1 = n/(float)size;
       float x0 = 1.0-x1;
-      float ldly = delayBufferL->read(delayL)*x0 + delayBufferL->read(newDelayL)*x1;
-      float rdly = delayBufferR->read(delayR)*x0 + delayBufferR->read(newDelayR)*x1;
+      float ldly = delayBufferL->readAt(delayL)*x0 + delayBufferL->readAt(newDelayL)*x1;
+      float rdly = delayBufferR->readAt(delayR)*x0 + delayBufferR->readAt(newDelayR)*x1;
       // ping pong
       delayBufferR->write(feedback*ldly + drop*left[n]);
       delayBufferL->write(feedback*rdly + drop*right[n]);

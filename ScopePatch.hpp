@@ -61,7 +61,7 @@ public:
     screen.setCursor(80, y);
     screen.print(offset);
     display.draw(screen, trace1);
-   }
+}
 
   void processAudio(AudioBuffer& samples){
     divisions = getParameterValue(PARAMETER_A)*64+1;

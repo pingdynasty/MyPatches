@@ -10,6 +10,7 @@ private:
   // NoiseOscillator noise;
   FloatArray noise;
   FloatArray buffer;
+  FloatArray tmp;
   FloatArray dest;
   Window window;
   enum PatchMode {
@@ -19,10 +20,12 @@ private:
   PatchMode mode = RECORD;
 public:
   TimeFreezePatch(){
-    noise = FloatArray::create(getBlockSize());
     buffer = FloatArray::create(getBlockSize());
     dest = FloatArray::create(getBlockSize()*2);
+    tmp = FloatArray::create(getBlockSize());
+    noise = FloatArray::create(getBlockSize());
     window = Window::create(Window::HanningWindow, getBlockSize());
+    registerParameter(PARAMETER_A, "Noise");
     registerParameter(PARAMETER_D, "Dry/Wet");
   }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
@@ -47,11 +50,16 @@ public:
     buffer.copyFrom(in);
     window.apply(buffer);
     in.copyTo(dest);
+    // noise.noise();
   }
 
   void freeze(){
-    noise.noise();
+    float amount = getParameterValue(PARAMETER_A)*2;
+    noise.noise(amount, amount);
     buffer.convolve(noise, dest);
+    // tmp.copyFrom(noise);
+    // tmp.multiply(amount);
+    // buffer.convolve(tmp, dest);
   }
 };
 

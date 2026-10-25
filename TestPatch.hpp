@@ -1,108 +1,171 @@
-#ifndef __TestTonePatch_hpp__
-#define __TestTonePatch_hpp__
+#ifndef __TestPatch_hpp__
+#define __TestPatch_hpp__
 
-#include "StompBox.h"
-// #include "Oscillators.hpp"
+#include "Patch.h"
+// #include "ServiceCall.h"
+// #include "SimpleValue.h"
+// #include "InterpolatingSignalGenerator.h"
+// #include "InterpolatingCircularBuffer.h"
+
+#include "OpenWareLibrary.h"
 
 class TestPatch : public Patch {
 private:
-  // FloatParameter a, b, c, d, e, f, g, h;
-  // FloatParameter aa, ab, ac, ad;
-  // IntParameter ae, af, ag, ah;
-  // SineOscillator osc;
+  static constexpr InterpolationMethod im1 = LINEAR_INTERPOLATION;
+  // static constexpr InterpolationMethod im1 = COSINE_INTERPOLATION;
+  // static constexpr InterpolationMethod im1 = CUBIC_4P_INTERPOLATION;
+  // static constexpr InterpolationMethod im2 = CUBIC_4P_INTERPOLATION;
+  static constexpr InterpolationMethod im2 = CUBIC_4P_SMOOTH_INTERPOLATION;
+  // static constexpr InterpolationMethod im2 = HERMITE_INTERPOLATION;
+  // SmoothLinearFloat b = SmoothLinearFloat(0.98, LinearFloat(10.0f, 100.0f, 20.0f)); // initialise lambda and range
+  InterpolatingSignalGenerator<im1>* sig1;
+  InterpolatingSignalGenerator<im2>* sig2;
+  SmoothFloat a = 0.5;
+  SmoothFloat b = 0.5;
+  // SmoothLinearFloat a = 0.5f; // initialise value
+  InterpolatingCircularFloatBuffer<im2>* points;
 public:
-  // TestPatch() : osc(getSampleRate()) {
-    // a = getParameter("Freq1", 0.1);
-    // b = getParameter("Freq2", 0.2);
-    // c = getParameter("Freq3", 0.3);
-    // d = getParameter("Freq4", 0.4);
-    // e = getParameter("Freq5", 0.5);
-    // f = getParameter("Freq6", 0.6);
-    // g = getParameter("Freq7", 0.7);
-    // h = getParameter("Freq8", 0.8);
-    // aa = getParameter("Freq9", 0.9);
-    // ab = getParameter("Freq10", .0);
-    // ac = getParameter("Freq11", 0.1);
-    // ad = getParameter("Freq12", 0.2);
-    // ae = getIntParameter("Freq13", 0, 100, 30);
-    // af = getIntParameter("Freq14", 0, 100, 40);
-    // ag = getIntParameter("Freq15", 0, 100, 50);
-    // ah = getIntParameter("Freq16", 0, 100, 60);
-  // }
-
+  TestPatch(){
+    registerParameter(PARAMETER_A, "a");
+    registerParameter(PARAMETER_B, "b");
+    setParameterValue(PARAMETER_C, 0.25);
+    // a.lambda = 0.8;
+    // a.setRange(-10, 10);
+    LinearFloat lin;
+    lin.setRange(-10, 10, 10, 100);
+    debugMessage("lin/in", lin, lin.getControl());
+    lin = -10;
+    debugMessage("lin/in", lin, lin.getControl());
+    lin = 0;
+    debugMessage("lin/in", lin, lin.getControl());
+    lin = 10;
+    debugMessage("lin/in", lin, lin.getControl());
+    sig1 = InterpolatingSignalGenerator<im1>::create(getBlockSize());
+    sig2 = InterpolatingSignalGenerator<im2>::create(getBlockSize());
+    setParameterValue(PARAMETER_A, a);
+    setParameterValue(PARAMETER_B, b);
+    sig1->set(a);
+    sig2->set(b);
+    // b.lambda = 0.2;
+    points = InterpolatingCircularFloatBuffer<im2>::create(4);
+  }
   void buttonChanged(PatchButtonId bid, uint16_t value, uint16_t samples){
-    if(bid >= MIDI_NOTE_BUTTON){
-      uint8_t note = bid - MIDI_NOTE_BUTTON;
-      debugMessage("midi note", note, value, samples);
-    }else if(bid == PUSHBUTTON){
-      debugMessage("push event", bid, value, samples);
-      // setButton((PatchButtonId)(MIDI_NOTE_BUTTON+60), ON);
-      // setParameterValue(PARAMETER_AA, getParameterValue(PARAMETER_A));
-      // setParameterValue(PARAMETER_A, getParameterValue(PARAMETER_B));
-    }else{
-      static int count = 0;
-      debugMessage("button event", bid, value, ++count);
+    switch(bid){
+    case PUSHBUTTON:
+    case BUTTON_A:
+      // setButton(BUTTON_B, !value);
+      sendMidi(MidiMessage::note(0, 12, 24));
+      debugMessage("button A", (int)bid, (int)value);
+      break;
+    case BUTTON_B:
+      // setButton(BUTTON_A, !value);
+      sendMidi(MidiMessage::note(0, 28, 48));
+      debugMessage("button B", (int)bid, (int)value);
+      break;
+  //   // case BUTTON_A:
+  //   //   setButton(BUTTON_B, value);
+  //   //   setButton(BUTTON_C, !value);
+  //   //   // setButton(BUTTON_E, value);
+  //   //   // debugMessage("cc1/F", cc1value);
+  //   //   break;
+  //   // case BUTTON_B:
+  //   //   setButton(BUTTON_A, value);
+  //   //   // debugMessage("cc75/AA", cc75value);
+  //   //   break;
     }
+    // debugMessage("button", (int)bid, (int)value);
+    // setButton(bid, value);
+  }
+
+  // int cc1value = 0;
+  // int cc75value = 0;
+
+  void processMidi(MidiMessage msg){
+    debugMessage("midi", msg.getStatus(), (int)msg.data[2], (int)msg.data[3]);
   }
 
   void processAudio(AudioBuffer &buffer) {
-    float a = getParameterValue(PARAMETER_A);
-    float b = getParameterValue(PARAMETER_B);
-    float c = getParameterValue(PARAMETER_C);
-    float d = getParameterValue(PARAMETER_D);
-    float e = getParameterValue(PARAMETER_E);
-    float aa = getParameterValue(PARAMETER_AA);
-    float ab = getParameterValue(PARAMETER_AB);
-    float ac = getParameterValue(PARAMETER_AC);
-    float ad = getParameterValue(PARAMETER_AD);
-    // float ae = getParameterValue(PARAMETER_AE);
-    // debugMessage("a/b/c", getParameterValue(PARAMETER_A), getParameterValue(PARAMETER_B), getParameterValue(PARAMETER_C));
+    debugMessage("a/b", a, b);
+    // a = getParameterValue(PARAMETER_A);
+    b = 0.5;
+    debugMessage("a/b", a, b);
+    b = 0;
+    debugMessage("a/b", a, b);
+    // setParameterValue(PARAMETER_A, a);
+    // setParameterValue(PARAMETER_B, b);
+    // static float previous = 0;
+    // float current = getParameterValue(PARAMETER_A);
+    // // buffer.getSamples(0).ramp(previous, current);
+    // buffer.getSamples(0).setAll(current);
+    // buffer.getSamples(1).copyFrom(buffer.getSamples(0));
+    // previous = current;
+    // setParameterValue(PARAMETER_F, getParameterValue(PARAMETER_A));
+    // setParameterValue(PARAMETER_G, getParameterValue(PARAMETER_B));
 
-    debugMessage("c/d/e", getParameterValue(PARAMETER_C), getParameterValue(PARAMETER_D), getParameterValue(PARAMETER_E));
+    // buffer.getSamples(0).setAll(getParameterValue(PARAMETER_A)*2 - 1);
+    // buffer.getSamples(1).setAll(getParameterValue(PARAMETER_B)*2 - 1);
+    // buffer.getSamples(2).setAll(getParameterValue(PARAMETER_C)*2 - 1);
+    // buffer.getSamples(3).setAll(getParameterValue(PARAMETER_D)*2 - 1);
 
-    // static float previous = 0.0;
-    // if(getParameterValue(PARAMETER_B) >= 0.5 && previous < 0.5){
-    //   setButton((PatchButtonId)(MIDI_NOTE_BUTTON+60), ON);
-    //   debugMessage("set note", getParameterValue(PARAMETER_B));
-    // }
-    // previous = getParameterValue(PARAMETER_B);
-    // debugMessage("aa/ab/ac", aa, ab, ac);
+    // buffer.getSamples(4).setAll(getParameterValue(PARAMETER_E)*2 - 1);
+    // buffer.getSamples(5).setAll(getParameterValue(PARAMETER_F)*2 - 1);
+    // buffer.getSamples(6).setAll(getParameterValue(PARAMETER_G)*2 - 1);
+    // buffer.getSamples(7).setAll(getParameterValue(PARAMETER_H)*2 - 1);
+    // cc1value = getParameterValue(PARAMETER_F)*127;
+    // cc75value = getParameterValue(PARAMETER_AA)*127;
 
-    // debugMessage("button", isButtonPressed(PUSHBUTTON));
-    // debugMessage("button A/B/C", isButtonPressed(BUTTON_A), isButtonPressed(BUTTON_A), isButtonPressed(BUTTON_C));
+    // static bool hardsync = false;
+    // setButton(BUTTON_E, hardsync);
+    // if(isButtonPressed(BUTTON_B))
+    //   hardsync = !hardsync;
 
-    // debugMessage("ae/af/ah", ae, af, ag);
-    // debugMessage("aa/ab/ac", aa, ab, ac);
-    // debugMessage("ac/ad/ae", ac, ad, ae);
-    // osc.setFrequency(a*ab*2000);
-    // osc.getSamples(buffer.getSamples(LEFT_CHANNEL));
-    // setParameterValue(PARAMETER_AA, getParameterValue(PARAMETER_A));
-    // static int counter = 0;
-    // if(counter++ > 8){
-    //   counter = 0;
-    // if(isButtonPressed(PUSHBUTTON)){
+    // float freq = (uint16_t)(getParameterValue(PARAMETER_AA)*4096);
+    // if(isButtonPressed(BUTTON_A))
+    //   debugMessage("pressed", (int)(getParameterValue(PARAMETER_A)*4095));
+    // else
+    //   debugMessage("freq", freq);
+
+      // debugMessage("A", (int)(getParameterValue(PARAMETER_E)*4095));
+    //   debugMessage("B", (int)(getParameterValue(PARAMETER_B)*4095));
+
+    // if(isButtonPressed(BUTTON_A))
+    // debugMessage("cde", getParameterValue(PARAMETER_C), getParameterValue(PARAMETER_D), getParameterValue(PARAMETER_E));
+    // // else if(isButtonPressed(BUTTON_B))
+    // else
+    //   debugMessage("abc", getParameterValue(PARAMETER_A), getParameterValue(PARAMETER_B), getParameterValue(PARAMETER_C));
 
     // setParameterValue(PARAMETER_AA, getParameterValue(PARAMETER_A));
     // setParameterValue(PARAMETER_AB, getParameterValue(PARAMETER_B));
     // setParameterValue(PARAMETER_AC, getParameterValue(PARAMETER_C));
     // setParameterValue(PARAMETER_AD, getParameterValue(PARAMETER_D));
 
+    // setParameterValue(PARAMETER_BA, getParameterValue(PARAMETER_A));
+    // setParameterValue(PARAMETER_BB, getParameterValue(PARAMETER_B));
+    // setParameterValue(PARAMETER_BC, getParameterValue(PARAMETER_C));
+    // setParameterValue(PARAMETER_BD, getParameterValue(PARAMETER_D));
+
+    // setParameterValue(PARAMETER_F, isButtonPressed(BUTTON_A) ? 0 : 0.99);
+    // setParameterValue(PARAMETER_G, isButtonPressed(BUTTON_B) ? 0 : 0.99);
+
+    // buffer.getSamples(0).setAll(0.5);
+    // buffer.getSamples(1).setAll(-0.5);
+    a = getParameterValue(PARAMETER_A);
+    b = getParameterValue(PARAMETER_B);
+    sig1->update(a);
+    sig2->update(b);
+    // sig1->update(getParameterValue(PARAMETER_A));
+    // sig2->update(getParameterValue(PARAMETER_A));
+    sig1->generate(buffer.getSamples(0));
+    sig2->generate(buffer.getSamples(1));
+    // points->write(b);
+    // FloatArray samples = buffer.getSamples(1);
+    // float inc = 1.0f/samples.getSize();
+    // float mu = points->getWriteIndex() - 4;
+    // for(int i=0; i<samples.getSize(); ++i){
+    //   samples[i] = points->readAt(mu);
+    //   mu += inc;
     // }
-    // if(getParameterValue(PARAMETER_A) > 0.5)
-    //   setButton(PUSHBUTTON, true);
-    // else
-    //   setButton(PUSHBUTTON, false);
-    FloatArray left = buffer.getSamples(LEFT_CHANNEL);
-    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
-    float gain = getParameterValue(PARAMETER_A)*2;
-    int size = buffer.getSize();
-    for(int i=0; i<size; ++i){
-      left[i] = gain*i/size - gain*0.5;
-      right[i] = -gain*i/size + gain*0.5;
-    }
-    // debugMessage("gain", gain);
-    // debugMessage("gain/min/max", gain, left.getMinValue(), left.getMaxValue());
   }
 };
 
-#endif   // __TestTonePatch_hpp__
+#endif   // __TestPatch_hpp__

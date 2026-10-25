@@ -4,7 +4,8 @@
 #include "StompBox.h"
 #include "SuperSaw.hpp"
 #include "VoltsPerOctave.h"
-#include "Oscillators.hpp"
+#include "SineOscillator.h"
+// #include "Oscillators.hpp"
 #include "BiquadFilter.h"
 #include "Envelope.h"
 #include "SmoothValue.h"
@@ -127,6 +128,16 @@ public:
     registerParameter(PARAMETER_C, "Modulation");
     registerParameter(PARAMETER_D, "Gain");
     registerParameter(PARAMETER_E, "Resonance");
+
+    registerParameter(PARAMETER_AA, "Trigger");
+
+    registerParameter(PARAMETER_G, "LFO1");
+    registerParameter(PARAMETER_H, "LFO2");
+    registerParameter(PARAMETER_AG, "LFO1>");
+    registerParameter(PARAMETER_AH, "LFO2>");
+    setParameterValue(PARAMETER_G, 0.5);
+    setParameterValue(PARAMETER_H, 0.5);
+
     pad[0] = new PadVoice(getSampleRate(), getBlockSize());
     pad[1] = new PadVoice(getSampleRate(), getBlockSize());
     pad[2] = new PadVoice(getSampleRate(), getBlockSize());
@@ -162,7 +173,9 @@ public:
     pad[0]->setModulationAmount(lfo);
     pad[1]->setModulationAmount(lfo);
     pad[2]->setModulationAmount(lfo);
-    gate(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    bool gt = getParameterValue(PARAMETER_AA) > 0.2;
+    // gate(isButtonPressed(PUSHBUTTON), getSamplesSinceButtonPressed(PUSHBUTTON));
+    gate(gt, 0);
     FloatArray left = buf.getSamples(LEFT_CHANNEL);
     FloatArray right = buf.getSamples(RIGHT_CHANNEL);
     hz.setTune(tune);
@@ -181,6 +194,24 @@ public:
     buffer.multiply(0.4);
     left.add(buffer);
     left.multiply(gain);
+
+    static float lfo1 = 0;
+    if(lfo1 > 1.0){
+      lfo1 = 0;
+    }else{
+    }
+    // lfo1 += 2 * getBlockSize() / getSampleRate();
+    float tempo = getParameterValue(PARAMETER_G)*4+0.01;
+    lfo1 += tempo * getBlockSize() / getSampleRate();
+    setParameterValue(PARAMETER_AG, lfo1*0.4);
+    static float lfo2 = 0;
+    if(lfo2 > 1.0){
+      lfo2 = 0;
+    }else{
+    }
+    tempo = getParameterValue(PARAMETER_H)*4+0.01;
+    lfo2 += tempo * getBlockSize() / getSampleRate();
+    setParameterValue(PARAMETER_AH, lfo2*0.4);
   }
 };
 

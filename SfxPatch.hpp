@@ -1,6 +1,8 @@
 #ifndef __SfxPatch_hpp__
 #define __SfxPatch_hpp__
 
+#include "Sequence.h"
+
 /*
   sfxr is a generator for simple sound effects, created by DrPetter (http://www.drpetter.se). You can use it to create easy retro sounds for remixing or video games.
   Ref: https://github.com/grimfang4/sfxr
@@ -22,6 +24,7 @@
 
 class SfxPatch : public Patch {
 private:
+  Sequence<uint32_t> seq[3];
 
   float frnd(float range)
   {
@@ -570,14 +573,78 @@ private:
 public:
   SfxPatch(){
     registerParameter(PARAMETER_A, "Sound");
-    registerParameter(PARAMETER_D, "Volume");
+    registerParameter(PARAMETER_B, "Volume");
+    registerParameter(PARAMETER_AA, "Trigger");
+    registerParameter(PARAMETER_AB, "Tempo");
+    setParameterValue(PARAMETER_A, 0.5);
+    setParameterValue(PARAMETER_B, 0.8);
+    setParameterValue(PARAMETER_AB, 0.8);
+    registerParameter(PARAMETER_C, "S1:Steps");
+    registerParameter(PARAMETER_D, "S1:Beats");
+    registerParameter(PARAMETER_AD, "S1>");
+    setParameterValue(PARAMETER_C, 0.5);
+    setParameterValue(PARAMETER_D, 0.5);
+    registerParameter(PARAMETER_E, "S2:Steps");
+    registerParameter(PARAMETER_F, "S2:Beats");
+    setParameterValue(PARAMETER_E, 0.5);
+    setParameterValue(PARAMETER_F, 0.5);
+    registerParameter(PARAMETER_AF, "S2>");
+    registerParameter(PARAMETER_G, "LFO1");
+    registerParameter(PARAMETER_H, "LFO2");
+    registerParameter(PARAMETER_AG, "LFO1>");
+    registerParameter(PARAMETER_AH, "LFO2>");
+    setParameterValue(PARAMETER_G, 0.5);
+    setParameterValue(PARAMETER_H, 0.5);
   }
   void processAudio(AudioBuffer &buffer) {
     int category = getParameterValue(PARAMETER_A)*10;
-    sound_vol = getParameterValue(PARAMETER_D)*0.05;
-    float* left = buffer.getSamples(LEFT_CHANNEL);
+    sound_vol = getParameterValue(PARAMETER_B)*0.05;
+    FloatArray left = buffer.getSamples(LEFT_CHANNEL);
+    FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     int size = buffer.getSize();
-    if(isButtonPressed(PUSHBUTTON) && !playing_sample){
+
+    int steps = 16;
+    int fills;
+    steps = getParameterValue(PARAMETER_C)*16;
+    fills = getParameterValue(PARAMETER_D)*steps;
+    seq[0].calculate(steps, fills);    
+    steps = getParameterValue(PARAMETER_E)*16;
+    fills = getParameterValue(PARAMETER_F)*steps;
+    seq[1].calculate(steps, fills);
+    float tempo = getParameterValue(PARAMETER_AB)*16 + 0.5;
+    static float lfo0 = 0;
+    if(lfo0 > 1.0){
+      lfo0 = 0;
+      if(seq[0].next())
+	setParameterValue(PARAMETER_AD, 0.5);
+      else
+	setParameterValue(PARAMETER_AD, 0.0);
+      if(seq[1].next())
+	setParameterValue(PARAMETER_AF, 0.5);
+      else
+	setParameterValue(PARAMETER_AF, 0.0);
+    }
+    lfo0 += tempo * getBlockSize() / getSampleRate();
+    static float lfo1 = 0;
+    if(lfo1 > 1.0){
+      lfo1 = 0;
+    }else{
+    }
+    // lfo1 += 2 * getBlockSize() / getSampleRate();
+    tempo = getParameterValue(PARAMETER_G)*4+0.01;
+    lfo1 += tempo * getBlockSize() / getSampleRate();
+    setParameterValue(PARAMETER_AG, lfo1*0.4);
+    static float lfo2 = 0;
+    if(lfo2 > 1.0){
+      lfo2 = 0;
+    }else{
+    }
+    tempo = getParameterValue(PARAMETER_H)*4+0.01;
+    lfo2 += tempo * getBlockSize() / getSampleRate();
+    setParameterValue(PARAMETER_AH, lfo2*0.4);
+
+    // if(isButtonPressed(PUSHBUTTON) && !playing_sample){
+    if(getParameterValue(PARAMETER_AA) > 0.1 && !playing_sample){
       switch(category){
       case 7:
 	randomize();
@@ -594,6 +661,7 @@ public:
     }else{
       SynthSample(size, left);
     }
+    right.copyFrom(left);
   }
 };
 

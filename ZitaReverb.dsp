@@ -1,10 +1,62 @@
+// re = library("reverbs.lib");
+// ef = library("misceffects.lib");
 import("effect.lib");
+// import("reverbs.lib");
+
+// zita_light = (_,_ <: zita_rev1_stereo(rdel,f1,f2,t60dc,t60m,fsmax),_,_ : 
+// 	out_eq,_,_ : dry_wet : out_level)
+// with{
+//   fsmax = 48000.0;
+//   t60dc = vslider("[1] Low RT60 [unit:s] [style:knob] [OWL:A]
+//     [tooltip: T60 = time (in seconds) to decay 60dB in low-frequency band]",
+//     3, 1, 8, 0.1);
+//   f1 = vslider("[2] LF X [unit:Hz] [style:knob] [scale:log] [OWL:B]
+//     [tooltip: Crossover frequency (Hz) separating low and middle frequencies]",
+//     200, 50, 1000, 1);
+//   t60m = vslider("[3] Mid RT60 [unit:s] [style:knob] [scale:log] [OWL:C]
+//     [tooltip: T60 = time (in seconds) to decay 60dB in middle band]",
+//     2, 1, 8, 0.1);
+//   f2 = vslider("[4] HF Damping [unit:Hz] [style:knob] [scale:log] [OWL:E]
+//     [tooltip: Frequency (Hz) at which the high-frequency T60 is half the middle-band's T60]",
+//     6000, 1500, 0.49*fsmax, 1);
+// 	// fsmax = 48000.0;  // highest sampling rate that will be used
+// 	rdel = 60;
+// 	// f1 = 200;
+// 	// t60dc = 3;
+// 	// t60m = 2;
+// 	// f2 = 6000;
+// 	out_eq = pareq_stereo(eq1f,eq1l,eq1q) : pareq_stereo(eq2f,eq2l,eq2q);
+// 	pareq_stereo(eqf,eql,Q) = fi.peak_eq_rm(eql,eqf,tpbt), fi.peak_eq_rm(eql,eqf,tpbt)
+// 	with {
+// 		tpbt = wcT/sqrt(max(0,g)); // tan(PI*B/SR), B bw in Hz (Q^2 ~ g/4)
+// 		wcT = 2*ma.PI*eqf/ma.SR;  // peak frequency in rad/sample
+// 		g = ba.db2linear(eql); // peak gain
+// 	};
+// 	eq1f = 315;
+// 	eq1l = 0;
+// 	eq1q = 3;
+// 	eq2f = 1500;
+// 	eq2l = 0;
+// 	eq2q = 3;
+// 	dry_wet(x,y) = *(wet) + dry*x, *(wet) + dry*y 
+// 	with {
+// 		wet = 0.5*(drywet+1.0);
+// 		dry = 1.0-wet;
+// 	};
+// 	drywet = vslider("[1] Dry/Wet Mix [OWL:D]",
+// 		0,-1.0,1.0,0.01) : si.smoo;
+// 	gain = vslider("[2] Level [unit:dB] [style:knob] [tooltip: Output scale
+// 		factor]", -6, -70, 40, 0.1) : ba.db2linear : si.smoo;
+// 	out_level = *(gain),*(gain);
+// };
+
+// process = zita_light; // 108%
 
 zita_rev_fdn_custom(f1,f2,t60dc,t60m,fsmax) =
   ((bus(2*N) :> allpass_combs(N) : feedbackmatrix(N)) ~
    (delayfilters(N,freqs,durs) : fbdelaylines(N)))
 with {
-  N = 4; // 4x4: 67% CPU, 8x8: 136% CPU on OWL Modular / Pedal
+  N = 8; // 4x4: 67% CPU, 8x8: 136% CPU on OWL Modular / Pedal, 85% on Magus
   // Delay-line lengths in seconds:
   apdelays = (0.020346, 0.024421, 0.031604, 0.027333, 0.022904,
               0.029291, 0.013458, 0.019123); // feedforward delays in seconds
@@ -53,23 +105,47 @@ with {
   };
 };
 
+// zita_rev1_stereo_custom(rdel,f1,f2,t60dc,t60m,fsmax) =
+//    zita_in_delay(rdel)
+//  : zita_distrib2(N)
+//  : zita_rev_fdn_custom(f1,f2,t60dc,t60m,fsmax)
+//  : output2(N)
+// with {
+//  N = 8;
+//  output2(N) = outmix(N) : *(t1),*(t1);
+//  t1 = 0.37; // zita-rev1 linearly ramps from 0 to t1 over one buffer
+//  outmix(4) = !,butterfly(2),!; // probably the result of some experimenting!
+//  outmix(N) = outmix(N/2),par(i,N/2,!);
+// };
+
+// zita_reverb = zita_rev1_stereo(rdel, f1,f2,t60dc,t60m,fsmax)
 zita_reverb = zita_rev_fdn_custom(f1,f2,t60dc,t60m,fsmax)
 with {
   fsmax = 48000.0;
-  fdn_group(x) = hgroup(
-    "Zita_Rev Internal FDN Reverb [tooltip: ~ Zita_Rev's internal 8x8 Feedback Delay Network (FDN) & Schroeder allpass-comb reverberator.  See Faust's effect.lib for documentation and references]",x);
-  t60dc = fdn_group(vslider("[1] Low RT60 [unit:s] [style:knob] [OWL:A]
+  t60dc = vslider("[1] Low RT60 [unit:s] [style:knob] [OWL:A]
     [tooltip: T60 = time (in seconds) to decay 60dB in low-frequency band]",
-    3, 1, 8, 0.1));
-  f1 = fdn_group(vslider("[2] LF X [unit:Hz] [style:knob] [scale:log] [OWL:B]
+    3, 1, 8, 0.1);
+  f1 = vslider("[2] LF X [unit:Hz] [style:knob] [scale:log] [OWL:B]
     [tooltip: Crossover frequency (Hz) separating low and middle frequencies]",
-    200, 50, 1000, 1));
-  t60m = fdn_group(vslider("[3] Mid RT60 [unit:s] [style:knob] [scale:log] [OWL:C]
+    200, 50, 1000, 1);
+  t60m = vslider("[3] Mid RT60 [unit:s] [style:knob] [scale:log] [OWL:C]
     [tooltip: T60 = time (in seconds) to decay 60dB in middle band]",
-    2, 1, 8, 0.1));
-  f2 = fdn_group(vslider("[4] HF Damping [unit:Hz] [style:knob] [scale:log] [OWL:D]
+    2, 1, 8, 0.1);
+  f2 = vslider("[4] HF Damping [unit:Hz] [style:knob] [scale:log] [OWL:E]
     [tooltip: Frequency (Hz) at which the high-frequency T60 is half the middle-band's T60]",
-    6000, 1500, 0.49*fsmax, 1));
+    6000, 1500, 0.49*fsmax, 1);
+  rdel = vslider("[1] In Delay [unit:ms] [style:knob] [tooltip: Delay in ms
+  		before reverberation begins]",60,20,100,1);
 };
 
-process = zita_reverb ;
+// mix = vslider("[Mix[OWL:D]", 0.5, 0, 1, 0.01);
+
+
+// process(l,r) = l,r <: *(1-mix), *(1-mix),
+	       
+process = bus(8) : zita_reverb : bus(8);
+// // : dry_wet
+// // with {
+// //   wet = vslider("[Mix[OWL:D]", 0.5, 0, 1, 0.01);
+// //   dry_wet(x,y) = *(wet) + (1 - wet)*x, *(wet) + (1 - wet)*y;
+// // };

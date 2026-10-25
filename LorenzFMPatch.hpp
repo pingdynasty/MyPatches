@@ -164,7 +164,7 @@ public:
     setParameterValue(PARAMETER_AG, xbuf[0]*12.5 + .5);
     setParameterValue(PARAMETER_AH, ybuf[0]*12.5 + .5);
 
-    index = getParameterValue(PARAMETER_H)*0.1;
+    index = getParameterValue(PARAMETER_H)*2;
     xbuf.multiply(index);
     ybuf.multiply(index);
     xosc->generate(left, xbuf);

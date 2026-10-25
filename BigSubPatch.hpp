@@ -8,7 +8,7 @@
 #include "BiquadFilter.h"
 #include "SmoothValue.h"
 #include "SineOscillator.h"
-#include "Phasor.h"
+#include "RampOscillator.h"
 
 #define MIDI_VOICES 8
 #define PITCHBEND_RANGE 8
@@ -190,7 +190,7 @@ class BigSubPatch : public Patch {
 private:
   Voices<MIDI_VOICES> voices;
   BiquadFilter* hp;
-  Phasor lfo1;
+  RampOscillator lfo1;
   SineOscillator lfo2;
 public:
   BigSubPatch()

@@ -97,7 +97,8 @@ public:
     buffer->copyFrom(audio);
     audio.clear();
 #ifdef USE_MPE
-    float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;
+    float fm = getFrequencyScalar(getParameterValue(PARAMETER_A), cvrange*0.5) - 1;
+    // float fm = exp2f(cvrange*getParameterValue(PARAMETER_A) - cvrange*0.5) - 1;
     buffer->add(fm);
 #endif
     voices->process(*buffer, audio);

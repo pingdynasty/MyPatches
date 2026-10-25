@@ -1,14 +1,11 @@
 #ifndef __PolyBlepPatch_hpp__
 #define __PolyBlepPatch_hpp__
 
-#include "StompBox.h"
-#include "Envelope.h"
-#include "VoltsPerOctave.h"
-#include "PolyBlepOscillator.h"
+#include "OpenWareLibrary.h"
 
 class PolyBlepPatch : public Patch {
 private:
-  AdsrEnvelope env;
+  LinearAdsrEnvelope env;
   FloatArray envelope;
   PolyBlepOscillator losc, rosc;
   VoltsPerOctave hz;
@@ -55,8 +52,8 @@ public:
     rosc.setFrequency(rfreq);
     rosc.setShape(shape);
     rosc.setPulseWidth(pw);
-    losc.getSamples(left);
-    rosc.getSamples(right);
+    losc.generate(left);
+    rosc.generate(right);
     env.getEnvelope(envelope);
     if(gain < 1.0){
       envelope.multiply(gain);

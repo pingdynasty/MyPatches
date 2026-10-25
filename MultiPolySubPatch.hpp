@@ -14,6 +14,21 @@
 
 int8_t basenote = -69;
 
+class FilteredFloat : public SmoothFloat {
+  float target;
+public:
+  void setTarget(float value){
+    target = value;
+  }
+  void resetTarget(float value){
+    target = value;
+    reset(target);
+  }
+  void update(){
+    SmoothFloat::update(target);
+  }
+};
+
 template<int VOICES>
 class Voices {
 private:
@@ -25,12 +40,9 @@ private:
   uint16_t allocation[VOICES];
   uint16_t allocated;
   FloatArray buffer;
-  float pressure[VOICES];
-  float bend[VOICES];
-  float modulation[VOICES];
-  // SmoothFloat pressure[VOICES];
-  // SmoothFloat bend[VOICES];
-  // SmoothFloat modulation[VOICES];
+  FilteredFloat pressure[VOICES];
+  FilteredFloat bend[VOICES];
+  FilteredFloat modulation[VOICES];
 
 private:
   void take(uint8_t idx, uint8_t note, uint16_t velocity, uint16_t samples){
@@ -40,13 +52,9 @@ private:
     gain *= 1.0f/VOICES;
     voice[idx]->setGain(gain);
     voice[idx]->setGate(true, samples);
-    // pressure[idx].reset(0);
-    // modulation[idx].reset(0);
-    // bend[idx].reset(0);
-    pressure[idx] = 0;
-    modulation[idx] = 0;
-    bend[idx] = 0;
-    // debugMessage("gain", gain);
+    pressure[idx].resetTarget(0);
+    modulation[idx].resetTarget(0);
+    bend[idx].resetTarget(0);
   }
 
   void release(uint8_t idx, uint16_t samples){
@@ -76,21 +84,21 @@ public:
   void setPressureForChannel(uint8_t ch, float value){
     for(int i=0; i<VOICES; ++i){
       if(channels[i] == ch)
-	pressure[i] = value;
+	pressure[i].setTarget(value);
     }
   }
 
   void setBendForChannel(uint8_t ch, float value){
     for(int i=0; i<VOICES; ++i){
       if(channels[i] == ch)
-	bend[i] = value;
+	bend[i].setTarget(value);
     }
   }
 
   void setModulationForChannel(uint8_t ch, float value){
     for(int i=0; i<VOICES; ++i){
       if(channels[i] == ch)
-	modulation[i] = value;
+	modulation[i].setTarget(value);
     }
   }
 
@@ -137,6 +145,9 @@ public:
 
   void setParameters(float shape, float fc, float q, float attack, float release){
     for(int i=0; i<VOICES; ++i){
+      bend[i].update();
+      pressure[i].update();
+      modulation[i].update();
       float freq = 440.0f*exp2f((notes[i]+basenote + bend[i]*PITCHBEND_RANGE)/12.0);
       voice[i]->setFrequency(freq);
       shape = max(0, min(1.999, shape+pressure[i]));
@@ -208,7 +219,7 @@ public:
     }    
     // debugMessage("button/value/samples", bid, value, samples);
   }
-  void processMidi(MidiMessage& msg){
+  void processMidi(MidiMessage msg){
     // debugMessage("port/status/d1", msg.data[0], msg.data[1], msg.data[2]);
     // debugMessage("port/channel/status", msg.getPort(), msg.getChannel(), msg.getStatus());
     // debugMessage("status/note/vel", msg.getStatus(), msg.getNote(), msg.getVelocity());
@@ -232,7 +243,7 @@ public:
     }else if(msg.isControlChange()){
       if(msg.getControllerNumber() == 0x4a){
 	// CC74 (for Y-axis movement)
-	voices.setModulationForChannel(msg.getChannel(), msg.getControllerValue()/127.0f*0.25);
+	voices.setModulationForChannel(msg.getChannel(), msg.getControllerValue()/127.0f*0.125);
 	// mod = msg.getControllerValue()/127.0f;
       }
     }

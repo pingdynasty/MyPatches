@@ -1,6 +1,6 @@
 #include "Patch.h"
 
-// #define TESTSIZE (63*1024*1024)
+// #define TESTSIZE ((size_t)(63.9*1024*1024))
 #define TESTSIZE ((size_t)(7.9*1024*1024))
 #define BLOCKSIZE (1*1024)
 
@@ -11,7 +11,6 @@ private:
   int errors;
 public:
   MemTestPatch(){
-    setParameterValue(PARAMETER_C, 0.25);
     databuffer = new uint8_t[TESTSIZE];
     index = 0;
     databuffer[index] = index;

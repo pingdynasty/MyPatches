@@ -117,6 +117,10 @@ public:
   void setMix(float value){
     mix = value;
   }
+  int offset = 0;
+  void shift(float value){
+    offset = value*overlap.getSize()/8;
+  }
   void process(FloatArray in, FloatArray out){
     size_t blocksize = overlap.getSize();
 
@@ -125,6 +129,22 @@ public:
 
     // forward fft
     fft->fft(input, cinbuf[current]);
+    if(offset > 0){
+      ComplexFloatArray& cc = cinbuf[current];
+      size_t len = cc.getSize();
+      for(size_t i=len-1; i>offset; --i)
+	// cc[i].setMagnitude(cc[i-offset].getMagnitude());
+	cc[i] = cc[i-offset];
+      for(int i=offset; i>=0; --i)
+	cc[i] = 0;
+    }else if(offset < 0){
+      ComplexFloatArray& cc = cinbuf[current];
+      size_t len = cc.getSize();
+      for(size_t i=0; i<len+offset; ++i)
+	cc[i] = cc[i-offset];
+      for(size_t i=len+offset; i<len; ++i)
+	cc[i] = 0;
+    }
 
     // complex multiply and accumulate
     irbuf[0].complexByComplexMultiplication(cinbuf[current], coutbuf);
@@ -170,7 +190,9 @@ public:
     registerParameter(PARAMETER_A, "Gain");
     setParameterValue(PARAMETER_A, 0.5);
     registerParameter(PARAMETER_B, "Mix");
-    setParameterValue(PARAMETER_B, 0.5);
+    setParameterValue(PARAMETER_B, 1);
+    registerParameter(PARAMETER_C, "FB");
+    setParameterValue(PARAMETER_C, 0.5);
 
     size_t blocksize = getBlockSize();
     size_t segsize = 2*blocksize;
@@ -180,8 +202,10 @@ public:
     if(!wav.isValid())
       error(CONFIGURATION_ERROR_STATUS, "Invalid wav");
 
-    // static const size_t segments = 23; // 30mS with blocksize=64, 93% on Witch
-    size_t segments = wav.getNumberOfSamples()/blocksize; // 128mS 49% on Genius
+    // static const size_t segments = 23; // 30mS with bs=64, 93% on Witch
+    size_t segments = min(47U, wav.getNumberOfSamples()/blocksize); // 128mS bs=64 49% on Genius
+    // size_t segments = min((size_t)(0.05*blocksize), wav.getNumberOfSamples()/blocksize); // 128mS bs=64 49% on Genius
+    // bs=1024 1 second 60% on Genius
     FloatArray impulse = FloatArray::create(segments*blocksize);
     wav.read(0, impulse);
     // FloatArray impulse = wav.createFloatArray(0);
@@ -201,7 +225,9 @@ public:
   void processAudio(AudioBuffer &buffer) {
     float gain = getParameterValue(PARAMETER_A)*2;
     float mix = getParameterValue(PARAMETER_B);
+    float fb = getParameterValue(PARAMETER_C)*2 - 1;
     convolution->setMix(mix);
+    convolution->shift(fb);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     left.multiply(gain);
     convolution->process(left, left);

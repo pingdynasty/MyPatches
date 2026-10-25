@@ -35,11 +35,11 @@ Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
 02111 USA
 
  The algorithm was found by me by mistake(I was looking for
-something else); I c alled this effect "Alien Wah" because sounds
+something else); I called this effect "Alien Wah" because sounds
 a bit like wahwah, but more strange .  The ideea of this effect
-is very simple: It is a feedback delay who uses comple x numbers.
+is very simple: It is a feedback delay who uses complex numbers.
 If x[] represents the input and y[] is the output, so a simple
-feedback delay l ooks like this: y[n]=y[n-delay]*fb+x[n]*(1-fb)
+feedback delay looks like this: y[n]=y[n-delay]*fb+x[n]*(1-fb)
 'fb' is a real number between 0 and 1.  If you change the fb with
 a complex number who has the MODULUS smaller than 1, it will look
 like this.
@@ -48,10 +48,10 @@ fb=R*(cos(alpha)+i*sin(alpha));  i^2=-1; R<1;
 y[n]=y[n-delay]*R*(cos(alpha)+i*sin(alpha))+x[n]*(1-R);
 
  alpha is the phase of the number and is controlled by the
-LFO(Low Frequency Osc illator).  If the 'delay' parameter is low,
+LFO(Low Frequency Oscillator).  If the 'delay' parameter is low,
 the effect sounds more like wah-wah, but if it is big, the effect
 will sound very interesting.  The input x[n] has the real part of
-the samples from the wavefile and the imagi nary part is zero.
+the samples from the wavefile and the imaginary part is zero.
 The output of this effect is the real part of y[n].
 */
 
@@ -190,13 +190,18 @@ public:
     registerParameter(PARAMETER_C, "Feedback");
     registerParameter(PARAMETER_D, "Mix");
     registerParameter(PARAMETER_E, "Phase");
+    setParameterValue(PARAMETER_A, 0.6);
+    setParameterValue(PARAMETER_B, (20-5)/45.0f);
+    setParameterValue(PARAMETER_C, 0.5);
+    setParameterValue(PARAMETER_D, 0.5);
     aw.initState(getNumberOfChannels() > 1 ? 2 : 1, MAX_DELAY);
     bufl = FloatArray::create(getBlockSize());
     bufr = FloatArray::create(getBlockSize());
   }
   ~AlienWahPatch(){
+    FloatArray::destroy(bufl);
+    FloatArray::destroy(bufr);
   }
-
   void processAudio(AudioBuffer &buffer){
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);

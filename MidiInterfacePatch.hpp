@@ -38,7 +38,7 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float pitchbend = getParameterValue(PARAMETER_G); // MIDI Pitchbend
-    float freq = 440.0f*fastpow2f((note-69 + pitchbend*2)/12.0);
+    float freq = 440.0f*exp2f((note-69 + pitchbend*2)/12.0);
     freq = hz.voltsToSample(hz.hertzToVolts(freq));
     float amp = hz.voltsToSample(5*velocity/4096.0f);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);

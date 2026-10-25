@@ -1,7 +1,7 @@
 #ifndef __StereoPatch_hpp__
 #define __StereoPatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 
 /**
  * Runs a mono patch in stereo

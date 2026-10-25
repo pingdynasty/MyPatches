@@ -19,7 +19,7 @@ public:
   //   for(int i=0; i<MIDI_CHANNELS; ++i){
   //   }
   // }
-  void processMidi(MidiMessage& msg){
+  void processMidi(MidiMessage msg){
     uint16_t samples = 0;
     uint8_t ch = msg.getChannel();
     if(msg.isNoteOn()){

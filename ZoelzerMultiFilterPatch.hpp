@@ -1,7 +1,7 @@
 #ifndef __ZoelzerMultiFilterPatch_hpp__
 #define __ZoelzerMultiFilterPatch_hpp__
 
-#include "StompBox.h"
+#include "Patch.h"
 #include "BiquadFilter.h"
 /**
 http://www.musicdsp.org/showArchiveComment.php?ArchiveID=37
@@ -22,20 +22,23 @@ References : Udo Zoelzer: Digital Audio Signal Processing (John Wiley & Sons, IS
 #define ZOELZER_MODES                 5 // ignore notch and bandpass
 class ZoelzerMultiFilterPatch : public Patch {
 private:
-  BiquadFilter* filter;
+  MultiBiquadFilter* filter;
 public:
   ZoelzerMultiFilterPatch(){
-    registerParameter(PARAMETER_A, "Mode");
-    registerParameter(PARAMETER_B, "Frequency");
-    registerParameter(PARAMETER_C, "Resonance");
-    registerParameter(PARAMETER_D, "Gain");
-    filter = BiquadFilter::create(ZOELZER_FILTER_STAGES);
+    registerParameter(PARAMETER_A, "Frequency");
+    registerParameter(PARAMETER_B, "Resonance");
+    registerParameter(PARAMETER_C, "Gain");
+    registerParameter(PARAMETER_D, "Mode");
+    filter = MultiBiquadFilter::create(getSampleRate(), getNumberOfChannels(), ZOELZER_FILTER_STAGES);
+  }
+  ~ZoelzerMultiFilterPatch(){
+    MultiBiquadFilter::destroy(filter);
   }
   void processAudio(AudioBuffer &buffer){
-    int mode = getParameterValue(PARAMETER_A)*ZOELZER_MODES;
-    float fc = getParameterValue(PARAMETER_B);
-    float q = getParameterValue(PARAMETER_C)*4+0.0001;
-    float gain = getParameterValue(PARAMETER_D);
+    int mode = getParameterValue(PARAMETER_D)*ZOELZER_MODES;
+    float fc = getParameterValue(PARAMETER_A)*12000+400; // exp control?
+    float q = getParameterValue(PARAMETER_B)*4+0.1;
+    float gain = getParameterValue(PARAMETER_C)*36-18
     switch(mode){
     case ZOELZER_LOWPASS_FILTER_MODE:
       filter->setLowPass(fc, q);
@@ -57,10 +60,9 @@ public:
       break;
     case ZOELZER_HIGHSHELF_FILTER_MODE:
       filter->setHighShelf(fc, gain);
-      break;      
+      break;
     }
-    FloatArray samples = buffer.getSamples(0);
-    filter->process(samples);
+    filter->process(buffer, buffer);
   }
 };
 
