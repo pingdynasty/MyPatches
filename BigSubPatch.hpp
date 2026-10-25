@@ -29,16 +29,17 @@ private:
   LinearAdsrEnvelope env;
   SmoothFloat fc, q;
   float gain;
+  float sr;
 public:
   SynthVoice(float sr, BiquadFilter* f) : 
-    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f) {    
+    osc(sr), filter(f), env(sr), fc(0.25), q(0.77), gain(1.0f), sr(sr) {    
     env.setSustain(1.0);
     env.setDecay(0.0);
     env.setRelease(0.0);
   }
   static SynthVoice* create(float sr){
     // 8-pole filter 48dB
-    return new SynthVoice(sr, BiquadFilter::create(4));
+    return new SynthVoice(sr, BiquadFilter::create(sr, 4));
   }
   static void destroy(SynthVoice* voice){
     BiquadFilter::destroy(voice->filter);    
@@ -73,7 +74,7 @@ public:
     env.gate(state, delay);
   }
   void getSamples(FloatArray samples){
-    filter->setLowPass(fc, q);
+    filter->setLowPass(fc*sr, q); // fc is a fraction of the sample rate; filter wants Hz
     osc.generate(samples);
     filter->process(samples);
     samples.multiply(gain*(0.8-q*0.2)); // gain compensation for high q
