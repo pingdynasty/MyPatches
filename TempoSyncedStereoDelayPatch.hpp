@@ -22,7 +22,7 @@ private:
   CircularBuffer* delayBufferL;
   CircularBuffer* delayBufferR;
   int delayL, delayR;
-  TapTempo<TRIGGER_LIMIT> tempo;
+  PatchTapTempo<TRIGGER_LIMIT> tempo;
   StereoBiquadFilter* highpass;
   StereoBiquadFilter* lowpass;
 public:

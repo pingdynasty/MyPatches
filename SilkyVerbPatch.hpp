@@ -170,7 +170,7 @@ public:
 };
 
 class SilkyVerbPatch : public Patch {
-  TapTempo<TRIGGER_LIMIT> tempo;
+  PatchTapTempo<TRIGGER_LIMIT> tempo;
   int tempocounter;
   StereoDcFilter dc;
   CrossFadeBuffer* delayBufferL;

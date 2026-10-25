@@ -236,8 +236,8 @@ private:
   // RampOscillator lfo1;
   SineOscillator lfo1;
   SineOscillator lfo2;
-  TapTempo<TRIGGER_LIMIT> tempo1;
-  TapTempo<TRIGGER_LIMIT> tempo2;
+  PatchTapTempo<TRIGGER_LIMIT> tempo1;
+  PatchTapTempo<TRIGGER_LIMIT> tempo2;
 public:
   WitchySubPatch() : voices(getSampleRate(), getBlockSize()),
 		     lfo1(getBlockRate()),

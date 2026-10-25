@@ -67,7 +67,7 @@ private:
   CircularBuffer<float>* delayBufferL; // change to use FractionalDelayProcessor
   CircularBuffer<float>* delayBufferR;
   int delayL, delayR, ratio;
-  TapTempo<TRIGGER_LIMIT> tempo;
+  PatchTapTempo<TRIGGER_LIMIT> tempo;
   StereoDcBlockingFilter dc;
   StereoBiquadFilter* lowpass;
   RampOscillator* lfo1;

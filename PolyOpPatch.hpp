@@ -53,11 +53,24 @@ public:
     env.setSustain(s);
     env.setRelease(r);
   }
-  float getNextSample(){
-    return env.getNextSample()*index*osc.getNextSample();
+  float getFrequency(){
+    return osc.getFrequency();
   }
-  float getNextSample(float fm){
-    return env.getNextSample()*index*osc.getNextSample(fm);
+  void setPhase(float phase){
+    osc.setPhase(phase);
+  }
+  float getPhase(){
+    return osc.getPhase();
+  }
+  void reset(){
+    osc.reset();
+  }
+  using Oscillator::generate;
+  float generate(){
+    return env.generate()*index*osc.generate();
+  }
+  float generate(float fm){
+    return env.generate()*index*osc.generate(fm);
   }
   void gate(bool state, uint16_t samples){
     env.gate(state, samples);
@@ -142,6 +155,23 @@ public:
     ops[1].setFrequency(freq);
     ops[2].setFrequency(freq);
     ops[3].setFrequency(freq);
+  }
+  float getFrequency(){
+    return ops[0].getFrequency();
+  }
+  void setPhase(float phase){
+    for(int i=0; i<4; ++i)
+      ops[i].setPhase(phase);
+  }
+  float getPhase(){
+    return ops[0].getPhase();
+  }
+  using Oscillator::generate;
+  float generate(float fm){
+    return generate();
+  }
+  float generate(){
+    return 0.0f;
   }
   float getNextSample(){
     return 0.0f;
@@ -382,7 +412,7 @@ public:
       voice[i]->setParameters(op, index, ratio, offset, env);
   }
   void setAlgorithm(uint8_t algo){
-    algo = max(0, min(12, algo));
+    algo = max(0, min(12, (int)algo));
     for(int i=0; i<MIDI_VOICES; ++i)
       voice[i]->algo = algo;
   }

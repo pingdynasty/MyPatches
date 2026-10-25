@@ -12,7 +12,7 @@ private:
   const float mul;
   CircularBuffer* delayBufferL;
   CircularBuffer* delayBufferR;
-  TapTempo<TRIGGER_LIMIT> tempo;
+  PatchTapTempo<TRIGGER_LIMIT> tempo;
   int delay;
   float lfophase;
   StereoBiquadFilter* highpass;
@@ -42,7 +42,7 @@ public:
     StereoBiquadFilter::destroy(lowpass);
   }
   float process(float sample, CircularBuffer* buf, float delay, float feedback, float wet){
-    delay = max(0.001, min(buf->getSize(), delay));
+    delay = max(0.001f, min((float)buf->getSize(), delay));
     float dly = buf->interpolate(delay);
     buf->write(feedback * dly + sample);
     return dly*wet + sample*(1.0f-wet);
@@ -55,7 +55,7 @@ public:
     float time = tempo.getPeriod();
     float delayL = time*(delayBufferL->getSize()-1);
     float delayR = time*(delayBufferR->getSize()-1);
-    highpass->process(buffer);
+    highpass->process(buffer, buffer);
     FloatArray left = buffer.getSamples(LEFT_CHANNEL);
     FloatArray right = buffer.getSamples(RIGHT_CHANNEL);
     int size = buffer.getSize();
@@ -67,7 +67,7 @@ public:
       if(lfophase > 2*M_PI)
 	lfophase -= 4*M_PI;
     }
-    lowpass->process(buffer);
+    lowpass->process(buffer, buffer);
   }
 };
 
