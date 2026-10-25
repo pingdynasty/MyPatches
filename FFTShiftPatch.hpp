@@ -4,7 +4,6 @@
 #include "Patch.h"
 #include "FastFourierTransform.h"
 #include "Window.h"
-#include "SmoothValue.h"
 
 class FFTShiftPatch : public Patch {
 private:
@@ -24,7 +23,7 @@ public:
     blocksize = getBlockSize();
     fftsize = blocksize*M;
     timedomain = FloatArray::create(fftsize);
-    freqdomain = ComplexFloatArray::create(fftsize); 
+    freqdomain = ComplexFloatArray::create(fftsize/2); 
     overlap = FloatArray::create(blocksize);
     fft.init(fftsize);
     inwin = Window::create(Window::HannWindow, blocksize);
@@ -49,10 +48,11 @@ public:
     timedomain.copyFrom(left);
     timedomain.subArray(blocksize, fftsize-blocksize).clear();
     fft.fft(timedomain, freqdomain);
-    processFreq(freqdomain.subArray(0, fftsize/2));
+    // processFreq(freqdomain.subArray(0, fftsize/2));
+    processFreq(freqdomain);
     fft.ifft(freqdomain, timedomain);
     outwin.apply(timedomain);
-    left.copyFrom(timedomain.subArray(0, blocksize)); // use first half of output
+    left.copyFrom(timedomain); // use first half of output
     left.add(overlap);
     overlap.copyFrom(timedomain.subArray(blocksize, blocksize)); // save second half
   }

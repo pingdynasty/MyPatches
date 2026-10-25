@@ -4,6 +4,7 @@
 #include "OpenWareLibrary.h"
 #include "MorphingLFO.h"
 
+
 // Flangers use much shorter delay times (1ms to 5ms) compared to choruses (5ms to 30ms) and only involve one copy of the original signal while choruses can create multiple copies.
 
 // Figure 10: A four-path chorus unit.
@@ -280,28 +281,6 @@ public:
   // }
 };
 
-template<class Processor>
-class StereoSignalProcessor : public Processor {
-protected:
-  Processor right;
-public:
-  template <typename... Args>
-  StereoSignalProcessor(Args&&... args) :
-    Processor(std::forward<Args>(args)...), right(std::forward<Args>(args)...) {}
-  void process(AudioBuffer& input, AudioBuffer& output){
-    Processor::process(input.getSamples(LEFT_CHANNEL), output.getSamples(LEFT_CHANNEL));
-    right.process(input.getSamples(RIGHT_CHANNEL), output.getSamples(RIGHT_CHANNEL));
-  }
-  template <typename... Args>
-  static StereoSignalProcessor* create(Args&&... args){
-    return new StereoSignalProcessor<Processor>(std::forward<Args>(args)...);
-  }
-  static void destroy(StereoSignalProcessor* processor){
-    delete processor;
-  }
-};
-#endif
-
 template<size_t TAPS=3>
 class StereoChorusProcessor : public MultiSignalProcessor {
 protected:
@@ -352,37 +331,6 @@ public:
   }
 };
 
-// class BufferingSignalProcessor : public SignalProcessor {
-// protected:
-//   CircularFloatBuffer* buffer;
-//   SignalProcessor* processor;
-//   size_t blocksize;
-// public:
-//   BufferingSignalProcessor(SignalProcessor* processor): processor(processor) {}
-//   virtual float process(float input){
-//     buffer->write(input);
-//     if(buffer->getReadCapacity() >= blocksize){
-//       // buffer size must be a multiple of blocksize
-//       ASSERT(buffer->getContiguousReadCapacity() >= blocksize, "Misaligned buffer");
-//       FloatArray data(buffer->getReadHead(), blocksize);
-//       processor->process(data, data);
-//       buffer->moveReadHead(blocksize);
-//     }
-//     return buffer->readAt(buffer->getWriteIndex() - blocksize);
-//   }
-//   virtual void process(FloatArray input, FloatArray output){
-//     buffer->write(input);
-//     if(buffer->getReadCapacity() >= blocksize){
-//       // buffer size must be a multiple of blocksize
-//       ASSERT(buffer->getContiguousReadCapacity() >= blocksize, "Misaligned buffer");
-//       FloatArray data(buffer->getReadHead(), blocksize);
-//       processor->process(data, data);
-//       buffer->moveReadHead(blocksize);
-//     }
-//     return buffer->readAt(buffer->getWriteIndex() - blocksize);
-//   }
-// };
-
 class StereoChorusPatch : public Patch {
 private:
   // typedef FilteredStereoChorusProcessor<taps> StereoChorusMixProcessor;
@@ -392,8 +340,6 @@ private:
   StereoChorusMixProcessor* processor;
   AudioBuffer* outputbuffer;
   MorphingLFO* lfo;
-  static constexpr float LFO_MIN_HZ = 0.1;
-  static constexpr float LFO_MAX_HZ = 40;
 public:
   StereoChorusPatch(){
     registerParameter(PARAMETER_A, "Rate");
@@ -403,9 +349,9 @@ public:
     registerParameter(PARAMETER_E, "Delay");
     registerParameter(PARAMETER_AA, "LFO Shape");
     processor = StereoChorusMixProcessor::create(getSampleRate(), getBlockSize(), 0.200*getSampleRate());
-    lfo = MorphingLFO::create(getSampleRate(), LFO_MIN_HZ, LFO_MAX_HZ, getBlockRate(), getBlockSize());
+    lfo = MorphingLFO::create(getSampleRate(), TRIGGER_LIMIT, getBlockRate());
     lfo->setBeatsPerMinute(8);
-    setParameterValue(PARAMETER_AA, (float)MorphingLFO::SINE/(MorphingLFO::NOF_SHAPES - 1));
+    setParameterValue(PARAMETER_AA, (float)MorphingLFO::TRIANGLE/(MorphingLFO::NOF_SHAPES - 1));
     outputbuffer = AudioBuffer::create(2, getBlockSize());
   }
   ~StereoChorusPatch(){
@@ -422,7 +368,7 @@ public:
   }
   void processAudio(AudioBuffer &buffer) {
     float speed = getParameterValue(PARAMETER_A)*3-1;
-    lfo->morph(getParameterValue(PARAMETER_AA));
+    lfo->select(getParameterValue(PARAMETER_AA));
     lfo->clock(getBlockSize());
     lfo->adjustSpeed(speed);
     setButton(PUSHBUTTON, lfo->getPhase() < M_PI);
