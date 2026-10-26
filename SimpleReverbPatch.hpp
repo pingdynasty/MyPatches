@@ -61,8 +61,8 @@ public:
     float* left = audio.getSamples(LEFT_CHANNEL);
     float* right = audio.getSamples(RIGHT_CHANNEL);
     int size = audio.getSize();
-    reverb(left, lbuf, size, &lp);
-    reverb(right, rbuf, size, &rp);
+    SimpleReverb::reverb(left, lbuf, size, &lp);
+    SimpleReverb::reverb(right, rbuf, size, &rp);
     for(int i=0; i<size; ++i){
       left[i] = lbuf[i]*wet + left[i]*(1-wet);
       right[i] = rbuf[i]*wet + right[i]*(1-wet);
