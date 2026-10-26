@@ -28,7 +28,7 @@
 
 #define FAKE_INFINITY (65536.0 * 65536.0)
 #define IS_FAKE_INFINITY(value) (fabs(value-FAKE_INFINITY) < 1.0)
-#include "calfprimitives.h"
+#include "Calf/primitives.h"
 
 namespace dsp {
 

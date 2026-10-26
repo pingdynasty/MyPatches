@@ -15,10 +15,10 @@
 
 #define FAKE_INFINITY (65536.0 * 65536.0)
 #define IS_FAKE_INFINITY(value) (fabs(value-FAKE_INFINITY) < 1.0)
-#include "calfprimitives.h"
 #include <complex>
-#include "calf/src/calf/fixed_point.h"
-#include "calf/src/calf/delay.h"
+#include "Calf/primitives.h"
+#include "Calf/fixed_point.h"
+#include "Calf/delay.h"
 
 namespace dsp {
 
