@@ -14,7 +14,3 @@ float f(float x, float a){
 // in the range -1<=x<1, 2<=a
 // for a=2 this produces amplitude 0.25, a=4.5 amplitude 0.5, a=100 amplitude 0.945
 
-float f(float x, float a){
-  return x * (1 - powf(abs(x), a));
-}
-
