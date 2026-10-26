@@ -1,3 +1,6 @@
+#ifndef __WitchPatches_common_h__
+#define __WitchPatches_common_h__
+
 #define PATCH_PERFORMANCE
 
 #ifdef PATCH_EXPRESSION
@@ -52,3 +55,5 @@
 #define FX_DELAY                                    47
 #define FX_OVERDRIVE                                79
 #define FX_CHORUS                                  111
+
+#endif // __WitchPatches_common_h__
